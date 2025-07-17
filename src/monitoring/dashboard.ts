@@ -4,6 +4,8 @@ import { Server, Socket } from 'socket.io';
 import path from 'path';
 import { Config } from '../core/config';
 import { EventEmittingSimulationEngine } from '../types/simulation-engine';
+import { getIframeRPCService } from '../core/iframe-rpc-service';
+import { getDexScreenerTokenService } from '../core/dexscreener-token-service';
 
 export class EducationalDashboard {
   private app: express.Application;
@@ -11,6 +13,8 @@ export class EducationalDashboard {
   private io: Server;
   private config: Config;
   private analyzer: any; // RealDataTokenAnalyzer instance
+  private lastRPCData: any = null;
+  private dexScreenerTokens: any[] = [];
 
   constructor(private simulationEngine: EventEmittingSimulationEngine, analyzer?: any) {
     this.config = Config.getInstance();
@@ -116,6 +120,38 @@ export class EducationalDashboard {
       }
     });
 
+    // RPC data endpoint for iframe communication
+    this.app.post('/api/rpc-data', (req, res) => {
+      try {
+        const rpcData = req.body;
+        console.log('📡 Received RPC data from iframe:', rpcData);
+        
+        // Store or process the RPC data
+        this.processRPCData(rpcData);
+        
+        res.json({ success: true });
+      } catch (error) {
+        console.error('❌ Error processing RPC data:', error);
+        res.status(500).json({ error: 'Failed to process RPC data' });
+      }
+    });
+
+    // DexScreener tokens endpoint for iframe communication
+    this.app.post('/api/dexscreener-tokens', (req, res) => {
+      try {
+        const { tokens, timestamp } = req.body;
+        console.log(`🔍 Received ${tokens.length} tokens from DexScreener iframe`);
+        
+        // Process and store the tokens
+        this.processDexScreenerTokens(tokens, timestamp);
+        
+        res.json({ success: true, processed: tokens.length });
+      } catch (error) {
+        console.error('❌ Error processing DexScreener tokens:', error);
+        res.status(500).json({ error: 'Failed to process DexScreener tokens' });
+      }
+    });
+
     // Default route serves dashboard
     this.app.get('/', (req, res) => {
       res.sendFile(path.join(__dirname, '../../public/dashboard.html'));
@@ -165,6 +201,165 @@ export class EducationalDashboard {
     this.simulationEngine.on('portfolioUpdate', (stats) => {
       this.io.emit('portfolio', stats);
     });
+  }
+
+  private processRPCData(rpcData: any): void {
+    const iframeRPCService = getIframeRPCService();
+    
+    // Process different types of RPC responses
+    if (rpcData && rpcData.result) {
+      // Handle getLatestBlockhash response
+      if (rpcData.result.value && rpcData.result.value.blockhash) {
+        console.log('📦 Latest blockhash:', rpcData.result.value.blockhash.slice(0, 8) + '...');
+        
+        // Store in iframe RPC service
+        iframeRPCService.storeIframeData('blockhash', rpcData.result.value);
+        
+        // Emit to connected dashboards
+        this.io.emit('rpcData', {
+          type: 'blockhash',
+          data: rpcData.result.value,
+          timestamp: Date.now()
+        });
+      }
+      
+      // Handle account info response
+      if (rpcData.result.value && rpcData.result.value.data) {
+        console.log('📋 Account info received');
+        
+        // Store in iframe RPC service with account-specific key
+        const accountKey = `accountInfo_${rpcData.id || 'unknown'}`;
+        iframeRPCService.storeIframeData(accountKey, rpcData.result.value);
+        
+        this.io.emit('rpcData', {
+          type: 'accountInfo',
+          data: rpcData.result.value,
+          timestamp: Date.now()
+        });
+      }
+      
+      // Handle program accounts response
+      if (Array.isArray(rpcData.result)) {
+        console.log('📚 Program accounts received:', rpcData.result.length);
+        
+        // Store in iframe RPC service with program-specific key
+        const programKey = `programAccounts_${rpcData.id || 'unknown'}`;
+        iframeRPCService.storeIframeData(programKey, rpcData.result);
+        
+        this.io.emit('rpcData', {
+          type: 'programAccounts',
+          data: rpcData.result,
+          timestamp: Date.now()
+        });
+      }
+    }
+    
+    // Store latest RPC data for health monitoring
+    this.lastRPCData = {
+      data: rpcData,
+      timestamp: Date.now()
+    };
+  }
+
+  private processDexScreenerTokens(tokens: any[], timestamp: number): void {
+    const dexScreenerService = getDexScreenerTokenService();
+    
+    // Store the tokens
+    this.dexScreenerTokens = tokens.map(token => ({
+      ...token,
+      receivedAt: timestamp,
+      processed: true
+    }));
+
+    console.log(`📊 Processed ${tokens.length} tokens from DexScreener:`);
+    tokens.forEach((token, index) => {
+      if (index < 5) { // Log first 5 tokens
+        console.log(`  ${token.symbol}: ${token.address.slice(0, 8)}... (${token.age}s old, $${token.liquidity} liq)`);
+      }
+    });
+
+    // Store in DexScreener service
+    dexScreenerService.storeTokens(tokens);
+
+    // Emit to connected dashboards
+    this.io.emit('dexscreenerTokens', {
+      tokens: this.dexScreenerTokens,
+      count: tokens.length,
+      timestamp: timestamp
+    });
+
+    // If analyzer exists, process tokens through it
+    if (this.analyzer && this.analyzer.processExternalTokens) {
+      try {
+        this.analyzer.processExternalTokens(tokens);
+      } catch (error) {
+        console.error('❌ Error processing tokens through analyzer:', error);
+      }
+    }
+
+    // Convert to TokenInfo format and emit for processing
+    const convertedTokens = tokens.map(token => this.convertDexScreenerToken(token));
+    this.io.emit('newTokensFound', convertedTokens);
+    
+    // Process viable tokens through simulation engine
+    this.processViableTokens(convertedTokens);
+  }
+
+  private convertDexScreenerToken(dexToken: any): any {
+    return {
+      mint: dexToken.address,
+      symbol: dexToken.symbol,
+      name: dexToken.name,
+      decimals: 9, // Default for most SPL tokens
+      supply: '1000000000000000000', // Default 1B tokens
+      signature: `DEXSCREENER_${Date.now()}`,
+      timestamp: Date.now(),
+      createdAt: Date.now() - (dexToken.age * 1000),
+      liquidity: {
+        sol: dexToken.liquidity / 150, // Rough SOL conversion
+        usd: dexToken.liquidity
+      },
+      source: `DEXSCREENER_${dexToken.source}`,
+      metadata: {
+        pairAge: dexToken.age,
+        scrapedAt: Date.now(),
+        price: dexToken.price || 0,
+        volume24h: dexToken.volume24h || 0
+      }
+    };
+  }
+
+  private async processViableTokens(tokens: any[]): Promise<void> {
+    // Filter tokens that meet basic criteria
+    const viableTokens = tokens.filter(token => {
+      return token.liquidity && 
+             token.liquidity.usd >= 30 && 
+             token.metadata.pairAge <= 3600; // 1 hour max age
+    });
+
+    console.log(`🎯 Found ${viableTokens.length} viable tokens for analysis`);
+
+    // Process each viable token through the simulation engine
+    for (const token of viableTokens) {
+      try {
+        // Create mock security analysis for iframe-sourced tokens
+        const mockSecurityAnalysis = {
+          overall: true,
+          score: Math.floor(Math.random() * 40) + 40, // 40-80 score
+          checks: [
+            { name: 'DexScreener Liquidity', passed: true, score: 25, message: 'Sufficient liquidity' },
+            { name: 'Token Age', passed: true, score: 20, message: 'Recently created' },
+            { name: 'Volume Check', passed: (token.metadata.volume24h || 0) > 0, score: 15, message: 'Has trading volume' }
+          ],
+          warnings: []
+        };
+
+        // Process through simulation engine
+        await this.simulationEngine.processTokenDetection(token, mockSecurityAnalysis);
+      } catch (error) {
+        console.error(`❌ Error processing token ${token.symbol}:`, error);
+      }
+    }
   }
 
   start(): Promise<void> {

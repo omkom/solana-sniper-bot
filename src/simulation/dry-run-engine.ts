@@ -27,47 +27,124 @@ export class DryRunEngine extends EventEmitter implements EventEmittingSimulatio
     console.log(`🔒 Security score: ${securityAnalysis.score}/100`);
 
     // Check if we should simulate a buy
-    const shouldBuy = this.shouldSimulateBuy(tokenInfo, securityAnalysis);
+    const decision = this.evaluateTokenDecision(tokenInfo, securityAnalysis);
     
-    if (shouldBuy) {
-      await this.simulateBuy(tokenInfo, securityAnalysis.score);
+    console.log(`📋 Analysis Decision: ${decision.action}`);
+    console.log(`💭 Reason: ${decision.reason}`);
+    
+    if (decision.action === 'BUY') {
+      // Take position immediately for viable tokens
+      await this.simulateBuy(tokenInfo, securityAnalysis.score, decision.urgency);
     } else {
-      console.log(`❌ Skipping token: ${this.getSkipReason(tokenInfo, securityAnalysis)}`);
+      console.log(`❌ Skipping token: ${decision.reason}`);
+      
+      // Emit skip event for tracking
+      this.emit('tokenSkipped', {
+        mint: tokenInfo.mint,
+        symbol: tokenInfo.symbol,
+        reason: decision.reason
+      });
     }
 
     this.updatePortfolioMetrics();
     this.emit('portfolioUpdate', this.getPortfolioStats());
   }
 
-  private shouldSimulateBuy(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): boolean {
-    // Check security score
-    if (securityAnalysis.score < this.config.minConfidenceScore) {
-      return false;
+  private evaluateTokenDecision(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): {
+    action: 'BUY' | 'SKIP';
+    reason: string;
+    urgency: 'HIGH' | 'MEDIUM' | 'LOW';
+  } {
+    // MODIFIED: Much more permissive criteria - buy almost every token
+    
+    // Only skip if security score is extremely low (below 10)
+    if (securityAnalysis.score < 10) {
+      return {
+        action: 'SKIP',
+        reason: `Extremely low security score (${securityAnalysis.score} < 10)`,
+        urgency: 'LOW'
+      };
     }
 
-    // Check if we have too many positions
-    if (this.positions.size >= this.config.maxSimulatedPositions) {
-      return false;
+    // Increase max positions to 100 (was 25)
+    if (this.positions.size >= 100) {
+      return {
+        action: 'SKIP',
+        reason: `Max positions reached (${this.positions.size}/100)`,
+        urgency: 'LOW'
+      };
     }
 
-    // Check if we have enough balance
-    if (this.portfolio.currentBalance < this.config.simulatedInvestment) {
-      return false;
+    // Use smaller investment amount (0.01 SOL instead of 0.03)
+    const investmentAmount = 0.01;
+    if (this.portfolio.currentBalance < investmentAmount) {
+      return {
+        action: 'SKIP',
+        reason: `Insufficient balance (${this.portfolio.currentBalance.toFixed(3)} SOL)`,
+        urgency: 'LOW'
+      };
     }
 
-    // Check token age
+    // Allow much older tokens (24 hours instead of 30 seconds)
     const ageMs = Date.now() - tokenInfo.createdAt;
-    if (ageMs > this.config.maxAnalysisAge) {
-      return false;
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    if (ageMs > maxAge) {
+      return {
+        action: 'SKIP',
+        reason: `Token too old (${Math.round(ageMs / 1000 / 60)}m > ${maxAge / 1000 / 60}m)`,
+        urgency: 'LOW'
+      };
     }
 
-    // Simulate random market conditions (for educational variety)
-    const marketCondition = Math.random();
-    if (marketCondition < 0.2) { // 20% chance to skip due to "market conditions"
-      return false;
+    // Determine buy urgency based on factors
+    let urgency: 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
+    let buyReasons: string[] = [];
+
+    // High urgency factors
+    if (securityAnalysis.score >= 90) {
+      urgency = 'HIGH';
+      buyReasons.push('excellent security score');
+    }
+    
+    if (tokenInfo.source === 'pump_detector' || tokenInfo.metadata?.pumpDetected) {
+      urgency = 'HIGH';
+      buyReasons.push('pump detected');
+    }
+    
+    if (tokenInfo.liquidity?.usd && tokenInfo.liquidity.usd >= 50000) {
+      urgency = 'HIGH';
+      buyReasons.push('high liquidity');
     }
 
-    return true;
+    // Medium urgency factors
+    if (securityAnalysis.score >= 75) {
+      buyReasons.push('good security score');
+    }
+    
+    if (ageMs < 300000) { // Less than 5 minutes old
+      urgency = urgency === 'HIGH' ? 'HIGH' : 'MEDIUM';
+      buyReasons.push('fresh token');
+    }
+
+    if (tokenInfo.liquidity?.usd && tokenInfo.liquidity.usd >= 10000) {
+      buyReasons.push('adequate liquidity');
+    }
+
+    // Build reason string
+    const reasonText = buyReasons.length > 0 
+      ? `Viable token: ${buyReasons.join(', ')}`
+      : 'Token meets minimum requirements';
+
+    return {
+      action: 'BUY',
+      reason: reasonText,
+      urgency
+    };
+  }
+
+  private shouldSimulateBuy(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): boolean {
+    const decision = this.evaluateTokenDecision(tokenInfo, securityAnalysis);
+    return decision.action === 'BUY';
   }
 
   private getSkipReason(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): string {
@@ -91,17 +168,33 @@ export class DryRunEngine extends EventEmitter implements EventEmittingSimulatio
     return 'Market conditions unfavorable';
   }
 
-  private async simulateBuy(tokenInfo: TokenInfo, securityScore: number): Promise<void> {
+  private async simulateBuy(tokenInfo: TokenInfo, securityScore: number, urgency: 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM'): Promise<void> {
     const positionId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Calculate position size based on security score
-    let positionSize = this.config.simulatedInvestment;
+    // Calculate position size based on security score and urgency
+    // Use smaller base investment amount (0.01 SOL)
+    let positionSize = 0.01;
+    let urgencyMultiplier = 1.0;
+    
+    // Urgency multiplier
+    if (urgency === 'HIGH') {
+      urgencyMultiplier = 2.0; // Double position size for high urgency
+    } else if (urgency === 'MEDIUM') {
+      urgencyMultiplier = 1.5;
+    }
+    
+    // Security score multiplier
     if (securityScore >= 90) {
-      positionSize *= 1.5; // Increase position size for high-confidence tokens
+      positionSize *= 2.0; // Increase position size for high-confidence tokens
     } else if (securityScore >= 80) {
+      positionSize *= 1.5;
+    } else if (securityScore >= 60) {
       positionSize *= 1.2;
     }
+    
+    // Apply urgency multiplier
+    positionSize *= urgencyMultiplier;
 
     // Ensure we don't exceed available balance
     positionSize = Math.min(positionSize, this.portfolio.currentBalance);
@@ -127,7 +220,7 @@ export class DryRunEngine extends EventEmitter implements EventEmittingSimulatio
       timestamp: Date.now(),
       price: entryPrice,
       amount: positionSize,
-      reason: `Security score: ${securityScore}`,
+      reason: `${urgency} urgency, Security: ${securityScore}, Source: ${tokenInfo.source}`,
       simulation: true
     };
 
@@ -171,7 +264,7 @@ export class DryRunEngine extends EventEmitter implements EventEmittingSimulatio
         this.simulateSell(positionId, 'Time limit reached');
       }
       clearInterval(monitoringInterval);
-    }, 120000); // Close after 2 minutes max
+    }, 300000); // Close after 5 minutes max
   }
 
   private updatePositionPrice(positionId: string): void {
@@ -210,7 +303,7 @@ export class DryRunEngine extends EventEmitter implements EventEmittingSimulatio
       exitReason = `Take profit triggered (+${position.roi.toFixed(1)}%)`;
     }
     // Random exit for demo variety
-    else if (Math.random() < 0.01) { // 1% chance per check
+    else if (Math.random() < 0.005) { // 0.5% chance per check
       shouldExit = true;
       exitReason = 'Random exit (demo)';
     }

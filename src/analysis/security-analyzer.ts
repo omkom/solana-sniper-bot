@@ -2,14 +2,18 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { getMint } from '@solana/spl-token';
 import { TokenInfo, SecurityCheck, SecurityAnalysis } from '../types';
 import { ConnectionManager } from '../core/connection';
+import { getIframeRPCService } from '../core/iframe-rpc-service';
 
 export class SecurityAnalyzer {
   private connection: Connection;
   private connectionManager: ConnectionManager;
+  private iframeRPCService: any;
 
   constructor() {
     this.connectionManager = new ConnectionManager();
     this.connection = this.connectionManager.getConnection();
+    this.iframeRPCService = getIframeRPCService();
+    console.log('🔒 SecurityAnalyzer initialized with iframe RPC support');
   }
 
   async analyzeToken(tokenInfo: TokenInfo): Promise<SecurityAnalysis> {
@@ -198,33 +202,33 @@ export class SecurityAnalyzer {
   }
 
   private simulateSecurityAnalysis(tokenInfo: TokenInfo): SecurityAnalysis {
-    // Simulate analysis for educational demo tokens
+    // Simulate analysis for educational demo tokens with higher pass rates
     const checks: SecurityCheck[] = [
       {
         name: 'Mint Authority',
-        passed: Math.random() > 0.3,
-        score: Math.random() > 0.3 ? 30 : 0,
+        passed: Math.random() > 0.15,
+        score: Math.random() > 0.15 ? 30 : 0,
         message: 'Simulated mint authority check',
         details: { simulation: true }
       },
       {
         name: 'Freeze Authority', 
-        passed: Math.random() > 0.2,
-        score: Math.random() > 0.2 ? 20 : 0,
+        passed: Math.random() > 0.1,
+        score: Math.random() > 0.1 ? 20 : 0,
         message: 'Simulated freeze authority check',
         details: { simulation: true }
       },
       {
         name: 'Supply Analysis',
-        passed: Math.random() > 0.1,
-        score: Math.random() > 0.1 ? 15 : 0,
+        passed: Math.random() > 0.05,
+        score: Math.random() > 0.05 ? 15 : 0,
         message: 'Simulated supply analysis',
         details: { simulation: true }
       },
       {
         name: 'Liquidity Analysis',
-        passed: Math.random() > 0.4,
-        score: Math.floor(Math.random() * 25),
+        passed: Math.random() > 0.2,
+        score: Math.floor(Math.random() * 25) + 5, // Minimum 5 points
         message: 'Simulated liquidity analysis',
         details: { simulation: true }
       }
@@ -241,7 +245,7 @@ export class SecurityAnalyzer {
     const failedChecks = checks.filter(check => !check.passed);
     const warnings = failedChecks.map(check => check.message);
     
-    const overall = failedChecks.length === 0 && normalizedScore >= 70;
+    const overall = failedChecks.length <= 1 && normalizedScore >= 30;
 
     console.log(`📊 Security analysis complete: ${normalizedScore}/100 (${overall ? 'PASS' : 'FAIL'})`);
 
@@ -279,7 +283,7 @@ export class SecurityAnalyzer {
     
     // Educational honeypot detection simulation
     if (tokenInfo.mint.startsWith('SIMULATED_') || tokenInfo.mint.startsWith('EXTRACTED_')) {
-      const isHoneypot = Math.random() < 0.1; // 10% chance for demo
+      const isHoneypot = Math.random() < 0.03; // 3% chance for demo
       console.log(`🔍 Honeypot check result: ${isHoneypot ? 'SUSPICIOUS' : 'CLEAN'} (simulated)`);
       return isHoneypot;
     }

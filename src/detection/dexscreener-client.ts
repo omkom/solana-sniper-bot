@@ -5,7 +5,7 @@ import { DexScreenerResponse, DexScreenerPair, RealTokenInfo, MarketFilters } fr
 export class DexScreenerClient {
   private baseUrl = 'https://api.dexscreener.com';
   private lastRequestTime = 0;
-  private rateLimitDelay = 2000; // 2 seconds between requests
+  private rateLimitDelay = 3000; // 3 seconds between requests
   private cache = new Map<string, { data: any; timestamp: number }>();
   private cacheTimeout = 30000; // 30 seconds cache
 
@@ -64,19 +64,15 @@ export class DexScreenerClient {
     await this.throttleRequest();
 
     try {
-      // Use the search endpoint to find trending pairs
-      const url = `${this.baseUrl}/latest/dex/search`;
-      const searchQuery = 'SOL'; // Search for SOL pairs
+      // Use the pairs endpoint for solana chain specifically
+      const url = `${this.baseUrl}/latest/dex/pairs/solana`;
       
-      logger.info('Fetching latest trading pairs', { filters: finalFilters });
+      logger.info('Fetching latest Solana trading pairs', { filters: finalFilters });
       
       const response = await axios.get(url, {
         timeout: 10000,
         headers: {
           'User-Agent': 'Educational-Token-Analyzer/1.0'
-        },
-        params: {
-          q: searchQuery
         }
       });
 
@@ -93,9 +89,38 @@ export class DexScreenerClient {
         }
         
         if (pairs.length > 0) {
-          // Filter to Solana chain first
-          const solanaPairs = pairs.filter((pair: any) => pair.chainId === 'solana');
-          logger.info(`Found ${solanaPairs.length} Solana pairs`);
+          // Log sample pairs for debugging
+          logger.info('Sample DexScreener pairs', {
+            samplePairs: pairs.slice(0, 3).map((pair: any) => ({
+              chainId: pair.chainId,
+              dexId: pair.dexId,
+              symbol: pair.baseToken?.symbol,
+              priceUsd: pair.priceUsd,
+              liquidity: pair.liquidity?.usd
+            }))
+          });
+          
+          // Debug: Show all unique chainIds and dexIds
+          const uniqueChainIds = [...new Set(pairs.map((p: any) => p.chainId))];
+          const uniqueDexIds = [...new Set(pairs.map((p: any) => p.dexId))];
+          logger.info('DexScreener chain and dex IDs found', {
+            chainIds: uniqueChainIds,
+            dexIds: uniqueDexIds
+          });
+          
+          // Filter to Solana chain first - be more flexible with chain ID
+          const solanaPairs = pairs.filter((pair: any) => {
+            return pair.chainId === 'solana' || 
+                   pair.chainId === 'sol' || 
+                   pair.dexId === 'raydium' || 
+                   pair.dexId === 'orca' || 
+                   pair.dexId === 'meteora' || 
+                   pair.dexId === 'pumpfun' ||
+                   pair.dexId === 'pump' ||
+                   pair.dexId === 'jupiter';
+          });
+          
+          logger.info(`Found ${solanaPairs.length} Solana pairs from ${pairs.length} total pairs`);
           
           // Apply basic filtering and convert to our format
           const filteredPairs = solanaPairs.filter((pair: any) => {
@@ -104,8 +129,10 @@ export class DexScreenerClient {
                    (finalFilters.minLiquidity === undefined || pair.liquidity.usd >= finalFilters.minLiquidity);
           });
           
-          const tokens = filteredPairs.map((pair: any) => this.convertPairToTokenInfo(pair));
-          logger.info(`After filtering: ${tokens.length} tokens`);
+          logger.info(`After liquidity filtering: ${filteredPairs.length} pairs`);
+          
+          const tokens = filteredPairs.map((pair: any) => this.convertPairToTokenInfo(pair)).filter((token: RealTokenInfo | null) => token !== null);
+          logger.info(`After token conversion: ${tokens.length} tokens`);
           allTokens = tokens;
         }
       }
@@ -164,6 +191,10 @@ export class DexScreenerClient {
       // Use the first pair (usually the most liquid)
       const pair = response.data.pairs[0];
       const tokenInfo = this.convertPairToTokenInfo(pair);
+      if (!tokenInfo) {
+        logger.warn(`Invalid token address for ${pair.baseToken.symbol}, skipping`);
+        return null;
+      }
       
       this.setCachedData(cacheKey, tokenInfo);
       
@@ -236,11 +267,18 @@ export class DexScreenerClient {
         return true;
       })
       .map(pair => this.convertPairToTokenInfo(pair))
+      .filter((token: RealTokenInfo | null) => token !== null)
       .slice(0, 50); // Limit to 50 tokens
   }
 
-  private convertPairToTokenInfo(pair: DexScreenerPair): RealTokenInfo {
+  private convertPairToTokenInfo(pair: DexScreenerPair): RealTokenInfo | null {
     const now = Date.now();
+    
+    // Validate Solana address format before processing
+    if (!this.isValidSolanaAddress(pair.baseToken.address)) {
+      console.warn(`⚠️ Skipping token with invalid Solana address: ${pair.baseToken.symbol} (${pair.baseToken.address})`);
+      return null;
+    }
     
     return {
       chainId: pair.chainId,
@@ -271,6 +309,30 @@ export class DexScreenerClient {
       detected: true,
       detectedAt: now
     };
+  }
+
+  private isValidSolanaAddress(address: string): boolean {
+    try {
+      // Check basic format - Solana addresses are base58 and typically 32-44 characters
+      if (!address || address.length < 32 || address.length > 44) {
+        return false;
+      }
+      
+      // Check for Ethereum address format (0x...)
+      if (address.startsWith('0x')) {
+        return false;
+      }
+      
+      // Check for valid base58 characters only
+      const base58Regex = /^[1-9A-HJ-NP-Za-km-z]+$/;
+      if (!base58Regex.test(address)) {
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   private calculateTrendingScore(pair: DexScreenerPair): number {
@@ -318,18 +380,15 @@ export class DexScreenerClient {
     await this.throttleRequest();
 
     try {
-      // Use search endpoint to find active pairs for boost analysis
-      const url = `${this.baseUrl}/latest/dex/search`;
+      // Use pairs endpoint for solana chain specifically
+      const url = `${this.baseUrl}/latest/dex/pairs/solana`;
       
-      logger.info('Fetching latest trading pairs for boost analysis');
+      logger.info('Fetching latest Solana trading pairs for boost analysis');
       
       const response = await axios.get(url, {
         timeout: 10000,
         headers: {
           'User-Agent': 'Educational-Token-Analyzer/1.0'
-        },
-        params: {
-          q: 'SOL'
         }
       });
 
@@ -347,7 +406,7 @@ export class DexScreenerClient {
         });
         
         logger.info(`Found ${boostCandidates.length} boost candidate pairs`);
-        boostedTokens = boostCandidates.map((pair: DexScreenerPair) => this.convertPairToTokenInfo(pair));
+        boostedTokens = boostCandidates.map((pair: DexScreenerPair) => this.convertPairToTokenInfo(pair)).filter((token: RealTokenInfo | null) => token !== null);
       }
 
       // Cache the results
@@ -379,18 +438,15 @@ export class DexScreenerClient {
     await this.throttleRequest();
 
     try {
-      // Use search endpoint to find top active pairs
-      const url = `${this.baseUrl}/latest/dex/search`;
+      // Use pairs endpoint for solana chain specifically
+      const url = `${this.baseUrl}/latest/dex/pairs/solana`;
       
-      logger.info('Fetching trading pairs for top activity analysis');
+      logger.info('Fetching Solana trading pairs for top activity analysis');
       
       const response = await axios.get(url, {
         timeout: 10000,
         headers: {
           'User-Agent': 'Educational-Token-Analyzer/1.0'
-        },
-        params: {
-          q: 'USDC' // Search for USDC pairs for better liquidity
         }
       });
 
@@ -412,7 +468,7 @@ export class DexScreenerClient {
           .slice(0, 20); // Top 20
         
         logger.info(`Found ${topCandidates.length} top activity pairs`);
-        topBoostedTokens = topCandidates.map((pair: DexScreenerPair) => this.convertPairToTokenInfo(pair));
+        topBoostedTokens = topCandidates.map((pair: DexScreenerPair) => this.convertPairToTokenInfo(pair)).filter((token: RealTokenInfo | null) => token !== null);
       }
 
       // Cache the results

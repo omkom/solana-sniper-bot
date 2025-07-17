@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPC Iframe</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: transparent;
+            display: none; /* Hidden iframe */
+        }
+    </style>
+</head>
+<body>
+    <div id="status">RPC Iframe Ready</div>
+    
+    <script>
+        class PumpFunRPCClient {
+            constructor() {
+                this.endpoint = 'https://pump-fe.helius-rpc.com/?api-key=1b8db865-a5a1-4535-9aec-01061440523b';
+                this.setupMessageListener();
+                this.sendReadyMessage();
+            }
+
+            setupMessageListener() {
+                window.addEventListener('message', (event) => {
+                    if (event.origin !== window.location.origin) return;
+                    
+                    if (event.data.type === 'RPC_REQUEST') {
+                        this.handleRPCRequest(event.data.payload);
+                    }
+                });
+            }
+
+            sendReadyMessage() {
+                window.parent.postMessage({
+                    type: 'RPC_IFRAME_READY',
+                    timestamp: Date.now()
+                }, '*');
+            }
+
+            async handleRPCRequest(payload) {
+                try {
+                    const response = await this.makeRPCCall(payload);
+                    
+                    window.parent.postMessage({
+                        type: 'RPC_RESPONSE',
+                        payload: response,
+                        requestId: payload.requestId,
+                        timestamp: Date.now()
+                    }, '*');
+                } catch (error) {
+                    window.parent.postMessage({
+                        type: 'RPC_ERROR',
+                        error: error.message,
+                        requestId: payload.requestId,
+                        timestamp: Date.now()
+                    }, '*');
+                }
+            }
+
+            async makeRPCCall(payload) {
+                const response = await fetch(this.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'accept': '*/*',
+                        'content-type': 'application/json',
+                        'origin': window.location.origin,
+                        'referer': window.location.href,
+                        'solana-client': 'js/1.0.0-maintenance'
+                    },
+                    body: JSON.stringify(payload.rpcCall)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`RPC call failed: ${response.status} ${response.statusText}`);
+                }
+
+                return await response.json();
+            }
+
+            // Helper method to get latest blockhash
+            async getLatestBlockhash(commitment = 'processed') {
+                const rpcCall = {
+                    method: 'getLatestBlockhash',
+                    jsonrpc: '2.0',
+                    params: [{ commitment }],
+                    id: this.generateRequestId()
+                };
+
+                return await this.makeRPCCall({ rpcCall });
+            }
+
+            // Helper method to get account info
+            async getAccountInfo(address, commitment = 'processed') {
+                const rpcCall = {
+                    method: 'getAccountInfo',
+                    jsonrpc: '2.0',
+                    params: [address, { commitment, encoding: 'base64' }],
+                    id: this.generateRequestId()
+                };
+
+                return await this.makeRPCCall({ rpcCall });
+            }
+
+            // Helper method to get program accounts
+            async getProgramAccounts(programId, config = {}) {
+                const rpcCall = {
+                    method: 'getProgramAccounts',
+                    jsonrpc: '2.0',
+                    params: [programId, { commitment: 'processed', encoding: 'base64', ...config }],
+                    id: this.generateRequestId()
+                };
+
+                return await this.makeRPCCall({ rpcCall });
+            }
+
+            generateRequestId() {
+                return `rpc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            }
+        }
+
+        // Initialize RPC client
+        const rpcClient = new PumpFunRPCClient();
+
+        // Auto-test connection every 30 seconds
+        setInterval(async () => {
+            try {
+                const result = await rpcClient.getLatestBlockhash();
+                window.parent.postMessage({
+                    type: 'RPC_HEALTH_CHECK',
+                    healthy: true,
+                    result: result,
+                    timestamp: Date.now()
+                }, '*');
+            } catch (error) {
+                window.parent.postMessage({
+                    type: 'RPC_HEALTH_CHECK',
+                    healthy: false,
+                    error: error.message,
+                    timestamp: Date.now()
+                }, '*');
+            }
+        }, 30000);
+
+        // Test connection immediately
+        setTimeout(async () => {
+            try {
+                const result = await rpcClient.getLatestBlockhash();
+                window.parent.postMessage({
+                    type: 'RPC_INITIAL_TEST',
+                    success: true,
+                    result: result,
+                    timestamp: Date.now()
+                }, '*');
+            } catch (error) {
+                window.parent.postMessage({
+                    type: 'RPC_INITIAL_TEST',
+                    success: false,
+                    error: error.message,
+                    timestamp: Date.now()
+                }, '*');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

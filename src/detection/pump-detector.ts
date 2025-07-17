@@ -27,6 +27,9 @@ export class PumpDetector extends EventEmitter {
   private previousSnapshots: Map<string, RealTokenInfo> = new Map();
   private config: PumpDetectionConfig;
   private lastScanTime: number = 0;
+  private errorCount: number = 0;
+  private maxConsecutiveErrors: number = 5;
+  private backoffMultiplier: number = 1;
 
   constructor() {
     super();
@@ -53,12 +56,8 @@ export class PumpDetector extends EventEmitter {
     this.isRunning = true;
     this.lastScanTime = Date.now();
 
-    // Start continuous scanning
-    this.scanInterval = setInterval(() => {
-      this.scanForPumps().catch(error => {
-        logger.error('Error in pump scanning', { error });
-      });
-    }, this.config.scanInterval);
+    // Start continuous scanning with dynamic interval
+    this.scheduleNextScan();
 
     // Initial scan
     await this.scanForPumps();
@@ -136,11 +135,49 @@ export class PumpDetector extends EventEmitter {
         console.log(`🚨 Detected ${detectedPumps} potential pumps`);
       }
 
+      // Reset error count on successful scan
+      this.errorCount = 0;
+      this.backoffMultiplier = 1;
       this.lastScanTime = now;
 
     } catch (error) {
-      logger.error('Error scanning for pumps', { error });
+      this.errorCount++;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      logger.error('Error scanning for pumps', { 
+        error: errorMessage,
+        stack: errorStack,
+        errorCount: this.errorCount,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Circuit breaker - slow down on repeated errors
+      if (this.errorCount >= this.maxConsecutiveErrors) {
+        this.backoffMultiplier = Math.min(this.backoffMultiplier * 2, 8); // Max 8x backoff
+        logger.warn('Pump detector entering backoff mode', { 
+          backoffMultiplier: this.backoffMultiplier,
+          nextScanDelay: this.config.scanInterval * this.backoffMultiplier
+        });
+      }
     }
+  }
+
+  private scheduleNextScan(): void {
+    if (!this.isRunning) return;
+    
+    // Calculate delay with backoff multiplier
+    const delay = this.config.scanInterval * this.backoffMultiplier;
+    
+    if (this.scanInterval) {
+      clearTimeout(this.scanInterval);
+    }
+    
+    this.scanInterval = setTimeout(() => {
+      if (this.isRunning) {
+        this.scanForPumps();
+      }
+    }, delay);
   }
 
   private analyzePumpSignals(token: RealTokenInfo): PumpSignal | null {

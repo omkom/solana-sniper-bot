@@ -652,6 +652,341 @@
                 fetchTokenData();
             }
         }, 5000);
+
+        // RPC Iframe Communication
+        class RPCIframeManager {
+            constructor() {
+                this.iframe = null;
+                this.isReady = false;
+                this.pendingRequests = new Map();
+                this.initializeIframe();
+                this.setupMessageListener();
+            }
+
+            initializeIframe() {
+                this.iframe = document.createElement('iframe');
+                this.iframe.src = '/rpc-iframe.html';
+                this.iframe.style.display = 'none';
+                this.iframe.style.width = '0';
+                this.iframe.style.height = '0';
+                document.body.appendChild(this.iframe);
+            }
+
+            setupMessageListener() {
+                window.addEventListener('message', (event) => {
+                    if (event.origin !== window.location.origin) return;
+                    
+                    switch (event.data.type) {
+                        case 'RPC_IFRAME_READY':
+                            this.isReady = true;
+                            console.log('🚀 RPC Iframe ready');
+                            break;
+                        
+                        case 'RPC_RESPONSE':
+                            this.handleRPCResponse(event.data);
+                            break;
+                        
+                        case 'RPC_ERROR':
+                            this.handleRPCError(event.data);
+                            break;
+                        
+                        case 'RPC_HEALTH_CHECK':
+                            this.handleHealthCheck(event.data);
+                            break;
+                        
+                        case 'RPC_INITIAL_TEST':
+                            this.handleInitialTest(event.data);
+                            break;
+                    }
+                });
+            }
+
+            async sendRPCRequest(rpcCall) {
+                if (!this.isReady) {
+                    throw new Error('RPC iframe not ready');
+                }
+
+                const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                
+                return new Promise((resolve, reject) => {
+                    this.pendingRequests.set(requestId, { resolve, reject });
+                    
+                    this.iframe.contentWindow.postMessage({
+                        type: 'RPC_REQUEST',
+                        payload: { rpcCall, requestId }
+                    }, window.location.origin);
+                    
+                    // 30 second timeout
+                    setTimeout(() => {
+                        if (this.pendingRequests.has(requestId)) {
+                            this.pendingRequests.delete(requestId);
+                            reject(new Error('RPC request timeout'));
+                        }
+                    }, 30000);
+                });
+            }
+
+            handleRPCResponse(data) {
+                const { requestId, payload } = data;
+                const request = this.pendingRequests.get(requestId);
+                
+                if (request) {
+                    this.pendingRequests.delete(requestId);
+                    request.resolve(payload);
+                    
+                    // Send to backend
+                    this.sendRPCDataToBackend(payload);
+                }
+            }
+
+            handleRPCError(data) {
+                const { requestId, error } = data;
+                const request = this.pendingRequests.get(requestId);
+                
+                if (request) {
+                    this.pendingRequests.delete(requestId);
+                    request.reject(new Error(error));
+                }
+            }
+
+            handleHealthCheck(data) {
+                const statusText = data.healthy ? 'RPC: 🟢 Healthy' : 'RPC: 🔴 Unhealthy';
+                console.log(statusText);
+                
+                // Update UI if needed
+                const rpcStatus = document.getElementById('rpcStatus');
+                if (rpcStatus) {
+                    rpcStatus.textContent = statusText;
+                }
+            }
+
+            handleInitialTest(data) {
+                if (data.success) {
+                    console.log('✅ RPC connection test successful');
+                    this.sendRPCDataToBackend(data.result);
+                } else {
+                    console.error('❌ RPC connection test failed:', data.error);
+                }
+            }
+
+            async sendRPCDataToBackend(rpcData) {
+                try {
+                    await fetch('/api/rpc-data', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(rpcData)
+                    });
+                } catch (error) {
+                    console.error('Failed to send RPC data to backend:', error);
+                }
+            }
+
+            // Helper methods
+            async getLatestBlockhash(commitment = 'processed') {
+                const rpcCall = {
+                    method: 'getLatestBlockhash',
+                    jsonrpc: '2.0',
+                    params: [{ commitment }],
+                    id: Date.now()
+                };
+                
+                return await this.sendRPCRequest(rpcCall);
+            }
+
+            async getAccountInfo(address, commitment = 'processed') {
+                const rpcCall = {
+                    method: 'getAccountInfo',
+                    jsonrpc: '2.0',
+                    params: [address, { commitment, encoding: 'base64' }],
+                    id: Date.now()
+                };
+                
+                return await this.sendRPCRequest(rpcCall);
+            }
+        }
+
+        // Initialize RPC iframe manager
+        const rpcManager = new RPCIframeManager();
+
+        // Test RPC connection periodically
+        setInterval(async () => {
+            try {
+                await rpcManager.getLatestBlockhash();
+            } catch (error) {
+                console.error('RPC test failed:', error);
+            }
+        }, 60000); // Test every minute
+
+        // DexScreener Iframe Manager
+        class DexScreenerIframeManager {
+            constructor() {
+                this.iframe = null;
+                this.isReady = false;
+                this.tokens = [];
+                this.initializeIframe();
+                this.setupMessageListener();
+            }
+
+            initializeIframe() {
+                this.iframe = document.createElement('iframe');
+                this.iframe.src = '/dexscreener-iframe.html';
+                this.iframe.style.display = 'none';
+                this.iframe.style.width = '0';
+                this.iframe.style.height = '0';
+                document.body.appendChild(this.iframe);
+            }
+
+            setupMessageListener() {
+                window.addEventListener('message', (event) => {
+                    if (event.origin !== window.location.origin) return;
+                    
+                    switch (event.data.type) {
+                        case 'DEXSCREENER_READY':
+                            this.isReady = true;
+                            console.log('🔍 DexScreener iframe ready');
+                            this.startTokenScraping();
+                            break;
+                        
+                        case 'DEXSCREENER_TOKENS':
+                            this.handleTokensReceived(event.data.tokens);
+                            break;
+                    }
+                });
+            }
+
+            startTokenScraping() {
+                if (!this.isReady) return;
+                
+                this.iframe.contentWindow.postMessage({
+                    type: 'DEXSCREENER_COMMAND',
+                    command: 'START_SCRAPING'
+                }, window.location.origin);
+            }
+
+            stopTokenScraping() {
+                if (!this.isReady) return;
+                
+                this.iframe.contentWindow.postMessage({
+                    type: 'DEXSCREENER_COMMAND',
+                    command: 'STOP_SCRAPING'
+                }, window.location.origin);
+            }
+
+            handleTokensReceived(tokens) {
+                this.tokens = tokens;
+                console.log(`📊 Received ${tokens.length} tokens from DexScreener`);
+                
+                // Update UI
+                this.updateTokenUI();
+                
+                // Send to backend
+                this.sendTokensToBackend(tokens);
+            }
+
+            updateTokenUI() {
+                // Update token count in UI
+                const tokenCountElement = document.getElementById('tokensFound');
+                if (tokenCountElement) {
+                    tokenCountElement.textContent = this.tokens.length;
+                }
+
+                // Update last token info
+                const lastTokenElement = document.getElementById('lastToken');
+                if (lastTokenElement && this.tokens.length > 0) {
+                    const latestToken = this.tokens[this.tokens.length - 1];
+                    lastTokenElement.textContent = `${latestToken.symbol} (${latestToken.age}s old)`;
+                }
+
+                // Update found tokens table
+                this.updateFoundTokensTable();
+            }
+
+            updateFoundTokensTable() {
+                const tableBody = document.querySelector('#foundTokensTable tbody');
+                const noTokensDiv = document.getElementById('noFoundTokens');
+                
+                if (!tableBody) return;
+                
+                tableBody.innerHTML = '';
+                
+                if (this.tokens.length === 0) {
+                    if (noTokensDiv) noTokensDiv.style.display = 'block';
+                    return;
+                }
+                
+                if (noTokensDiv) noTokensDiv.style.display = 'none';
+                
+                // Show latest 10 tokens
+                const recentTokens = this.tokens.slice(-10).reverse();
+                
+                recentTokens.forEach(token => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="padding: 0.5rem; font-weight: bold;">${token.symbol}</td>
+                        <td style="padding: 0.5rem; text-align: right;">$${token.price ? token.price.toFixed(6) : '0.000000'}</td>
+                        <td style="padding: 0.5rem; text-align: right;">${token.age}s</td>
+                        <td style="padding: 0.5rem; text-align: center;">${token.source}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }
+
+            async sendTokensToBackend(tokens) {
+                try {
+                    const response = await fetch('/api/dexscreener-tokens', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tokens, timestamp: Date.now() })
+                    });
+                    
+                    if (response.ok) {
+                        console.log('✅ Tokens sent to backend successfully');
+                    } else {
+                        console.error('❌ Failed to send tokens to backend:', response.status);
+                    }
+                } catch (error) {
+                    console.error('❌ Error sending tokens to backend:', error);
+                }
+            }
+
+            getTokens() {
+                return this.tokens;
+            }
+        }
+
+        // Initialize DexScreener iframe manager
+        const dexScreenerManager = new DexScreenerIframeManager();
+
+        // Add DexScreener controls to UI (for testing)
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add control buttons (hidden by default)
+            const controlsDiv = document.createElement('div');
+            controlsDiv.style.position = 'fixed';
+            controlsDiv.style.bottom = '20px';
+            controlsDiv.style.right = '20px';
+            controlsDiv.style.background = 'rgba(0,0,0,0.8)';
+            controlsDiv.style.padding = '10px';
+            controlsDiv.style.borderRadius = '5px';
+            controlsDiv.style.display = 'none'; // Hidden by default
+            controlsDiv.id = 'dexscreener-controls';
+            
+            controlsDiv.innerHTML = `
+                <button onclick="dexScreenerManager.startTokenScraping()" style="margin: 5px;">Start Scraping</button>
+                <button onclick="dexScreenerManager.stopTokenScraping()" style="margin: 5px;">Stop Scraping</button>
+                <button onclick="console.log('Tokens:', dexScreenerManager.getTokens())" style="margin: 5px;">Log Tokens</button>
+            `;
+            
+            document.body.appendChild(controlsDiv);
+            
+            // Show controls on Ctrl+Shift+D
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                    const controls = document.getElementById('dexscreener-controls');
+                    controls.style.display = controls.style.display === 'none' ? 'block' : 'none';
+                }
+            });
+        });
+
     </script>
 </body>
 </html>
