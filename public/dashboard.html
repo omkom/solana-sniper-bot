@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Educational Token Analyzer - Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .educational-badge {
+            background: #ff6b35;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card h3 {
+            margin-bottom: 1rem;
+            color: #e0e6ed;
+            font-size: 1.1rem;
+        }
+
+        .metric {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+        }
+
+        .positive { color: #4CAF50; }
+        .negative { color: #f44336; }
+        .neutral { color: #2196F3; }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-active { background: #4CAF50; }
+        .status-closed { background: #9E9E9E; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+        }
+
+        .trade-feed {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .trade-item {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+
+        .trade-buy { border-left-color: #4CAF50; }
+        .trade-sell { border-left-color: #f44336; }
+
+        .simulation-warning {
+            background: rgba(255, 107, 53, 0.1);
+            border: 1px solid #ff6b35;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1rem;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            🎓 Educational Token Analyzer
+            <span class="educational-badge">DRY RUN</span>
+        </h1>
+        <div>
+            <span id="connectionStatus">🔴 Connecting...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="simulation-warning">
+            <strong>⚠️ EDUCATIONAL SIMULATION WITH REAL DATA ⚠️</strong><br>
+            This dashboard shows simulated trading using REAL market data from DexScreener API. No real trades are executed.
+            <br><small>🔗 Live prices • 📊 Real liquidity • 📈 Actual market movements • 🎓 Educational purposes only</small>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>📊 Portfolio Overview</h3>
+                <div class="metric neutral" id="totalValue">10.00 SOL</div>
+                <div class="metric neutral" id="totalValueEur" style="font-size: 1.2rem; margin-top: 0.5rem;">€1,477.90</div>
+                <div class="stats-row">
+                    <span>Starting Balance:</span>
+                    <span id="startingBalance">10.00 SOL (€1,477.90)</span>
+                </div>
+                <div class="stats-row">
+                    <span>Available:</span>
+                    <span id="availableBalance">10.00 SOL (€1,477.90)</span>
+                </div>
+                <div class="stats-row">
+                    <span>Invested:</span>
+                    <span id="totalInvested">0.00 SOL (€0.00)</span>
+                </div>
+                <div class="stats-row">
+                    <span>Total ROI:</span>
+                    <span id="totalROI" class="neutral">0.0%</span>
+                </div>
+                <div class="stats-row">
+                    <span>SOL Rate:</span>
+                    <span id="solRate">€147.79/SOL</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🎯 Trading Stats</h3>
+                <div class="metric neutral" id="winRate">0%</div>
+                <div class="stats-row">
+                    <span>Active Positions:</span>
+                    <span id="activePositions">0</span>
+                </div>
+                <div class="stats-row">
+                    <span>Closed Positions:</span>
+                    <span id="closedPositions">0</span>
+                </div>
+                <div class="stats-row">
+                    <span>Total Trades:</span>
+                    <span id="totalTrades">0</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>💰 P&L Summary</h3>
+                <div class="metric neutral" id="realizedPnL">+0.00 SOL</div>
+                <div class="metric neutral" id="realizedPnLEur" style="font-size: 1.2rem; margin-top: 0.5rem;">€0.00</div>
+                <div class="stats-row">
+                    <span>Unrealized P&L:</span>
+                    <span id="unrealizedPnL">0.00 SOL (€0.00)</span>
+                </div>
+                <div class="stats-row">
+                    <span>Best Trade:</span>
+                    <span id="bestTrade">-</span>
+                </div>
+                <div class="stats-row">
+                    <span>Worst Trade:</span>
+                    <span id="worstTrade">-</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>⚙️ System Status</h3>
+                <div class="metric positive">RUNNING</div>
+                <div class="stats-row">
+                    <span>Mode:</span>
+                    <span>DRY RUN</span>
+                </div>
+                <div class="stats-row">
+                    <span>Simulation:</span>
+                    <span class="positive">ACTIVE</span>
+                </div>
+                <div class="stats-row">
+                    <span>Last Update:</span>
+                    <span id="lastUpdate">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>🔍 Token Discovery</h3>
+                <div class="stats-row">
+                    <span>Tokens Found:</span>
+                    <span id="tokensFound" class="positive">0</span>
+                </div>
+                <div class="stats-row">
+                    <span>Tokens Analyzed:</span>
+                    <span id="tokensAnalyzed" class="neutral">0</span>
+                </div>
+                <div class="stats-row">
+                    <span>Pump Signals:</span>
+                    <span id="pumpSignals" class="positive">0</span>
+                </div>
+                <div class="stats-row">
+                    <span>Last Token:</span>
+                    <span id="lastToken">-</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📋 Recent Found Tokens</h3>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table id="foundTokensTable" style="width: 100%; font-size: 0.9rem;">
+                        <thead>
+                            <tr style="background: rgba(255,255,255,0.1);">
+                                <th style="padding: 0.5rem; text-align: left;">Symbol</th>
+                                <th style="padding: 0.5rem; text-align: right;">Price</th>
+                                <th style="padding: 0.5rem; text-align: right;">Age</th>
+                                <th style="padding: 0.5rem; text-align: center;">DEX</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <div id="noFoundTokens" style="text-align: center; padding: 2rem; color: #ccc;">
+                        No tokens found yet...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>🎯 Analyzed Tokens</h3>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table id="analyzedTokensTable" style="width: 100%; font-size: 0.9rem;">
+                        <thead>
+                            <tr style="background: rgba(255,255,255,0.1);">
+                                <th style="padding: 0.5rem; text-align: left;">Symbol</th>
+                                <th style="padding: 0.5rem; text-align: right;">Price</th>
+                                <th style="padding: 0.5rem; text-align: right;">Score</th>
+                                <th style="padding: 0.5rem; text-align: center;">Action</th>
+                                <th style="padding: 0.5rem; text-align: right;">Age</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <div id="noAnalyzedTokens" style="text-align: center; padding: 2rem; color: #ccc;">
+                        No tokens analyzed yet...
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📈 Active Positions</h3>
+                <table id="positionsTable">
+                    <thead>
+                        <tr>
+                            <th>Token</th>
+                            <th>Investment</th>
+                            <th>Current ROI</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div id="noPositions" style="text-align: center; padding: 2rem; color: #ccc;">
+                    No active positions
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🔄 Recent Trades</h3>
+                <div class="trade-feed" id="tradeFeed">
+                    <div style="text-align: center; padding: 2rem; color: #ccc;">
+                        Waiting for simulated trades...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Educational Token Analyzer v1.0 | Simulation Mode | No Real Trading
+    </div>
+
+    <script>
+        const socket = io();
+        let isConnected = false;
+
+        // Connection status
+        socket.on('connect', () => {
+            isConnected = true;
+            document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
+            console.log('Connected to dashboard');
+        });
+
+        socket.on('disconnect', () => {
+            isConnected = false;
+            document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
+        });
+
+        // Portfolio updates
+        socket.on('portfolio', (stats) => {
+            updatePortfolioStats(stats);
+        });
+
+        // Position updates
+        socket.on('positions', (positions) => {
+            updatePositionsTable(positions);
+        });
+
+        // New trades
+        socket.on('newTrade', (trade) => {
+            addTradeToFeed(trade);
+        });
+
+        function updatePortfolioStats(stats) {
+            // Main portfolio value
+            document.getElementById('totalValue').textContent = stats.totalPortfolioValue.toFixed(4) + ' SOL';
+            document.getElementById('totalValueEur').textContent = '€' + (stats.totalPortfolioValueEur || 0).toFixed(2);
+            
+            // Starting balance
+            const startingBalanceText = stats.startingBalance.toFixed(2) + ' SOL (€' + (stats.startingBalanceEur || 0).toFixed(2) + ')';
+            document.getElementById('startingBalance').textContent = startingBalanceText;
+            
+            // Available balance
+            const availableBalanceText = stats.currentBalance.toFixed(4) + ' SOL (€' + (stats.currentBalanceEur || 0).toFixed(2) + ')';
+            document.getElementById('availableBalance').textContent = availableBalanceText;
+            
+            // Total invested
+            const totalInvestedText = stats.totalInvested.toFixed(4) + ' SOL (€' + (stats.totalInvestedEur || 0).toFixed(2) + ')';
+            document.getElementById('totalInvested').textContent = totalInvestedText;
+            
+            // ROI
+            const roiElement = document.getElementById('totalROI');
+            roiElement.textContent = stats.totalROI.toFixed(2) + '%';
+            roiElement.className = stats.totalROI >= 0 ? 'positive' : 'negative';
+
+            // SOL rate
+            if (stats.solToEurRate) {
+                document.getElementById('solRate').textContent = '€' + stats.solToEurRate.toFixed(2) + '/SOL';
+            }
+
+            // Win rate
+            const winRateElement = document.getElementById('winRate');
+            winRateElement.textContent = stats.winRate.toFixed(1) + '%';
+            
+            // Position counts
+            document.getElementById('activePositions').textContent = stats.activePositions;
+            document.getElementById('closedPositions').textContent = stats.closedPositions;
+            document.getElementById('totalTrades').textContent = stats.totalTrades;
+
+            // Realized P&L
+            const realizedElement = document.getElementById('realizedPnL');
+            const realizedText = (stats.totalRealized >= 0 ? '+' : '') + stats.totalRealized.toFixed(4) + ' SOL';
+            realizedElement.textContent = realizedText;
+            realizedElement.className = stats.totalRealized >= 0 ? 'positive' : 'negative';
+            
+            // Realized P&L EUR
+            const realizedEurElement = document.getElementById('realizedPnLEur');
+            const realizedEurText = (stats.totalRealizedEur >= 0 ? '+€' : '€') + (stats.totalRealizedEur || 0).toFixed(2);
+            realizedEurElement.textContent = realizedEurText;
+            realizedEurElement.className = stats.totalRealized >= 0 ? 'positive' : 'negative';
+
+            // Unrealized P&L
+            const unrealizedElement = document.getElementById('unrealizedPnL');
+            const unrealizedText = (stats.unrealizedPnL >= 0 ? '+' : '') + stats.unrealizedPnL.toFixed(4) + ' SOL (€' + ((stats.unrealizedPnLEur >= 0 ? '+' : '') + (stats.unrealizedPnLEur || 0).toFixed(2)) + ')';
+            unrealizedElement.textContent = unrealizedText;
+            unrealizedElement.className = stats.unrealizedPnL >= 0 ? 'positive' : 'negative';
+
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        function updatePositionsTable(positions) {
+            const tbody = document.querySelector('#positionsTable tbody');
+            const noPositions = document.getElementById('noPositions');
+            
+            tbody.innerHTML = '';
+            
+            if (positions.length === 0) {
+                noPositions.style.display = 'block';
+                document.getElementById('positionsTable').style.display = 'none';
+            } else {
+                noPositions.style.display = 'none';
+                document.getElementById('positionsTable').style.display = 'table';
+                
+                positions.forEach(position => {
+                    const row = tbody.insertRow();
+                    const duration = Math.floor((Date.now() - position.entryTime) / 1000);
+                    const durationText = duration < 60 ? `${duration}s` : `${Math.floor(duration / 60)}m`;
+                    
+                    row.innerHTML = `
+                        <td><span class="status-indicator status-${position.status.toLowerCase()}"></span>${position.symbol}</td>
+                        <td>${position.simulatedInvestment.toFixed(4)} SOL</td>
+                        <td class="${(position.roi || 0) >= 0 ? 'positive' : 'negative'}">${(position.roi || 0).toFixed(1)}%</td>
+                        <td>${durationText}</td>
+                        <td>${position.status}</td>
+                    `;
+                });
+            }
+        }
+
+        function addTradeToFeed(trade) {
+            const feed = document.getElementById('tradeFeed');
+            
+            // Clear "waiting" message if present
+            if (feed.children.length === 1 && feed.children[0].textContent.includes('Waiting')) {
+                feed.innerHTML = '';
+            }
+            
+            const tradeElement = document.createElement('div');
+            tradeElement.className = `trade-item trade-${trade.type.toLowerCase()}`;
+            
+            const time = new Date(trade.timestamp).toLocaleTimeString();
+            const typeIcon = trade.type === 'BUY' ? '📈' : '📉';
+            
+            tradeElement.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>${typeIcon} ${trade.type} ${trade.symbol}</strong><br>
+                        <small>${trade.reason}</small>
+                    </div>
+                    <div style="text-align: right;">
+                        <div>${trade.amount.toFixed(4)} SOL</div>
+                        <small>${time}</small>
+                    </div>
+                </div>
+            `;
+            
+            feed.insertBefore(tradeElement, feed.firstChild);
+            
+            // Keep only last 20 trades
+            while (feed.children.length > 20) {
+                feed.removeChild(feed.lastChild);
+            }
+        }
+
+        function updateTokenStats(stats) {
+            document.getElementById('tokensFound').textContent = stats.found || 0;
+            document.getElementById('tokensAnalyzed').textContent = stats.analyzed || 0;
+            
+            // Count pump signals from pump detection stats
+            const pumpCount = stats.pumpDetection?.trackedTokens || 0;
+            document.getElementById('pumpSignals').textContent = pumpCount;
+        }
+
+        function updateFoundTokensTable(tokens) {
+            const tbody = document.querySelector('#foundTokensTable tbody');
+            const noTokens = document.getElementById('noFoundTokens');
+            
+            if (tokens.length === 0) {
+                tbody.innerHTML = '';
+                noTokens.style.display = 'block';
+                return;
+            }
+            
+            noTokens.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            tokens.slice(0, 10).forEach(token => {
+                const ageText = formatAge(token.age);
+                const pumpBadge = token.isPump ? ' 🚨' : '';
+                const priceText = token.price > 0 ? '$' + token.price.toFixed(8) : '-';
+                
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+                row.innerHTML = `
+                    <td style="padding: 0.5rem;">
+                        <strong>${token.symbol}${pumpBadge}</strong>
+                        <br><small style="color: #ccc;">${token.name}</small>
+                    </td>
+                    <td style="padding: 0.5rem; text-align: right;">${priceText}</td>
+                    <td style="padding: 0.5rem; text-align: right;">${ageText}</td>
+                    <td style="padding: 0.5rem; text-align: center;">
+                        <span style="background: rgba(0,255,0,0.2); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                            ${token.dexId}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Update last token info
+            if (tokens.length > 0) {
+                const lastToken = tokens[0];
+                document.getElementById('lastToken').textContent = `${lastToken.symbol} (${formatAge(lastToken.age)})`;
+            }
+        }
+
+        function updateAnalyzedTokensTable(tokens) {
+            const tbody = document.querySelector('#analyzedTokensTable tbody');
+            const noTokens = document.getElementById('noAnalyzedTokens');
+            
+            if (tokens.length === 0) {
+                tbody.innerHTML = '';
+                noTokens.style.display = 'block';
+                return;
+            }
+            
+            noTokens.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            tokens.slice(0, 15).forEach(token => {
+                const ageText = formatAge(token.age);
+                const pumpBadge = token.isPump ? ' 🚨' : '';
+                const priceText = token.price > 0 ? '$' + token.price.toFixed(8) : '-';
+                const scoreColor = token.securityScore >= 70 ? '#4CAF50' : token.securityScore >= 50 ? '#FF9800' : '#f44336';
+                const actionColor = getActionColor(token.action);
+                
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+                row.innerHTML = `
+                    <td style="padding: 0.5rem;">
+                        <strong>${token.symbol}${pumpBadge}</strong>
+                        <br><small style="color: #ccc;">${token.name}</small>
+                    </td>
+                    <td style="padding: 0.5rem; text-align: right;">${priceText}</td>
+                    <td style="padding: 0.5rem; text-align: right;">
+                        <span style="color: ${scoreColor}; font-weight: bold;">${token.securityScore}</span>
+                    </td>
+                    <td style="padding: 0.5rem; text-align: center;">
+                        <span style="background: ${actionColor}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                            ${token.action}
+                        </span>
+                    </td>
+                    <td style="padding: 0.5rem; text-align: right;">${ageText}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function formatAge(ageMinutes) {
+            if (ageMinutes < 1) return '<1m';
+            if (ageMinutes < 60) return `${Math.floor(ageMinutes)}m`;
+            const hours = Math.floor(ageMinutes / 60);
+            const mins = Math.floor(ageMinutes % 60);
+            return `${hours}h${mins > 0 ? mins + 'm' : ''}`;
+        }
+
+        function getActionColor(action) {
+            switch(action) {
+                case 'BUY':
+                case 'PUMP': return 'rgba(76, 175, 80, 0.3)';
+                case 'ANALYZED': return 'rgba(33, 150, 243, 0.3)';
+                case 'SKIP_HONEYPOT': return 'rgba(244, 67, 54, 0.3)';
+                default: return 'rgba(158, 158, 158, 0.3)';
+            }
+        }
+
+        // Fetch token data
+        function fetchTokenData() {
+            fetch('/api/tokens/stats')
+                .then(response => response.json())
+                .then(updateTokenStats)
+                .catch(console.error);
+                
+            fetch('/api/tokens/found')
+                .then(response => response.json())
+                .then(updateFoundTokensTable)
+                .catch(console.error);
+                
+            fetch('/api/tokens/analyzed')
+                .then(response => response.json())
+                .then(updateAnalyzedTokensTable)
+                .catch(console.error);
+        }
+
+        // Request initial data
+        if (isConnected) {
+            socket.emit('requestPortfolio');
+            socket.emit('requestPositions');
+            fetchTokenData();
+        }
+
+        // Periodic updates
+        setInterval(() => {
+            if (isConnected) {
+                socket.emit('requestPortfolio');
+                socket.emit('requestPositions');
+                fetchTokenData();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
