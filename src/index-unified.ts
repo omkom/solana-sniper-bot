@@ -4,6 +4,7 @@ import { RealTokenMonitor } from './detection/real-token-monitor';
 import { SecurityAnalyzer } from './analysis/security-analyzer';
 import { DryRunEngine } from './simulation/dry-run-engine';
 import { RealPriceSimulationEngine } from './simulation/real-price-engine';
+import { UltraSniperEngine } from './simulation/ultra-sniper-engine';
 import { EducationalDashboard } from './monitoring/dashboard';
 import { PumpDetector, PumpSignal } from './detection/pump-detector';
 import { ConnectionMonitor } from './monitoring/connection-monitor';
@@ -14,11 +15,12 @@ import { PriceConverter } from './utils/price-converter';
 import { TokenInfo } from './types';
 
 interface UnifiedAnalyzerConfig {
-  mode: 'rapid' | 'real' | 'hybrid';
+  mode: 'rapid' | 'real' | 'hybrid' | 'sniper';
   enablePumpDetection: boolean;
   enableRealPrices: boolean;
   enableDemoMode: boolean;
   enableMultiDex: boolean;
+  enableUltraSniper?: boolean;
 }
 
 class UnifiedTokenAnalyzer {
@@ -26,7 +28,7 @@ class UnifiedTokenAnalyzer {
   private rapidAnalyzer?: RapidTokenAnalyzer;
   private realTokenMonitor?: RealTokenMonitor;
   private securityAnalyzer: SecurityAnalyzer;
-  private simulationEngine: DryRunEngine | RealPriceSimulationEngine;
+  private simulationEngine: DryRunEngine | RealPriceSimulationEngine | UltraSniperEngine;
   private dashboard: EducationalDashboard;
   private pumpDetector?: PumpDetector;
   private connectionMonitor: ConnectionMonitor;
@@ -70,23 +72,30 @@ class UnifiedTokenAnalyzer {
     this.securityAnalyzer = new SecurityAnalyzer();
     
     // Initialize simulation engine based on configuration
-    if (analyzerConfig.enableRealPrices && analyzerConfig.mode !== 'rapid') {
+    if (analyzerConfig.mode === 'sniper' || analyzerConfig.enableUltraSniper) {
+      this.realTokenMonitor = new RealTokenMonitor();
+      this.simulationEngine = new UltraSniperEngine(this.realTokenMonitor);
+      console.log('🎯 ULTRA SNIPER ENGINE ACTIVATED - INSTANT BUY MODE');
+    } else if (analyzerConfig.enableRealPrices && analyzerConfig.mode !== 'rapid') {
       this.realTokenMonitor = new RealTokenMonitor();
       this.simulationEngine = new RealPriceSimulationEngine(this.realTokenMonitor);
+      console.log('💰 Using Real Price Simulation Engine for live price data');
     } else {
       this.simulationEngine = new DryRunEngine();
+      console.log('🎮 Using Dry Run Engine for simulated prices');
     }
     
     // Initialize components based on configuration
     if (analyzerConfig.mode === 'rapid' || analyzerConfig.mode === 'hybrid') {
-      this.rapidAnalyzer = new RapidTokenAnalyzer(this.simulationEngine as DryRunEngine);
+      // Pass the actual simulation engine (could be DryRunEngine or RealPriceSimulationEngine)
+      this.rapidAnalyzer = new RapidTokenAnalyzer(this.simulationEngine);
     }
     
     if (analyzerConfig.enablePumpDetection && (analyzerConfig.mode === 'real' || analyzerConfig.mode === 'hybrid')) {
       this.pumpDetector = new PumpDetector();
     }
     
-    this.dashboard = new EducationalDashboard(this.simulationEngine, this);
+    this.dashboard = new EducationalDashboard(this.simulationEngine, undefined, undefined, undefined, this);
     
     this.setupEventListeners();
     this.setupErrorHandling();
@@ -152,8 +161,9 @@ class UnifiedTokenAnalyzer {
         this.trackFoundToken(tokenInfo);
         console.log(`🔍 Rapid token detected: ${tokenInfo.symbol} from ${tokenInfo.metadata?.detectionSource}`);
         
-        // Add to priority queue - high priority for rapid detection
-        this.addToProcessingQueue(tokenInfo, 3);
+        // NOTE: Don't add to processing queue - rapid analyzer handles its own processing
+        // This prevents duplicate processing of the same token
+        console.log(`⚡ Rapid analyzer handling token processing directly - skipping unified queue`);
       });
       
       this.rapidAnalyzer.on('viableTokenFound', ({ tokenInfo, securityAnalysis }) => {
@@ -432,13 +442,17 @@ class UnifiedTokenAnalyzer {
   private async analyzeToken(tokenInfo: TokenInfo): Promise<void> {
     const realToken = this.realTokenMonitor?.getTokenInfo(tokenInfo.mint);
     
-    console.log(`\\n🔍 Analyzing token: ${tokenInfo.symbol || tokenInfo.mint.slice(0, 8)}`);
+    console.log(`\\n🔍 UNIFIED ANALYZER: Processing token: ${tokenInfo.symbol || tokenInfo.mint.slice(0, 8)}`);
     console.log(`📡 Source: ${tokenInfo.source}`);
+    console.log(`💰 Liquidity: $${tokenInfo.liquidity?.usd || 0}`);
+    console.log(`💵 Price: $${tokenInfo.metadata?.priceUsd || tokenInfo.metadata?.price || 'N/A'}`);
+    console.log(`🕐 Age: ${Math.round((Date.now() - tokenInfo.createdAt) / 60000)} minutes`);
+    console.log(`🎮 Is Demo Token: ${tokenInfo.metadata?.demo === true ? 'YES' : 'NO'}`);
     
     if (realToken) {
-      console.log(`💵 Current Price: $${realToken.priceUsd.toFixed(8)}`);
+      console.log(`💵 Real Price: $${realToken.priceUsd.toFixed(8)}`);
       console.log(`📈 24h Change: ${realToken.priceChange24h.toFixed(2)}%`);
-      console.log(`💧 Liquidity: $${realToken.liquidityUsd.toLocaleString()}`);
+      console.log(`💧 Real Liquidity: $${realToken.liquidityUsd.toLocaleString()}`);
       console.log(`📊 Volume 24h: $${realToken.volume24h.toLocaleString()}`);
       console.log(`🔥 Trending Score: ${realToken.trendingScore}/100`);
     }
@@ -478,7 +492,15 @@ class UnifiedTokenAnalyzer {
       this.trackAnalyzedToken(tokenInfo, securityAnalysis.score, 'ANALYZED');
 
       // Step 3: Process with simulation engine
+      console.log(`🎯 ABOUT TO PASS TOKEN TO SIMULATION ENGINE:`);
+      console.log(`   Token: ${tokenInfo.symbol || 'Unknown'} (${tokenInfo.mint.slice(0, 8)})`);
+      console.log(`   Security Score: ${securityAnalysis.score}`);
+      console.log(`   Price Available: ${!!tokenInfo.metadata?.priceUsd || !!tokenInfo.metadata?.price}`);
+      console.log(`   Simulation Engine: ${this.simulationEngine.constructor.name}`);
+      
       await this.simulationEngine.processTokenDetection(tokenInfo, securityAnalysis);
+      
+      console.log(`✅ SIMULATION ENGINE CALL COMPLETED for ${tokenInfo.symbol || tokenInfo.mint.slice(0, 8)}`);
 
     } catch (error) {
       this.stats.errors++;
@@ -535,7 +557,16 @@ class UnifiedTokenAnalyzer {
       this.trackAnalyzedToken(tokenInfo, securityAnalysis.score, 'PUMP', pumpReason);
 
       // Process with simulation engine - HIGH PRIORITY
+      console.log(`🚨 ABOUT TO PASS PUMP TOKEN TO SIMULATION ENGINE:`);
+      console.log(`   Token: ${tokenInfo.symbol || 'Unknown'} (${tokenInfo.mint.slice(0, 8)})`);
+      console.log(`   Security Score: ${securityAnalysis.score} (boosted for pump)`);
+      console.log(`   Pump Strength: ${pumpSignal.pumpStrength}`);
+      console.log(`   Price Available: ${!!tokenInfo.metadata?.priceUsd || !!tokenInfo.metadata?.price}`);
+      console.log(`   Simulation Engine: ${this.simulationEngine.constructor.name}`);
+      
       await this.simulationEngine.processTokenDetection(tokenInfo, securityAnalysis);
+      
+      console.log(`✅ PUMP TOKEN SIMULATION ENGINE CALL COMPLETED for ${tokenInfo.symbol || tokenInfo.mint.slice(0, 8)}`);
 
     } catch (error) {
       this.stats.errors++;
@@ -549,13 +580,21 @@ class UnifiedTokenAnalyzer {
   }
 
   private startDemoMode(): void {
-    if (!this.analyzerConfig.enableDemoMode) return;
+    // Only start demo mode if explicitly enabled
+    if (!this.analyzerConfig.enableDemoMode) {
+      console.log('🎯 Demo mode disabled - using real token detection only');
+      return;
+    }
     
-    console.log('🎮 Starting demo mode - generating simulated token detections');
+    console.log('🎮 Demo mode enabled for testing - generating simulated token detections');
+    console.log(`🔍 isRunning status: ${this.isRunning}`);
     
     let demoCounter = 1;
     const demoInterval = setInterval(() => {
+      console.log(`🎮 Demo interval triggered - isRunning: ${this.isRunning}, counter: ${demoCounter}`);
+      
       if (!this.isRunning) {
+        console.log('⚠️ Demo mode stopped - isRunning is false');
         clearInterval(demoInterval);
         return;
       }
@@ -572,19 +611,29 @@ class UnifiedTokenAnalyzer {
         createdAt: Date.now(),
         metadata: {
           demo: true,
-          educational: true
+          educational: true,
+          priceUsd: 0.000001 + Math.random() * 0.00001 // Add a demo price
         },
         liquidity: {
-          sol: Math.random() * 10 + 0.5,
-          usd: Math.random() * 1000 + 50
+          sol: Math.random() * 50 + 10, // Higher liquidity
+          usd: Math.random() * 10000 + 2000 // $2k-12k liquidity
         }
       };
 
       console.log(`🎯 Demo token detected: ${demoToken.symbol}`);
-      this.analyzeToken(demoToken);
+      console.log(`📊 Demo token details: Price=$${demoToken.metadata?.priceUsd || 'N/A'}, Liquidity=$${demoToken.liquidity?.usd || 0}`);
+      console.log(`🚀 Calling analyzeToken for ${demoToken.symbol}...`);
+      
+      this.analyzeToken(demoToken).then(() => {
+        console.log(`✅ analyzeToken completed for ${demoToken.symbol}`);
+      }).catch(error => {
+        console.error(`❌ analyzeToken failed for ${demoToken.symbol}:`, error);
+      });
       
       demoCounter++;
-    }, 15000);
+    }, 5000); // Changed to 5 seconds for testing
+    
+    console.log('✅ Demo mode interval started');
   }
 
   private logStats(): void {
@@ -665,7 +714,7 @@ class UnifiedTokenAnalyzer {
       console.log(`• Pump Detection: ${this.analyzerConfig.enablePumpDetection ? 'ENABLED' : 'DISABLED'}`);
       console.log(`• Real Prices: ${this.analyzerConfig.enableRealPrices ? 'ENABLED' : 'DISABLED'}`);
       console.log(`• Multi-DEX: ${this.analyzerConfig.enableMultiDex ? 'ENABLED' : 'DISABLED'}`);
-      console.log(`• Demo Mode: ${this.analyzerConfig.enableDemoMode ? 'ENABLED' : 'DISABLED'}`);
+      console.log(`• Demo Mode: ${this.analyzerConfig.enableDemoMode ? 'ENABLED' : 'DISABLED - REAL TOKENS ONLY'}`);
       
       // Start demo mode if enabled
       this.startDemoMode();
@@ -791,6 +840,14 @@ const ANALYZER_PRESETS = {
     enableRealPrices: true,
     enableDemoMode: false,
     enableMultiDex: true
+  },
+  sniper: {
+    mode: 'sniper' as const,
+    enablePumpDetection: true,
+    enableRealPrices: true,
+    enableDemoMode: false,
+    enableMultiDex: true,
+    enableUltraSniper: true
   },
   demo: {
     mode: 'rapid' as const,

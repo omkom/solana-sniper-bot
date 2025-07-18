@@ -33,7 +33,7 @@ class RealDataTokenAnalyzer {
     this.realTokenMonitor = new RealTokenMonitor();
     this.securityAnalyzer = new SecurityAnalyzer();
     this.simulationEngine = new RealPriceSimulationEngine(this.realTokenMonitor);
-    this.dashboard = new EducationalDashboard(this.simulationEngine, this);
+    this.dashboard = new EducationalDashboard(this.simulationEngine, undefined, undefined, undefined, this);
     this.pumpDetector = new PumpDetector();
 
     this.setupEventListeners();

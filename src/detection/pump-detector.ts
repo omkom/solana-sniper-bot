@@ -94,11 +94,9 @@ export class PumpDetector extends EventEmitter {
       // Get both trending tokens and boosted tokens for comprehensive pump detection
       const [trendingTokens, boostedTokens] = await Promise.all([
         this.dexClient.getTrendingTokens({
-          minLiquidity: this.config.minLiquidity,
-          maxAge: this.config.maxTokenAge,
-          minVolume: 100,
-          rankBy: 'trendingScoreM5',
-          order: 'desc'
+          minLiquidityUSD: this.config.minLiquidity,
+          maxAgeHours: this.config.maxTokenAge,
+          minVolume24h: 100
         }),
         this.dexClient.getBoostedTokens()
       ]);

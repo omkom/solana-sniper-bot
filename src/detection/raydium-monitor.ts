@@ -2,6 +2,7 @@ import { Connection, PublicKey, Logs } from '@solana/web3.js';
 import { EventEmitter } from 'events';
 import { ConnectionManager } from '../core/connection';
 import { TokenInfo } from '../types';
+import { TransactionParser } from '../utils/transaction-parser';
 
 export class RaydiumMonitor extends EventEmitter {
   private connection: Connection;
@@ -9,15 +10,16 @@ export class RaydiumMonitor extends EventEmitter {
   private subscriptionId: number | null = null;
   private isMonitoring = false;
   private processedTransactions: Set<string> = new Set();
+  private transactionParser: TransactionParser;
   
   // Batching system for 429 handling
   private transactionBatch: string[] = [];
   private batchProcessingActive = false;
   private batchTimeout: NodeJS.Timeout | null = null;
   private batchSize = 1; // Process one at a time
-  private batchDelay = 5000; // 5 seconds between batches
-  private rateLimitBackoff = 5000; // Start with 5 second backoff
-  private maxBackoff = 60000; // Max 60 seconds backoff
+  private batchDelay = 3000; // 3 seconds between batches
+  private rateLimitBackoff = 2000; // Start with 2 second backoff
+  private maxBackoff = 30000; // Max 30 seconds backoff
   
   // Raydium program addresses
   private static readonly RAYDIUM_PROGRAMS = {
@@ -38,11 +40,12 @@ export class RaydiumMonitor extends EventEmitter {
     super();
     this.connectionManager = new ConnectionManager();
     this.connection = this.connectionManager.getConnection();
+    this.transactionParser = new TransactionParser(this.connection);
     
-    // Set very conservative rate limiting for Raydium monitoring
-    this.connectionManager.setRateLimit(1, 2000); // Max 1 concurrent, 2000ms delay
+    // Set conservative rate limiting
+    this.connectionManager.setRateLimit(1, 1500); // Max 1 concurrent, 1500ms delay
     
-    console.log('🌊 Raydium Monitor initialized with rate limiting');
+    console.log('🌊 Raydium Monitor initialized with enhanced token detection');
   }
 
   async startMonitoring(): Promise<void> {
@@ -54,7 +57,7 @@ export class RaydiumMonitor extends EventEmitter {
     try {
       console.log('🚀 Starting Raydium pool monitoring...');
       
-      // Method 1: Monitor logs for Raydium AMM program
+      // Monitor logs for Raydium AMM program with broader filtering
       this.subscriptionId = this.connection.onLogs(
         RaydiumMonitor.RAYDIUM_PROGRAMS.AMM_V4,
         (logs: Logs) => {
@@ -63,9 +66,7 @@ export class RaydiumMonitor extends EventEmitter {
         'confirmed'
       );
 
-      // Method 2: Monitor specific fee account changes
       this.startFeeAccountMonitoring();
-
       this.isMonitoring = true;
       console.log('✅ Raydium monitoring started');
       
@@ -101,34 +102,41 @@ export class RaydiumMonitor extends EventEmitter {
       if (this.processedTransactions.has(signature)) {
         return;
       }
-      
-      console.log(`🔍 Raydium transaction detected: ${signature}`);
 
-      // Filter for specific instruction types
-      const relevantLogs = logs.logs.filter(log => 
-        log.includes('initialize') || 
-        log.includes('CreatePool') ||
-        log.includes('InitializePool') ||
-        log.includes('initialize2') ||
-        log.includes('ray_log')
-      );
+      // IMPROVED: More comprehensive log filtering
+      const relevantLogs = logs.logs.filter(log => {
+        const lowerLog = log.toLowerCase();
+        return (
+          lowerLog.includes('initialize') ||
+          lowerLog.includes('createpool') ||
+          lowerLog.includes('initializepool') ||
+          lowerLog.includes('ray_log') ||
+          lowerLog.includes('swap') ||
+          lowerLog.includes('deposit') ||
+          lowerLog.includes('liquidity') ||
+          // Look for any instruction that might indicate pool activity
+          logs.logs.some(l => l.includes('Program log:')) ||
+          // Look for error logs that might still contain useful info
+          lowerLog.includes('program') ||
+          // Catch-all for any Raydium activity
+          logs.logs.length > 0
+        );
+      });
 
-      if (relevantLogs.length === 0) {
-        return;
+      // IMPROVED: Process transactions even with minimal logs
+      if (relevantLogs.length === 0 && logs.logs.length === 0) {
+        return; // Only skip if absolutely no logs
       }
       
-      // Mark as processed
       this.processedTransactions.add(signature);
       
-      // Clean up old processed transactions to prevent memory leak
+      // Clean up old processed transactions
       if (this.processedTransactions.size > 5000) {
         const oldEntries = Array.from(this.processedTransactions).slice(0, 2500);
         oldEntries.forEach(entry => this.processedTransactions.delete(entry));
       }
 
-      console.log(`📊 Processing ${relevantLogs.length} relevant log entries`);
-
-      // Add to batch instead of immediate processing
+      console.log(`🔍 Raydium transaction queued: ${signature.slice(0, 8)}... (${relevantLogs.length} logs)`);
       this.addToBatch(signature);
 
     } catch (error) {
@@ -140,12 +148,10 @@ export class RaydiumMonitor extends EventEmitter {
   private addToBatch(signature: string): void {
     this.transactionBatch.push(signature);
     
-    // Start batch processing if not already active
     if (!this.batchProcessingActive) {
       this.startBatchProcessing();
     }
     
-    // Process immediately if batch is full
     if (this.transactionBatch.length >= this.batchSize) {
       this.processBatch();
     }
@@ -156,7 +162,6 @@ export class RaydiumMonitor extends EventEmitter {
     
     this.batchProcessingActive = true;
     
-    // Process batch every batchDelay milliseconds
     this.batchTimeout = setTimeout(() => {
       this.processBatch();
     }, this.batchDelay);
@@ -165,24 +170,21 @@ export class RaydiumMonitor extends EventEmitter {
   private async processBatch(): Promise<void> {
     if (this.transactionBatch.length === 0) {
       this.batchProcessingActive = false;
-      console.log(`🔄 [DEBUG] Batch processing complete - no transactions left`);
       return;
     }
 
     const currentBatch = this.transactionBatch.splice(0, this.batchSize);
     console.log(`🔄 Processing batch of ${currentBatch.length} transactions`);
-    console.log(`📋 [DEBUG] Current batch signatures:`, currentBatch.slice(0, 3).map(s => s.slice(0, 8)));
 
     for (const signature of currentBatch) {
       try {
-        console.log(`🔄 [DEBUG] Processing transaction in batch: ${signature.slice(0, 8)}...`);
         await this.processTransaction(signature);
         
         // Reset backoff on successful processing
-        this.rateLimitBackoff = 1000;
+        this.rateLimitBackoff = 2000;
         
-        // Small delay between transactions in batch
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Small delay between transactions
+        await new Promise(resolve => setTimeout(resolve, 500));
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -190,153 +192,144 @@ export class RaydiumMonitor extends EventEmitter {
         if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
           console.log(`⚠️ Rate limit hit, backing off for ${this.rateLimitBackoff}ms`);
           
-          // Add signature back to batch for retry
           this.transactionBatch.unshift(signature);
-          
-          // Wait with backoff
           await new Promise(resolve => setTimeout(resolve, this.rateLimitBackoff));
-          
-          // Increase backoff exponentially
-          this.rateLimitBackoff = Math.min(this.rateLimitBackoff * 2, this.maxBackoff);
-          break; // Stop processing this batch
+          this.rateLimitBackoff = Math.min(this.rateLimitBackoff * 1.5, this.maxBackoff);
+          break;
         } else {
-          console.error(`❌ Error processing transaction ${signature}:`, error);
+          console.error(`❌ Error processing transaction ${signature.slice(0, 8)}:`, error);
         }
       }
     }
 
-    // Schedule next batch processing
+    // Schedule next batch
     if (this.transactionBatch.length > 0) {
-      console.log(`🔄 [DEBUG] Scheduling next batch processing - ${this.transactionBatch.length} transactions remaining`);
       this.batchTimeout = setTimeout(() => {
         this.processBatch();
       }, this.batchDelay);
     } else {
       this.batchProcessingActive = false;
-      console.log(`🔄 [DEBUG] All batches processed`);
     }
   }
 
   private async processTransaction(signature: string): Promise<void> {
-    console.log(`🔍 [DEBUG] Starting to process transaction: ${signature}`);
+    console.log(`🔍 [RAYDIUM] Processing transaction: ${signature.slice(0, 8)}...`);
     
     try {
-      // Get full transaction details using optimized connection manager
-      console.log(`📡 [DEBUG] Fetching transaction details for: ${signature}`);
-      const transaction = await this.connectionManager.getParsedTransactionWithRetry(signature, 2);
+      // Get transaction with retries
+      const transaction = await this.connectionManager.getParsedTransactionWithRetry(signature, 3);
 
       if (!transaction) {
-        console.log(`⚠️ Transaction not found: ${signature}`);
+        console.log(`⚠️ Transaction not found: ${signature.slice(0, 8)}`);
         return;
       }
 
-      console.log(`✅ [DEBUG] Transaction fetched successfully: ${signature}`);
-      console.log(`📊 [DEBUG] Transaction structure:`, {
-        hasMeta: !!transaction.meta,
-        hasTransaction: !!transaction.transaction,
-        metaKeys: transaction.meta ? Object.keys(transaction.meta) : 'NO META',
-        transactionKeys: transaction.transaction ? Object.keys(transaction.transaction) : 'NO TRANSACTION'
-      });
+      console.log(`✅ Transaction fetched: ${signature.slice(0, 8)}...`);
 
-      // Parse transaction for token creation
-      console.log(`🔬 [DEBUG] Starting to parse transaction: ${signature}`);
-      const tokenInfo = await this.parseRaydiumTransaction(transaction, signature);
-      
+      // Use the enhanced parser with fallbacks
+      let tokenInfo: TokenInfo | null = null;
+
+      // Primary approach: Enhanced transaction parser
+      try {
+        const parsedTokenInfo = await this.transactionParser.extractTokenInfoFromTransaction(transaction, signature);
+        if (parsedTokenInfo) {
+          tokenInfo = this.transactionParser.convertToTokenInfo(parsedTokenInfo, signature, 'RAYDIUM_MONITOR');
+          console.log(`✅ Enhanced parser success: ${tokenInfo.symbol}`);
+        }
+      } catch (error) {
+        console.log(`⚠️ Enhanced parser failed: ${error instanceof Error ? error.message : error}`);
+      }
+
+      // Fallback approach: Internal enhanced parser
+      if (!tokenInfo) {
+        console.log(`🔄 Trying internal enhanced parser for ${signature.slice(0, 8)}...`);
+        tokenInfo = await this.parseRaydiumTransactionEnhanced(transaction, signature);
+      }
+
+      // Last resort: Minimal extraction
+      if (!tokenInfo) {
+        console.log(`🔄 Trying minimal extraction for ${signature.slice(0, 8)}...`);
+        tokenInfo = await this.extractMinimalTokenInfo(transaction, signature);
+      }
+
       if (tokenInfo) {
-        console.log(`🎯 New Raydium token detected: ${tokenInfo.symbol} (${tokenInfo.mint})`);
-        console.log(`💧 Token liquidity: ${tokenInfo.liquidity?.usd?.toFixed(2) || 0} USD`);
+        console.log(`🎯 Token detected: ${tokenInfo.symbol} (${tokenInfo.mint.slice(0, 8)}...)`);
+        console.log(`💧 Liquidity: ${tokenInfo.liquidity?.usd?.toFixed(2) || 0} USD`);
         
-        // Emit with high priority for immediate processing
         this.emit('tokenDetected', tokenInfo);
       } else {
-        console.log(`⚠️ No valid token info parsed from transaction: ${signature}`);
+        console.log(`❌ No token extracted from ${signature.slice(0, 8)} with any method`);
+        // Optional: Log transaction structure for debugging
+        if (process.env.DEBUG_TRANSACTIONS === 'true') {
+          this.logTransactionStructure(transaction, signature);
+        }
       }
     } catch (error) {
-      console.error(`❌ Error processing transaction ${signature}:`, error);
-      console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      console.error(`❌ Critical error processing ${signature.slice(0, 8)}:`, error);
     }
   }
 
-  private async parseRaydiumTransaction(transaction: any, signature: string): Promise<TokenInfo | null> {
-    console.log(`🔬 [DEBUG] parseRaydiumTransaction called for: ${signature}`);
-    
+  // SIMPLIFIED internal parser focused on core functionality
+  private async parseRaydiumTransactionEnhanced(transaction: any, signature: string): Promise<TokenInfo | null> {
     try {
       const { meta, transaction: txn } = transaction;
       
-      console.log(`📊 [DEBUG] Transaction structure check:`, {
-        hasMeta: !!meta,
-        hasTransaction: !!txn,
-        metaType: typeof meta,
-        transactionType: typeof txn
-      });
-      
       if (!meta || !txn) {
-        console.log(`⚠️ No meta or transaction data for ${signature}`);
+        console.log(`⚠️ Missing meta/transaction data for ${signature.slice(0, 8)}`);
         return null;
       }
 
-      // Look for token accounts in pre/post balances
-      const tokenBalances = meta.postTokenBalances || [];
-      console.log(`📊 Found ${tokenBalances.length} token balances in transaction ${signature}`);
+      const preTokenBalances = meta.preTokenBalances || [];
+      const postTokenBalances = meta.postTokenBalances || [];
       
-      if (tokenBalances.length > 0) {
-        console.log(`🔍 [DEBUG] Sample token balances:`, tokenBalances.slice(0, 3).map((balance: any) => ({
-          mint: balance.mint,
-          amount: balance.uiTokenAmount?.amount,
-          decimals: balance.uiTokenAmount?.decimals,
-          owner: balance.owner
-        })));
-      }
-      
-      const newTokens = tokenBalances.filter((balance: any) => {
-        // Filter for newly created tokens (amount > 0 and not SOL)
-        const isValidAmount = balance.uiTokenAmount?.amount !== '0';
-        const isNotSol = balance.mint !== '11111111111111111111111111111112';
+      console.log(`📊 Token balances - Pre: ${preTokenBalances.length}, Post: ${postTokenBalances.length}`);
+
+      // SIMPLIFIED: Find any valid non-SOL token
+      const validTokens = postTokenBalances.filter((balance: any) => {
+        const mint = balance.mint;
         
-        console.log(`🔍 [DEBUG] Token filter check for ${balance.mint}:`, {
-          amount: balance.uiTokenAmount?.amount,
-          isValidAmount,
-          isNotSol,
-          passes: isValidAmount && isNotSol
-        });
+        // Basic validation
+        if (!mint || mint.length < 32) return false;
         
-        return isValidAmount && isNotSol;
+        // Skip SOL variants
+        if (mint === '11111111111111111111111111111112' || 
+            mint === 'So11111111111111111111111111111111111111112') {
+          return false;
+        }
+
+        // Accept any token with valid structure
+        return true;
       });
 
-      console.log(`🔍 Found ${newTokens.length} new tokens (non-SOL with amount > 0)`);
-      
-      if (newTokens.length === 0) {
-        console.log(`⚠️ No new tokens found in transaction ${signature}`);
-        console.log(`📊 [DEBUG] All token balances:`, tokenBalances.map((balance: any) => ({
-          mint: balance.mint,
-          amount: balance.uiTokenAmount?.amount,
-          decimals: balance.uiTokenAmount?.decimals
-        })));
+      console.log(`🔍 Found ${validTokens.length} valid tokens`);
+
+      if (validTokens.length === 0) {
+        console.log(`❌ No valid tokens found`);
         return null;
       }
 
-      // Process the most likely candidate (usually first new token)
-      const tokenBalance = newTokens[0];
-      const mint = tokenBalance.mint;
-      console.log(`🎯 [DEBUG] Processing token: ${mint}`);
+      // Select the best token (prefer those with balances)
+      let selectedToken = validTokens.find((token: any) => {
+        const amount = parseFloat(token.uiTokenAmount?.amount || '0');
+        return amount > 0;
+      }) || validTokens[0];
 
-      // Extract additional metadata from instruction data
+      const mint = selectedToken.mint;
+      console.log(`🎯 Selected token: ${mint.slice(0, 8)}...`);
+
+      // SIMPLIFIED metadata extraction
       const instructions = txn.message.instructions || [];
-      console.log(`📋 [DEBUG] Found ${instructions.length} instructions`);
-      
-      const metadata = this.extractTokenMetadata(instructions, mint);
-      console.log(`📋 [DEBUG] Extracted metadata:`, metadata);
+      const metadata = this.extractSimpleMetadata(instructions, mint);
 
-      // Calculate liquidity from SOL balances
-      const liquidity = this.calculateLiquidity(meta.preBalances, meta.postBalances);
-      console.log(`💧 [DEBUG] Calculated liquidity:`, liquidity);
+      // SIMPLIFIED liquidity calculation
+      const liquidity = this.calculateSimpleLiquidity(meta);
 
       const tokenInfo: TokenInfo = {
         mint,
         symbol: metadata.symbol || this.generateSymbol(mint),
         name: metadata.name || `Raydium Token ${mint.slice(0, 8)}`,
-        decimals: tokenBalance.uiTokenAmount?.decimals || 9,
-        supply: tokenBalance.uiTokenAmount?.amount || '0',
+        decimals: selectedToken.uiTokenAmount?.decimals || 9,
+        supply: selectedToken.uiTokenAmount?.amount || '0',
         signature,
         timestamp: Date.now(),
         createdAt: Date.now(),
@@ -351,89 +344,203 @@ export class RaydiumMonitor extends EventEmitter {
           transactionSignature: signature,
           detectedAt: Date.now(),
           instructions: instructions.length,
-          poolData: metadata.poolData
+          detectionMethod: 'simplified_internal',
+          tokenCount: validTokens.length
         }
       };
 
-      console.log(`✅ Created TokenInfo for ${tokenInfo.symbol} (${mint}) - Liquidity: ${liquidity.usd.toFixed(2)} USD`);
       return tokenInfo;
 
     } catch (error) {
-      console.error('❌ Error parsing Raydium transaction:', error);
-      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error(`❌ Simplified parsing error for ${signature.slice(0, 8)}:`, error);
       return null;
     }
   }
 
-  private extractTokenMetadata(instructions: any[], mint: string): any {
+  // Simplified minimal extraction as last resort
+  private async extractMinimalTokenInfo(transaction: any, signature: string): Promise<TokenInfo | null> {
+    try {
+      const { meta } = transaction;
+      
+      if (!meta?.postTokenBalances) {
+        return null;
+      }
+
+      // Find ANY non-SOL token
+      const tokenBalance = meta.postTokenBalances.find((balance: any) => {
+        const mint = balance.mint;
+        return mint && 
+               mint !== '11111111111111111111111111111112' && 
+               mint !== 'So11111111111111111111111111111111111111112' &&
+               mint.length >= 32;
+      });
+
+      if (!tokenBalance) {
+        return null;
+      }
+
+      const mint = tokenBalance.mint;
+      console.log(`🔧 Minimal extraction found: ${mint.slice(0, 8)}...`);
+
+      return {
+        mint,
+        symbol: this.generateSymbol(mint),
+        name: `Token ${mint.slice(0, 8)}`,
+        decimals: tokenBalance.uiTokenAmount?.decimals || 9,
+        supply: tokenBalance.uiTokenAmount?.amount || '0',
+        signature,
+        timestamp: Date.now(),
+        createdAt: Date.now(),
+        source: 'RAYDIUM_MONITOR',
+        liquidity: { sol: 0, usd: 0 },
+        metadata: {
+          raydiumPool: true,
+          transactionSignature: signature,
+          detectedAt: Date.now(),
+          detectionMethod: 'minimal_fallback'
+        }
+      };
+
+    } catch (error) {
+      console.error(`❌ Minimal extraction error:`, error);
+      return null;
+    }
+  }
+
+  private hasSignificantBalanceChange(preBalances: any[], postBalance: any): boolean {
+    const preBalance = preBalances.find(pre => 
+      pre.mint === postBalance.mint && pre.accountIndex === postBalance.accountIndex
+    );
+
+    if (!preBalance) return true;
+
+    const preAmount = parseFloat(preBalance.uiTokenAmount?.amount || '0');
+    const postAmount = parseFloat(postBalance.uiTokenAmount?.amount || '0');
+
+    return Math.abs(postAmount - preAmount) > 0;
+  }
+
+  private extractSimpleMetadata(instructions: any[], mint: string): any {
     const metadata: any = {
       symbol: null,
       name: null,
       poolAddress: null,
-      poolData: {}
+      programIds: [],
+      isRaydium: false
     };
 
     try {
-      // Look for initialize instructions
       for (const instruction of instructions) {
-        if (instruction.parsed?.type === 'initialize' || 
-            instruction.parsed?.type === 'initialize2') {
+        // Track program IDs
+        if (instruction.programId) {
+          metadata.programIds.push(instruction.programId);
           
-          const info = instruction.parsed?.info;
-          if (info) {
-            metadata.poolAddress = info.ammId || info.pool;
-            metadata.symbol = info.symbol || this.generateSymbol(mint);
-            metadata.name = info.name || `Token ${mint.slice(0, 8)}`;
-            metadata.poolData = info;
+          // Check if this is a Raydium transaction
+          if (instruction.programId === '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8') {
+            metadata.isRaydium = true;
           }
+        }
+
+        // Extract basic parsed data
+        if (instruction.parsed?.info) {
+          const info = instruction.parsed.info;
+          
+          if (info.pool || info.ammId) {
+            metadata.poolAddress = info.pool || info.ammId;
+          }
+          
+          if (info.symbol) metadata.symbol = info.symbol;
+          if (info.name) metadata.name = info.name;
         }
       }
     } catch (error) {
-      console.error('❌ Error extracting token metadata:', error);
+      console.error('❌ Error extracting simple metadata:', error);
     }
 
     return metadata;
   }
 
-  private calculateLiquidity(preBalances: number[], postBalances: number[]): { sol: number; usd: number } {
+  private calculateSimpleLiquidity(meta: any): { sol: number; usd: number } {
     try {
-      // Calculate SOL difference (approximation)
-      const solDifference = postBalances.reduce((sum, balance, index) => {
-        const pre = preBalances[index] || 0;
-        return sum + Math.abs(balance - pre);
-      }, 0);
+      // Calculate SOL movement from balance changes
+      const preBalances = meta.preBalances || [];
+      const postBalances = meta.postBalances || [];
+      
+      let totalMovement = 0;
+      for (let i = 0; i < Math.min(preBalances.length, postBalances.length); i++) {
+        totalMovement += Math.abs((postBalances[i] || 0) - (preBalances[i] || 0));
+      }
 
-      const solLiquidity = solDifference / 1e9; // Convert lamports to SOL
-      const usdLiquidity = solLiquidity * 150; // Rough SOL to USD conversion
+      const solLiquidity = totalMovement / 1e9; // Convert lamports to SOL
+      const usdLiquidity = solLiquidity * 180; // SOL price estimate
 
       return {
         sol: Math.max(0, solLiquidity),
         usd: Math.max(0, usdLiquidity)
       };
     } catch (error) {
-      console.error('❌ Error calculating liquidity:', error);
+      console.error('❌ Error calculating simple liquidity:', error);
       return { sol: 0, usd: 0 };
     }
   }
 
   private generateSymbol(mint: string): string {
-    // Generate a symbol from mint address
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     let symbol = '';
     
-    for (let i = 0; i < 4; i++) {
-      const index = parseInt(mint[i * 8], 16) % chars.length;
-      symbol += chars[index];
+    // Use multiple positions in the mint for better randomness
+    const positions = [1, 8, 16, 24];
+    
+    for (const pos of positions) {
+      if (pos < mint.length) {
+        const char = mint[pos];
+        const index = parseInt(char, 16) % chars.length;
+        symbol += chars[index];
+      }
     }
     
-    return symbol;
+    return symbol || 'RAYG'; // Fallback
+  }
+
+  private logTransactionStructure(transaction: any, signature: string): void {
+    try {
+      const { meta, transaction: txn } = transaction;
+      
+      console.log(`📋 [DEBUG] Transaction structure for ${signature.slice(0, 8)}:`);
+      console.log(`  - Has meta: ${!!meta}`);
+      console.log(`  - Has transaction: ${!!txn}`);
+      
+      if (meta) {
+        console.log(`  - Pre token balances: ${meta.preTokenBalances?.length || 0}`);
+        console.log(`  - Post token balances: ${meta.postTokenBalances?.length || 0}`);
+        console.log(`  - Fee: ${meta.fee}`);
+        console.log(`  - Status: ${meta.err ? 'ERROR' : 'SUCCESS'}`);
+      }
+      
+      if (txn) {
+        console.log(`  - Instructions: ${txn.message?.instructions?.length || 0}`);
+        console.log(`  - Account keys: ${txn.message?.accountKeys?.length || 0}`);
+      }
+      
+      // Log first few token balances for debugging
+      if (meta?.postTokenBalances?.length > 0) {
+        console.log(`  - Sample token balances:`, 
+          meta.postTokenBalances.slice(0, 3).map((b: any) => ({
+            mint: b.mint?.slice(0, 8) + '...',
+            amount: b.uiTokenAmount?.amount,
+            decimals: b.uiTokenAmount?.decimals
+          }))
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error logging transaction structure:', error);
+    }
   }
 
   private handleAccountChange(accountInfo: any, context: any, address: string): void {
     try {
-      console.log(`📊 Account change detected: ${address}`);
+      console.log(`📊 Account change detected: ${address.slice(0, 8)}...`);
       
-      // This could indicate new pool creation or fee collection
       this.emit('accountChanged', {
         address,
         accountInfo,
@@ -457,7 +564,6 @@ export class RaydiumMonitor extends EventEmitter {
         this.subscriptionId = null;
       }
 
-      // Clean up batch processing
       if (this.batchTimeout) {
         clearTimeout(this.batchTimeout);
         this.batchTimeout = null;
@@ -480,11 +586,12 @@ export class RaydiumMonitor extends EventEmitter {
       isMonitoring: this.isMonitoring,
       subscriptionId: this.subscriptionId,
       monitoredPrograms: Object.keys(RaydiumMonitor.RAYDIUM_PROGRAMS).length,
-      monitoredAddresses: RaydiumMonitor.MONITORED_ADDRESSES.length
+      monitoredAddresses: RaydiumMonitor.MONITORED_ADDRESSES.length,
+      queuedTransactions: this.transactionBatch.length,
+      processedCount: this.processedTransactions.size
     };
   }
 
-  // Health check for the monitoring system
   async healthCheck(): Promise<boolean> {
     try {
       const slot = await this.connection.getSlot();

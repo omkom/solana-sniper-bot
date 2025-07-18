@@ -44,13 +44,18 @@ export interface SimulatedPosition {
   status: 'ACTIVE' | 'CLOSED';
   reason?: string;
   roi?: number;
+  hasLivePrice?: boolean; // Track if position was created with live price data
+  priceHistory?: Array<{
+    price: number;
+    timestamp: number;
+  }>;
 }
 
 export interface SimulatedTrade {
   id: string;
   mint: string;
   symbol: string;
-  type: 'BUY' | 'SELL';
+  type: 'BUY' | 'SELL' | 'PARTIAL_SELL';
   timestamp: number;
   price: number;
   amount: number;

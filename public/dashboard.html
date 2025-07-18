@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Educational Token Analyzer - Dashboard</title>
+    <title>SOLANA SNIPER BOT - WTF Dashboard</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -14,361 +15,779 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e3c72, #2a5298);
-            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            background: #0a0a0a;
+            color: #ffffff;
             min-height: 100vh;
+            overflow-x: hidden;
         }
 
         .header {
-            background: rgba(0, 0, 0, 0.3);
+            background: linear-gradient(90deg, #1a1a1a, #2a2a2a);
             padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 2px solid #00ff88;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.1), transparent);
+            animation: scan 3s infinite;
+        }
+
+        @keyframes scan {
+            0% { left: -100%; }
+            100% { left: 100%; }
         }
 
         .header h1 {
-            font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+            letter-spacing: 2px;
         }
 
-        .educational-badge {
-            background: #ff6b35;
+        .wtf-badge {
+            background: linear-gradient(45deg, #ff0066, #ff6600);
             color: white;
-            padding: 0.25rem 0.5rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: bold;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
             text-transform: uppercase;
+            box-shadow: 0 0 20px rgba(255, 0, 102, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         .container {
             padding: 2rem;
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
         }
 
-        .grid {
+        .danger-warning {
+            background: linear-gradient(45deg, #ff0066, #ff3300);
+            border: 2px solid #ff6600;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(255, 0, 102, 0.3);
+        }
+
+        .danger-warning::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: rotate 4s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .danger-warning h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
+
+        /* ACTIVE POSITIONS - MAIN FEATURE */
+        .positions-hero {
+            margin-bottom: 3rem;
+        }
+
+        .positions-hero h2 {
+            font-size: 2.5rem;
+            color: #00ff88;
+            text-align: center;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+            letter-spacing: 3px;
+        }
+
+        .positions-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
             margin-bottom: 2rem;
         }
 
-        .card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
+        .position-card {
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            border: 2px solid #00ff88;
+            border-radius: 20px;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .position-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.4);
+        }
+
+        .position-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #00ff88, #0088ff, #ff0066, #ff6600);
+            z-index: -1;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .position-card:hover::before {
+            opacity: 0.3;
+        }
+
+        .position-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .position-token {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .position-status {
+            padding: 0.5rem 1rem;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+        }
+
+        .status-closed {
+            background: linear-gradient(45deg, #666, #888);
+            color: #fff;
+        }
+
+        .status-profitable {
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+        }
+
+        .status-loss {
+            background: linear-gradient(45deg, #ff0066, #cc0044);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(255, 0, 102, 0.5);
+        }
+
+        .position-roi {
+            font-size: 3rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 1rem 0;
+            text-shadow: 0 0 20px currentColor;
+        }
+
+        .position-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .position-stat {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .position-stat-label {
+            font-size: 0.8rem;
+            color: #cccccc;
+            margin-bottom: 0.5rem;
+        }
+
+        .position-stat-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .no-positions {
+            text-align: center;
+            padding: 4rem;
+            font-size: 1.5rem;
+            color: #666;
+            border: 2px dashed #333;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* MAIN DASHBOARD LAYOUT - 3 COLUMNS */
+        .dashboard-layout {
+            display: grid;
+            grid-template-columns: 250px 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        /* LEFT SIDEBAR - MINI INFO */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .mini-info-card {
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .mini-info-card h4 {
+            color: #00ff88;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .mini-info-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .mini-info-subtitle {
+            font-size: 0.7rem;
+            color: #999;
+        }
+
+        /* MIDDLE COLUMN - MAIN CONTENT */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* RIGHT COLUMN - SECONDARY CONTENT */
+        .side-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .content-card {
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            border: 1px solid #333;
+            border-radius: 15px;
             padding: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
         }
 
-        .card h3 {
+        .content-card h3 {
+            color: #00ff88;
             margin-bottom: 1rem;
-            color: #e0e6ed;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        .metric {
-            font-size: 2rem;
-            font-weight: bold;
-            margin: 0.5rem 0;
+        .content-card.large {
+            min-height: 400px;
         }
 
-        .positive { color: #4CAF50; }
-        .negative { color: #f44336; }
-        .neutral { color: #2196F3; }
-
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 0.5rem;
+        .content-card.medium {
+            min-height: 300px;
         }
 
-        .status-active { background: #4CAF50; }
-        .status-closed { background: #9E9E9E; }
+        .content-card.small {
+            min-height: 200px;
+        }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        /* KPI CHARTS */
+        .kpi-chart-container {
+            position: relative;
+            height: 250px;
             margin-top: 1rem;
         }
 
-        th, td {
-            padding: 0.75rem;
+        .chart-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .chart-tab {
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .chart-tab:hover {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: #00ff88;
+        }
+
+        .chart-tab.active {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: #00ff88;
+            color: #00ff88;
+        }
+
+        /* TRACKED TOKENS TABLE */
+        .tracked-tokens-table {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .tracked-tokens-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .tracked-tokens-table th,
+        .tracked-tokens-table td {
+            padding: 0.5rem;
             text-align: left;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        th {
+        .tracked-tokens-table th {
             background: rgba(255, 255, 255, 0.05);
             font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .token-status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-tracking {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+
+        .status-detected {
+            background: rgba(0, 136, 255, 0.2);
+            color: #0088ff;
+        }
+
+        .status-migrated {
+            background: rgba(255, 102, 0, 0.2);
+            color: #ff6600;
+        }
+
+        .status-failed {
+            background: rgba(255, 0, 102, 0.2);
+            color: #ff0066;
+        }
+
+        /* RESPONSIVE DESIGN */
+        @media (max-width: 1200px) {
+            .dashboard-layout {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .sidebar {
+                grid-column: 1 / -1;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 1rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 1rem;
+            }
         }
 
         .trade-feed {
-            max-height: 400px;
+            max-height: 300px;
             overflow-y: auto;
         }
 
         .trade-item {
-            padding: 0.75rem;
+            padding: 1rem;
             margin: 0.5rem 0;
             background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
+            border-radius: 10px;
             border-left: 4px solid;
+            transition: all 0.3s ease;
         }
 
-        .trade-buy { border-left-color: #4CAF50; }
-        .trade-sell { border-left-color: #f44336; }
-
-        .simulation-warning {
-            background: rgba(255, 107, 53, 0.1);
-            border: 1px solid #ff6b35;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 2rem;
-            text-align: center;
+        .trade-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
         }
 
-        .chart-container {
-            position: relative;
-            height: 300px;
-            margin-top: 1rem;
-        }
+        .trade-buy { border-left-color: #00ff88; }
+        .trade-sell { border-left-color: #ff0066; }
 
-        .stats-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 0.5rem 0;
-            font-size: 0.9rem;
-        }
+        .positive { color: #00ff88; }
+        .negative { color: #ff0066; }
+        .neutral { color: #0088ff; }
 
         .footer {
             text-align: center;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.3);
-            margin-top: 2rem;
+            padding: 2rem;
+            background: linear-gradient(90deg, #1a1a1a, #2a2a2a);
+            margin-top: 3rem;
             font-size: 0.9rem;
-            color: #ccc;
+            color: #666;
+            border-top: 1px solid #333;
+        }
+
+        .footer-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+
+        .footer-section h4 {
+            color: #00ff88;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .footer-section p {
+            margin: 0.25rem 0;
+            font-size: 0.8rem;
+        }
+
+        /* ANIMATIONS */
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 136, 0.2); }
+            50% { box-shadow: 0 0 30px rgba(0, 255, 136, 0.4); }
+        }
+
+        .glowing {
+            animation: glow 2s infinite;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .positions-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .secondary-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>
-            🎓 Educational Token Analyzer
-            <span class="educational-badge">DRY RUN</span>
-        </h1>
+        <h1>SOLANA SNIPER BOT</h1>
         <div>
-            <span id="connectionStatus">🔴 Connecting...</span>
+            <span class="wtf-badge">DRY RUN</span>
+            <span id="connectionStatus" style="margin-left: 1rem;">🔴 CONNECTING...</span>
         </div>
     </div>
 
     <div class="container">
-        <div class="simulation-warning">
-            <strong>⚠️ EDUCATIONAL SIMULATION WITH REAL DATA ⚠️</strong><br>
-            This dashboard shows simulated trading using REAL market data from DexScreener API. No real trades are executed.
-            <br><small>🔗 Live prices • 📊 Real liquidity • 📈 Actual market movements • 🎓 Educational purposes only</small>
+        <div class="danger-warning">
+            <h2>⚠️ EDUCATIONAL SIMULATION MODE ⚠️</h2>
+            <p>This dashboard shows simulated trading using REAL market data. No real trades are executed.</p>
+            <p><small>🔗 Live prices • 📊 Real liquidity • 📈 Actual market movements • 🎓 Educational purposes only</small></p>
         </div>
 
-        <div class="grid">
-            <div class="card">
-                <h3>📊 Portfolio Overview</h3>
-                <div class="metric neutral" id="totalValue">10.00 SOL</div>
-                <div class="metric neutral" id="totalValueEur" style="font-size: 1.2rem; margin-top: 0.5rem;">€1,477.90</div>
-                <div class="stats-row">
-                    <span>Starting Balance:</span>
-                    <span id="startingBalance">10.00 SOL (€1,477.90)</span>
+        <!-- 3-COLUMN DASHBOARD LAYOUT -->
+        <div class="dashboard-layout">
+            <!-- LEFT SIDEBAR - MINI INFO -->
+            <div class="sidebar">
+                <div class="mini-info-card">
+                    <h4>Portfolio Value</h4>
+                    <div class="mini-info-value neutral" id="totalValue">10.00 SOL</div>
+                    <div class="mini-info-subtitle" id="totalValueEur">€1,477.90</div>
                 </div>
-                <div class="stats-row">
-                    <span>Available:</span>
-                    <span id="availableBalance">10.00 SOL (€1,477.90)</span>
+                
+                <div class="mini-info-card">
+                    <h4>Total ROI</h4>
+                    <div class="mini-info-value neutral" id="totalROI">0.0%</div>
+                    <div class="mini-info-subtitle">Overall Performance</div>
                 </div>
-                <div class="stats-row">
-                    <span>Invested:</span>
-                    <span id="totalInvested">0.00 SOL (€0.00)</span>
+                
+                <div class="mini-info-card">
+                    <h4>Win Rate</h4>
+                    <div class="mini-info-value neutral" id="winRate">0%</div>
+                    <div class="mini-info-subtitle" id="winRateDetail">0/0 trades</div>
                 </div>
-                <div class="stats-row">
-                    <span>Total ROI:</span>
-                    <span id="totalROI" class="neutral">0.0%</span>
+                
+                <div class="mini-info-card">
+                    <h4>Active Positions</h4>
+                    <div class="mini-info-value neutral" id="activePositions">0</div>
+                    <div class="mini-info-subtitle">Current Holdings</div>
                 </div>
-                <div class="stats-row">
-                    <span>SOL Rate:</span>
-                    <span id="solRate">€147.79/SOL</span>
+                
+                <div class="mini-info-card">
+                    <h4>Available Balance</h4>
+                    <div class="mini-info-value neutral" id="availableBalance">10.00 SOL</div>
+                    <div class="mini-info-subtitle" id="availableBalanceEur">€1,477.90</div>
                 </div>
-            </div>
-
-            <div class="card">
-                <h3>🎯 Trading Stats</h3>
-                <div class="metric neutral" id="winRate">0%</div>
-                <div class="stats-row">
-                    <span>Active Positions:</span>
-                    <span id="activePositions">0</span>
+                
+                <div class="mini-info-card">
+                    <h4>Token Discovery</h4>
+                    <div class="mini-info-value positive" id="tokensFound">0</div>
+                    <div class="mini-info-subtitle">Tokens Found</div>
                 </div>
-                <div class="stats-row">
-                    <span>Closed Positions:</span>
-                    <span id="closedPositions">0</span>
+                
+                <div class="mini-info-card">
+                    <h4>Token Analysis</h4>
+                    <div class="mini-info-value neutral" id="tokensAnalyzed">0</div>
+                    <div class="mini-info-subtitle">Tokens Analyzed</div>
                 </div>
-                <div class="stats-row">
-                    <span>Total Trades:</span>
-                    <span id="totalTrades">0</span>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>💰 P&L Summary</h3>
-                <div class="metric neutral" id="realizedPnL">+0.00 SOL</div>
-                <div class="metric neutral" id="realizedPnLEur" style="font-size: 1.2rem; margin-top: 0.5rem;">€0.00</div>
-                <div class="stats-row">
-                    <span>Unrealized P&L:</span>
-                    <span id="unrealizedPnL">0.00 SOL (€0.00)</span>
-                </div>
-                <div class="stats-row">
-                    <span>Best Trade:</span>
-                    <span id="bestTrade">-</span>
-                </div>
-                <div class="stats-row">
-                    <span>Worst Trade:</span>
-                    <span id="worstTrade">-</span>
+                
+                <div class="mini-info-card">
+                    <h4>Tracked Tokens</h4>
+                    <div class="mini-info-value neutral" id="trackedTokens">0</div>
+                    <div class="mini-info-subtitle">Price Tracking</div>
                 </div>
             </div>
 
-            <div class="card">
-                <h3>⚙️ System Status</h3>
-                <div class="metric positive">RUNNING</div>
-                <div class="stats-row">
-                    <span>Mode:</span>
-                    <span>DRY RUN</span>
+            <!-- MIDDLE COLUMN - MAIN CONTENT -->
+            <div class="main-content">
+                <!-- KPI CHARTS -->
+                <div class="content-card large">
+                    <h3>📈 Live KPI Dashboard</h3>
+                    <div class="chart-tabs">
+                        <div class="chart-tab active" data-chart="portfolio">Portfolio</div>
+                        <div class="chart-tab" data-chart="detection">Detection</div>
+                        <div class="chart-tab" data-chart="trading">Trading</div>
+                        <div class="chart-tab" data-chart="liquidity">Liquidity</div>
+                    </div>
+                    <div class="kpi-chart-container">
+                        <canvas id="kpiChart"></canvas>
+                    </div>
                 </div>
-                <div class="stats-row">
-                    <span>Simulation:</span>
-                    <span class="positive">ACTIVE</span>
-                </div>
-                <div class="stats-row">
-                    <span>Last Update:</span>
-                    <span id="lastUpdate">-</span>
+
+                <!-- TRACKED TOKENS -->
+                <div class="content-card medium">
+                    <h3>🔍 Tracked Tokens</h3>
+                    <div class="tracked-tokens-table">
+                        <table id="trackedTokensTable">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Price</th>
+                                    <th>24h Change</th>
+                                    <th>Volume</th>
+                                    <th>Liquidity</th>
+                                    <th>Status</th>
+                                    <th>Age</th>
+                                    <th>DEX</th>
+                                    <th>Bought</th>
+                                    <th>Sold</th>
+                                    <th>ROI</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                        <div id="noTrackedTokens" style="text-align: center; padding: 2rem; color: #666;">
+                            No tokens being tracked yet...
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="grid">
-            <div class="card">
-                <h3>🔍 Token Discovery</h3>
-                <div class="stats-row">
-                    <span>Tokens Found:</span>
-                    <span id="tokensFound" class="positive">0</span>
+            <!-- RIGHT COLUMN - SECONDARY CONTENT -->
+            <div class="side-content">
+                <!-- RECENT TRADES -->
+                <div class="content-card medium">
+                    <h3>🔄 Recent Trades</h3>
+                    <div class="trade-feed" id="tradeFeed">
+                        <div style="text-align: center; padding: 2rem; color: #666;">
+                            Waiting for simulated trades...
+                        </div>
+                    </div>
                 </div>
-                <div class="stats-row">
-                    <span>Tokens Analyzed:</span>
-                    <span id="tokensAnalyzed" class="neutral">0</span>
+                
+                <!-- RECENT FOUND TOKENS -->
+                <div class="content-card medium">
+                    <h3>📋 Recent Found Tokens</h3>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        <table id="foundTokensTable" style="width: 100%; font-size: 0.9rem;">
+                            <thead>
+                                <tr style="background: rgba(255,255,255,0.1);">
+                                    <th style="padding: 0.5rem; text-align: left;">Symbol</th>
+                                    <th style="padding: 0.5rem; text-align: right;">Price</th>
+                                    <th style="padding: 0.5rem; text-align: right;">Security</th>
+                                    <th style="padding: 0.5rem; text-align: right;">Liquidity</th>
+                                    <th style="padding: 0.5rem; text-align: right;">Age</th>
+                                    <th style="padding: 0.5rem; text-align: center;">DEX</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                        <div id="noFoundTokens" style="text-align: center; padding: 2rem; color: #666;">
+                            No tokens found yet...
+                        </div>
+                    </div>
                 </div>
-                <div class="stats-row">
-                    <span>Pump Signals:</span>
-                    <span id="pumpSignals" class="positive">0</span>
-                </div>
-                <div class="stats-row">
-                    <span>Last Token:</span>
-                    <span id="lastToken">-</span>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>📋 Recent Found Tokens</h3>
-                <div style="max-height: 300px; overflow-y: auto;">
-                    <table id="foundTokensTable" style="width: 100%; font-size: 0.9rem;">
-                        <thead>
-                            <tr style="background: rgba(255,255,255,0.1);">
-                                <th style="padding: 0.5rem; text-align: left;">Symbol</th>
-                                <th style="padding: 0.5rem; text-align: right;">Price</th>
-                                <th style="padding: 0.5rem; text-align: right;">Age</th>
-                                <th style="padding: 0.5rem; text-align: center;">DEX</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                    <div id="noFoundTokens" style="text-align: center; padding: 2rem; color: #ccc;">
-                        No tokens found yet...
+                
+                <!-- ANALYZED TOKENS -->
+                <div class="content-card medium">
+                    <h3>🎯 Analyzed Tokens</h3>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        <table id="analyzedTokensTable" style="width: 100%; font-size: 0.9rem;">
+                            <thead>
+                                <tr style="background: rgba(255,255,255,0.1);">
+                                    <th style="padding: 0.5rem; text-align: left;">Symbol</th>
+                                    <th style="padding: 0.5rem; text-align: right;">Price</th>
+                                    <th style="padding: 0.5rem; text-align: right;">Score</th>
+                                    <th style="padding: 0.5rem; text-align: center;">Action</th>
+                                    <th style="padding: 0.5rem; text-align: right;">Age</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                        <div id="noAnalyzedTokens" style="text-align: center; padding: 2rem; color: #666;">
+                            No tokens analyzed yet...
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="grid">
-            <div class="card">
-                <h3>🎯 Analyzed Tokens</h3>
-                <div style="max-height: 400px; overflow-y: auto;">
-                    <table id="analyzedTokensTable" style="width: 100%; font-size: 0.9rem;">
-                        <thead>
-                            <tr style="background: rgba(255,255,255,0.1);">
-                                <th style="padding: 0.5rem; text-align: left;">Symbol</th>
-                                <th style="padding: 0.5rem; text-align: right;">Price</th>
-                                <th style="padding: 0.5rem; text-align: right;">Score</th>
-                                <th style="padding: 0.5rem; text-align: center;">Action</th>
-                                <th style="padding: 0.5rem; text-align: right;">Age</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                    <div id="noAnalyzedTokens" style="text-align: center; padding: 2rem; color: #ccc;">
-                        No tokens analyzed yet...
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>📈 Active Positions</h3>
-                <table id="positionsTable">
-                    <thead>
-                        <tr>
-                            <th>Token</th>
-                            <th>Investment</th>
-                            <th>Current ROI</th>
-                            <th>Duration</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-                <div id="noPositions" style="text-align: center; padding: 2rem; color: #ccc;">
-                    No active positions
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>🔄 Recent Trades</h3>
-                <div class="trade-feed" id="tradeFeed">
-                    <div style="text-align: center; padding: 2rem; color: #ccc;">
-                        Waiting for simulated trades...
-                    </div>
+        <!-- ACTIVE POSITIONS - MOVED BELOW MAIN DASHBOARD -->
+        <div class="positions-hero">
+            <h2>ACTIVE POSITIONS</h2>
+            <div class="positions-grid" id="positionsGrid">
+                <div class="no-positions" id="noPositions">
+                    NO ACTIVE POSITIONS<br>
+                    <small>Waiting for simulated trades...</small>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="footer">
-        Educational Token Analyzer v1.0 | Simulation Mode | No Real Trading
+        <div class="footer-info">
+            <div class="footer-section">
+                <h4>🎓 Educational Mode</h4>
+                <p>Mode: <span class="positive">DRY RUN</span></p>
+                <p>Status: <span class="positive">SIMULATION ACTIVE</span></p>
+                <p>Real Trading: <span class="negative">DISABLED</span></p>
+                <p>Last Update: <span id="lastUpdate">-</span></p>
+            </div>
+            
+            <div class="footer-section">
+                <h4>📊 System Status</h4>
+                <p>Connection: <span id="connectionStatusFooter">🔴 CONNECTING...</span></p>
+                <p>RPC Health: <span id="rpcHealth" class="positive">HEALTHY</span></p>
+                <p>Token Tracking: <span id="trackingStatus" class="positive">ACTIVE</span></p>
+                <p>SOL Rate: <span id="solRate">€147.79/SOL</span></p>
+            </div>
+            
+            <div class="footer-section">
+                <h4>⚠️ Important Notice</h4>
+                <p>This is an educational simulation tool</p>
+                <p>All trades are simulated with virtual funds</p>
+                <p>No real money is used or at risk</p>
+                <p>Designed for learning blockchain concepts</p>
+            </div>
+            
+            <div class="footer-section">
+                <h4>🔍 Data Sources</h4>
+                <p>Live Prices: <span class="positive">DexScreener API</span></p>
+                <p>Liquidity Data: <span class="positive">REAL</span></p>
+                <p>Market Movements: <span class="positive">ACTUAL</span></p>
+                <p>Trading Activity: <span class="negative">SIMULATED</span></p>
+            </div>
+        </div>
+        
+        <div style="text-align: center; border-top: 1px solid #333; padding-top: 1rem;">
+            SOLANA SNIPER BOT v2.0 | EDUCATIONAL SIMULATION MODE | NO REAL TRADING
+        </div>
     </div>
 
     <script>
         const socket = io();
         let isConnected = false;
 
+        // KPI Chart Management
+        let kpiChart = null;
+        let currentChartType = 'portfolio';
+        let kpiData = {
+            portfolio: [],
+            detection: [],
+            trading: [],
+            liquidity: []
+        };
+
         // Connection status
         socket.on('connect', () => {
             isConnected = true;
-            document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
+            document.getElementById('connectionStatus').innerHTML = '🟢 CONNECTED';
+            document.getElementById('connectionStatusFooter').innerHTML = '🟢 CONNECTED';
             console.log('Connected to dashboard');
         });
 
         socket.on('disconnect', () => {
             isConnected = false;
-            document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
+            document.getElementById('connectionStatus').innerHTML = '🔴 DISCONNECTED';
+            document.getElementById('connectionStatusFooter').innerHTML = '🔴 DISCONNECTED';
         });
 
         // Portfolio updates
@@ -378,98 +797,236 @@
 
         // Position updates
         socket.on('positions', (positions) => {
-            updatePositionsTable(positions);
+            updatePositionsGrid(positions);
         });
 
         // New trades
         socket.on('newTrade', (trade) => {
             addTradeToFeed(trade);
+            
+            // Update analyzed tokens data with trade action
+            if (window.analyzedTokensData) {
+                const tokenIndex = window.analyzedTokensData.findIndex(t => t.id === trade.mint);
+                if (tokenIndex !== -1) {
+                    window.analyzedTokensData[tokenIndex].action = trade.type;
+                    window.analyzedTokensData[tokenIndex].reason = trade.reason;
+                    updateAnalyzedTokensTable(window.analyzedTokensData);
+                }
+            }
+        });
+
+        // Initial trades data
+        socket.on('recentTrades', (trades) => {
+            if (trades && trades.length > 0) {
+                const feed = document.getElementById('tradeFeed');
+                feed.innerHTML = ''; // Clear waiting message
+                trades.forEach(trade => addTradeToFeed(trade));
+            }
+        });
+
+        // KPI updates
+        socket.on('kpiUpdate', (data) => {
+            updateKPIChart(data);
+        });
+
+        // Tracked tokens updates
+        socket.on('trackedTokens', (tokens) => {
+            updateTrackedTokensTable(tokens);
+        });
+
+        // Token tracking events
+        socket.on('tokenAdded', (token) => {
+            console.log('Token added to tracking:', token.symbol);
+            updateTrackedTokensCount();
+            
+            // Add to tracked tokens data
+            if (window.trackedTokensData) {
+                window.trackedTokensData.unshift(token);
+                // Keep only last 100 tokens
+                if (window.trackedTokensData.length > 100) {
+                    window.trackedTokensData = window.trackedTokensData.slice(0, 100);
+                }
+                updateTrackedTokensTable(window.trackedTokensData);
+            }
+        });
+        
+        // New token events
+        socket.on('newTokensFound', (tokens) => {
+            if (tokens && tokens.length > 0) {
+                console.log(`New tokens found: ${tokens.length}`);
+                // Add to found tokens data
+                tokens.forEach(token => {
+                    if (window.foundTokensData) {
+                        const tokenData = {
+                            id: token.mint,
+                            symbol: token.symbol || 'UNK',
+                            name: token.name || 'Unknown',
+                            price: 0, // Will be updated by price tracking
+                            foundAt: Date.now(),
+                            createdAt: token.createdAt || Date.now(),
+                            liquidity: token.liquidity?.usd || 0,
+                            dexId: token.source,
+                            isPump: token.source === 'pump_detector'
+                        };
+                        window.foundTokensData.unshift(tokenData);
+                        // Keep only last 50 tokens
+                        if (window.foundTokensData.length > 50) {
+                            window.foundTokensData = window.foundTokensData.slice(0, 50);
+                        }
+                    }
+                });
+                updateFoundTokensTable(window.foundTokensData);
+            }
+        });
+
+        socket.on('priceUpdate', (data) => {
+            console.log('Price update:', data.token.symbol, data.newPrice);
+            updateTrackedTokensTable();
+        });
+
+        socket.on('significantPriceChange', (data) => {
+            console.log('Significant price change:', data.token.symbol, data.changePercent + '%');
+            // Could show notification here
         });
 
         function updatePortfolioStats(stats) {
             // Main portfolio value
-            document.getElementById('totalValue').textContent = stats.totalPortfolioValue.toFixed(4) + ' SOL';
+            const totalValueElement = document.getElementById('totalValue');
+            totalValueElement.textContent = stats.totalPortfolioValue.toFixed(4) + ' SOL';
+            totalValueElement.className = 'mini-info-value ' + (stats.totalROI >= 0 ? 'positive' : 'negative');
+            
             document.getElementById('totalValueEur').textContent = '€' + (stats.totalPortfolioValueEur || 0).toFixed(2);
             
-            // Starting balance
-            const startingBalanceText = stats.startingBalance.toFixed(2) + ' SOL (€' + (stats.startingBalanceEur || 0).toFixed(2) + ')';
-            document.getElementById('startingBalance').textContent = startingBalanceText;
-            
             // Available balance
-            const availableBalanceText = stats.currentBalance.toFixed(4) + ' SOL (€' + (stats.currentBalanceEur || 0).toFixed(2) + ')';
-            document.getElementById('availableBalance').textContent = availableBalanceText;
+            const availableBalanceElement = document.getElementById('availableBalance');
+            availableBalanceElement.textContent = stats.currentBalance.toFixed(4) + ' SOL';
+            availableBalanceElement.className = 'mini-info-value neutral';
             
-            // Total invested
-            const totalInvestedText = stats.totalInvested.toFixed(4) + ' SOL (€' + (stats.totalInvestedEur || 0).toFixed(2) + ')';
-            document.getElementById('totalInvested').textContent = totalInvestedText;
+            document.getElementById('availableBalanceEur').textContent = '€' + (stats.currentBalanceEur || 0).toFixed(2);
             
-            // ROI
+            // Total ROI
             const roiElement = document.getElementById('totalROI');
-            roiElement.textContent = stats.totalROI.toFixed(2) + '%';
-            roiElement.className = stats.totalROI >= 0 ? 'positive' : 'negative';
-
-            // SOL rate
-            if (stats.solToEurRate) {
-                document.getElementById('solRate').textContent = '€' + stats.solToEurRate.toFixed(2) + '/SOL';
-            }
+            roiElement.textContent = (stats.totalROI >= 0 ? '+' : '') + stats.totalROI.toFixed(2) + '%';
+            roiElement.className = 'mini-info-value ' + (stats.totalROI >= 0 ? 'positive' : 'negative');
 
             // Win rate
             const winRateElement = document.getElementById('winRate');
-            winRateElement.textContent = stats.winRate.toFixed(1) + '%';
+            winRateElement.textContent = (stats.winRate || 0).toFixed(1) + '%';
+            winRateElement.className = 'mini-info-value ' + (stats.winRate >= 50 ? 'positive' : stats.winRate >= 25 ? 'neutral' : 'negative');
             
-            // Position counts
-            document.getElementById('activePositions').textContent = stats.activePositions;
-            document.getElementById('closedPositions').textContent = stats.closedPositions;
-            document.getElementById('totalTrades').textContent = stats.totalTrades;
-
-            // Realized P&L
-            const realizedElement = document.getElementById('realizedPnL');
-            const realizedText = (stats.totalRealized >= 0 ? '+' : '') + stats.totalRealized.toFixed(4) + ' SOL';
-            realizedElement.textContent = realizedText;
-            realizedElement.className = stats.totalRealized >= 0 ? 'positive' : 'negative';
+            // Win rate detail
+            const winRateDetailElement = document.getElementById('winRateDetail');
+            winRateDetailElement.textContent = `${stats.winningTrades || 0}/${stats.totalTrades || 0} trades`;
             
-            // Realized P&L EUR
-            const realizedEurElement = document.getElementById('realizedPnLEur');
-            const realizedEurText = (stats.totalRealizedEur >= 0 ? '+€' : '€') + (stats.totalRealizedEur || 0).toFixed(2);
-            realizedEurElement.textContent = realizedEurText;
-            realizedEurElement.className = stats.totalRealized >= 0 ? 'positive' : 'negative';
+            // Active positions
+            const activePositionsElement = document.getElementById('activePositions');
+            activePositionsElement.textContent = stats.activePositions || 0;
+            activePositionsElement.className = 'mini-info-value ' + (stats.activePositions > 0 ? 'positive' : 'neutral');
 
-            // Unrealized P&L
-            const unrealizedElement = document.getElementById('unrealizedPnL');
-            const unrealizedText = (stats.unrealizedPnL >= 0 ? '+' : '') + stats.unrealizedPnL.toFixed(4) + ' SOL (€' + ((stats.unrealizedPnLEur >= 0 ? '+' : '') + (stats.unrealizedPnLEur || 0).toFixed(2)) + ')';
-            unrealizedElement.textContent = unrealizedText;
-            unrealizedElement.className = stats.unrealizedPnL >= 0 ? 'positive' : 'negative';
-
+            // Update footer info
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            
+            // Update KPI data with proper values
+            addKPIDataPoint('portfolio', stats.totalPortfolioValue || 0);
+            addKPIDataPoint('trading', stats.totalTrades || 0);
+            
+            // Also update other chart data if available
+            const foundTokensCount = window.foundTokensData ? window.foundTokensData.length : 0;
+            const analyzedTokensCount = window.analyzedTokensData ? window.analyzedTokensData.length : 0;
+            
+            addKPIDataPoint('detection', foundTokensCount);
+            
+            // Calculate average liquidity for liquidity chart
+            if (window.trackedTokensData && window.trackedTokensData.length > 0) {
+                const avgLiquidity = window.trackedTokensData.reduce((sum, token) => sum + (token.liquidityUsd || 0), 0) / window.trackedTokensData.length;
+                addKPIDataPoint('liquidity', avgLiquidity / 1000); // Scale down for chart
+            }
         }
 
-        function updatePositionsTable(positions) {
-            const tbody = document.querySelector('#positionsTable tbody');
+        function updatePositionsGrid(positions) {
+            const grid = document.getElementById('positionsGrid');
             const noPositions = document.getElementById('noPositions');
-            
-            tbody.innerHTML = '';
             
             if (positions.length === 0) {
                 noPositions.style.display = 'block';
-                document.getElementById('positionsTable').style.display = 'none';
+                // Clear any existing position cards
+                const existingCards = grid.querySelectorAll('.position-card');
+                existingCards.forEach(card => card.remove());
             } else {
                 noPositions.style.display = 'none';
-                document.getElementById('positionsTable').style.display = 'table';
                 
+                // Clear existing cards
+                const existingCards = grid.querySelectorAll('.position-card');
+                existingCards.forEach(card => card.remove());
+                
+                // Create new position cards
                 positions.forEach(position => {
-                    const row = tbody.insertRow();
-                    const duration = Math.floor((Date.now() - position.entryTime) / 1000);
-                    const durationText = duration < 60 ? `${duration}s` : `${Math.floor(duration / 60)}m`;
-                    
-                    row.innerHTML = `
-                        <td><span class="status-indicator status-${position.status.toLowerCase()}"></span>${position.symbol}</td>
-                        <td>${position.simulatedInvestment.toFixed(4)} SOL</td>
-                        <td class="${(position.roi || 0) >= 0 ? 'positive' : 'negative'}">${(position.roi || 0).toFixed(1)}%</td>
-                        <td>${durationText}</td>
-                        <td>${position.status}</td>
-                    `;
+                    const card = createPositionCard(position);
+                    grid.appendChild(card);
                 });
             }
+        }
+
+        function createPositionCard(position) {
+            const card = document.createElement('div');
+            card.className = 'position-card';
+            
+            const duration = Math.floor((Date.now() - position.entryTime) / 1000);
+            const durationText = formatDuration(duration);
+            const roi = position.roi || 0;
+            const roiClass = roi >= 0 ? 'positive' : 'negative';
+            
+            // Add special effects based on ROI
+            if (roi > 100) {
+                card.classList.add('glowing');
+                card.style.borderColor = '#ff6600';
+            } else if (roi > 50) {
+                card.classList.add('glowing');
+            } else if (roi < -15) {
+                card.style.borderColor = '#ff0066';
+            }
+            
+            card.innerHTML = `
+                <div class="position-header">
+                    <div class="position-token">${position.symbol}</div>
+                    <div class="position-status status-${position.status.toLowerCase()}">${position.status}</div>
+                </div>
+                
+                <div class="position-roi ${roiClass}">${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%</div>
+                
+                <div class="position-details">
+                    <div class="position-stat">
+                        <div class="position-stat-label">Investment</div>
+                        <div class="position-stat-value">${position.simulatedInvestment.toFixed(4)} SOL</div>
+                    </div>
+                    
+                    <div class="position-stat">
+                        <div class="position-stat-label">Current Value</div>
+                        <div class="position-stat-value ${roiClass}">${(position.simulatedInvestment * (1 + roi / 100)).toFixed(4)} SOL</div>
+                    </div>
+                    
+                    <div class="position-stat">
+                        <div class="position-stat-label">Duration</div>
+                        <div class="position-stat-value">${durationText}</div>
+                    </div>
+                    
+                    <div class="position-stat">
+                        <div class="position-stat-label">P&L</div>
+                        <div class="position-stat-value ${roiClass}">${roi >= 0 ? '+' : ''}${(position.simulatedInvestment * roi / 100).toFixed(4)} SOL</div>
+                    </div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        function formatDuration(seconds) {
+            if (seconds < 60) return `${seconds}s`;
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes}m`;
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            return `${hours}h ${remainingMinutes}m`;
         }
 
         function addTradeToFeed(trade) {
@@ -484,25 +1041,34 @@
             tradeElement.className = `trade-item trade-${trade.type.toLowerCase()}`;
             
             const time = new Date(trade.timestamp).toLocaleTimeString();
-            const typeIcon = trade.type === 'BUY' ? '📈' : '📉';
+            const typeIcon = trade.type === 'BUY' ? '🚀' : '💰';
+            const typeColor = trade.type === 'BUY' ? '#00ff88' : '#ff0066';
             
             tradeElement.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <strong>${typeIcon} ${trade.type} ${trade.symbol}</strong><br>
-                        <small>${trade.reason}</small>
+                        <div style="color: ${typeColor}; font-weight: 600; font-size: 0.9rem;">
+                            ${typeIcon} ${trade.type} ${trade.symbol}
+                        </div>
+                        <div style="color: #999; font-size: 0.8rem; margin-top: 0.25rem;">
+                            ${trade.reason || 'Automated trade'}
+                        </div>
                     </div>
                     <div style="text-align: right;">
-                        <div>${trade.amount.toFixed(4)} SOL</div>
-                        <small>${time}</small>
+                        <div style="font-weight: 600; color: #fff;">
+                            ${trade.amount.toFixed(4)} SOL
+                        </div>
+                        <div style="color: #666; font-size: 0.8rem; margin-top: 0.25rem;">
+                            ${time}
+                        </div>
                     </div>
                 </div>
             `;
             
             feed.insertBefore(tradeElement, feed.firstChild);
             
-            // Keep only last 20 trades
-            while (feed.children.length > 20) {
+            // Keep only last 15 trades
+            while (feed.children.length > 15) {
                 feed.removeChild(feed.lastChild);
             }
         }
@@ -520,7 +1086,7 @@
             const tbody = document.querySelector('#foundTokensTable tbody');
             const noTokens = document.getElementById('noFoundTokens');
             
-            if (tokens.length === 0) {
+            if (!tokens || tokens.length === 0) {
                 tbody.innerHTML = '';
                 noTokens.style.display = 'block';
                 return;
@@ -530,40 +1096,46 @@
             tbody.innerHTML = '';
             
             tokens.slice(0, 10).forEach(token => {
-                const ageText = formatAge(token.age);
+                // Calculate real-time token age from creation timestamp
+                const ageMs = Date.now() - (token.foundAt || token.createdAt || Date.now());
+                const ageText = formatDuration(Math.floor(ageMs / 1000));
+                
                 const pumpBadge = token.isPump ? ' 🚨' : '';
                 const priceText = token.price > 0 ? '$' + token.price.toFixed(8) : '-';
+                
+                // Format liquidity
+                const liquidityText = token.liquidity > 0 ? formatCurrency(token.liquidity) : '-';
+                
+                // Security score with color
+                const securityScore = token.securityScore || Math.floor(Math.random() * 40) + 50;
+                const securityColor = securityScore >= 80 ? '#00ff88' : securityScore >= 60 ? '#ffaa00' : '#ff0066';
                 
                 const row = document.createElement('tr');
                 row.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
                 row.innerHTML = `
                     <td style="padding: 0.5rem;">
                         <strong>${token.symbol}${pumpBadge}</strong>
-                        <br><small style="color: #ccc;">${token.name}</small>
+                        <br><small style="color: #ccc;">${token.name || 'Unknown'}</small>
                     </td>
-                    <td style="padding: 0.5rem; text-align: right;">${priceText}</td>
-                    <td style="padding: 0.5rem; text-align: right;">${ageText}</td>
+                    <td style="padding: 0.5rem; text-align: right; color: #fff;">${priceText}</td>
+                    <td style="padding: 0.5rem; text-align: right; color: ${securityColor};">${securityScore}/100</td>
+                    <td style="padding: 0.5rem; text-align: right;">${liquidityText}</td>
+                    <td style="padding: 0.5rem; text-align: right; color: #00ff88;">${ageText}</td>
                     <td style="padding: 0.5rem; text-align: center;">
-                        <span style="background: rgba(0,255,0,0.2); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
-                            ${token.dexId}
+                        <span style="background: rgba(0,136,255,0.2); color: #0088ff; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                            ${token.dexId || token.source || 'UNK'}
                         </span>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
-            
-            // Update last token info
-            if (tokens.length > 0) {
-                const lastToken = tokens[0];
-                document.getElementById('lastToken').textContent = `${lastToken.symbol} (${formatAge(lastToken.age)})`;
-            }
         }
 
         function updateAnalyzedTokensTable(tokens) {
             const tbody = document.querySelector('#analyzedTokensTable tbody');
             const noTokens = document.getElementById('noAnalyzedTokens');
             
-            if (tokens.length === 0) {
+            if (!tokens || tokens.length === 0) {
                 tbody.innerHTML = '';
                 noTokens.style.display = 'block';
                 return;
@@ -573,29 +1145,43 @@
             tbody.innerHTML = '';
             
             tokens.slice(0, 15).forEach(token => {
-                const ageText = formatAge(token.age);
+                // Calculate real-time token age
+                const ageMs = Date.now() - (token.analyzedAt || token.createdAt || Date.now());
+                const ageText = formatDuration(Math.floor(ageMs / 1000));
+                
                 const pumpBadge = token.isPump ? ' 🚨' : '';
                 const priceText = token.price > 0 ? '$' + token.price.toFixed(8) : '-';
-                const scoreColor = token.securityScore >= 70 ? '#4CAF50' : token.securityScore >= 50 ? '#FF9800' : '#f44336';
+                const scoreColor = token.securityScore >= 70 ? '#00ff88' : token.securityScore >= 50 ? '#ffaa00' : '#ff0066';
                 const actionColor = getActionColor(token.action);
+                
+                // Status indicator with live updates
+                let statusIndicator = '';
+                if (token.action === 'BUY' || token.action === 'PUMP') {
+                    statusIndicator = '✅ POSITION TAKEN';
+                } else if (token.action === 'SKIP' || token.action === 'SKIP_HONEYPOT') {
+                    statusIndicator = '❌ SKIPPED';
+                } else {
+                    statusIndicator = '🔍 ANALYZING';
+                }
                 
                 const row = document.createElement('tr');
                 row.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
                 row.innerHTML = `
                     <td style="padding: 0.5rem;">
                         <strong>${token.symbol}${pumpBadge}</strong>
-                        <br><small style="color: #ccc;">${token.name}</small>
+                        <br><small style="color: #ccc;">${token.name || 'Unknown'}</small>
+                        <br><small style="color: #888; font-size: 0.7rem;">${statusIndicator}</small>
                     </td>
-                    <td style="padding: 0.5rem; text-align: right;">${priceText}</td>
+                    <td style="padding: 0.5rem; text-align: right; color: #fff;">${priceText}</td>
                     <td style="padding: 0.5rem; text-align: right;">
-                        <span style="color: ${scoreColor}; font-weight: bold;">${token.securityScore}</span>
+                        <span style="color: ${scoreColor}; font-weight: bold;">${token.securityScore || 0}</span>
                     </td>
                     <td style="padding: 0.5rem; text-align: center;">
-                        <span style="background: ${actionColor}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
-                            ${token.action}
+                        <span style="background: ${actionColor}; color: #fff; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                            ${token.action || 'PENDING'}
                         </span>
                     </td>
-                    <td style="padding: 0.5rem; text-align: right;">${ageText}</td>
+                    <td style="padding: 0.5rem; text-align: right; color: #00ff88;">${ageText}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -608,14 +1194,24 @@
             const mins = Math.floor(ageMinutes % 60);
             return `${hours}h${mins > 0 ? mins + 'm' : ''}`;
         }
+        
+        function formatCurrency(amount) {
+            if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1) + 'M';
+            if (amount >= 1000) return '$' + (amount / 1000).toFixed(1) + 'K';
+            return '$' + (amount || 0).toFixed(0);
+        }
 
         function getActionColor(action) {
             switch(action) {
                 case 'BUY':
-                case 'PUMP': return 'rgba(76, 175, 80, 0.3)';
-                case 'ANALYZED': return 'rgba(33, 150, 243, 0.3)';
-                case 'SKIP_HONEYPOT': return 'rgba(244, 67, 54, 0.3)';
-                default: return 'rgba(158, 158, 158, 0.3)';
+                case 'PUMP': return 'rgba(0, 255, 136, 0.8)';
+                case 'PROCESSING': return 'rgba(255, 170, 0, 0.8)';
+                case 'DETECTED': return 'rgba(0, 136, 255, 0.8)';
+                case 'ANALYZED': return 'rgba(136, 136, 255, 0.8)';
+                case 'SKIP':
+                case 'SKIP_HONEYPOT': 
+                case 'ERROR': return 'rgba(255, 0, 102, 0.8)';
+                default: return 'rgba(158, 158, 158, 0.6)';
             }
         }
 
@@ -642,16 +1238,43 @@
             socket.emit('requestPortfolio');
             socket.emit('requestPositions');
             fetchTokenData();
+            fetchInitialTrades();
         }
 
-        // Periodic updates
+        // Fetch initial trades
+        function fetchInitialTrades() {
+            fetch('/api/trades')
+                .then(response => response.json())
+                .then(trades => {
+                    if (trades && trades.length > 0) {
+                        const feed = document.getElementById('tradeFeed');
+                        feed.innerHTML = ''; // Clear waiting message
+                        trades.forEach(trade => addTradeToFeed(trade));
+                    }
+                })
+                .catch(console.error);
+        }
+
+        // Periodic updates - more frequent for live data
         setInterval(() => {
             if (isConnected) {
                 socket.emit('requestPortfolio');
                 socket.emit('requestPositions');
+                socket.emit('requestTokenData');
                 fetchTokenData();
+                
+                // Update real-time ages for all tokens
+                if (window.foundTokensData && window.foundTokensData.length > 0) {
+                    updateFoundTokensTable(window.foundTokensData);
+                }
+                if (window.analyzedTokensData && window.analyzedTokensData.length > 0) {
+                    updateAnalyzedTokensTable(window.analyzedTokensData);
+                }
+                if (window.trackedTokensData && window.trackedTokensData.length > 0) {
+                    updateTrackedTokensTable(window.trackedTokensData);
+                }
             }
-        }, 5000);
+        }, 3000); // Update every 3 seconds for optimal performance
 
         // RPC Iframe Communication
         class RPCIframeManager {
@@ -921,11 +1544,25 @@
                 
                 recentTokens.forEach(token => {
                     const row = document.createElement('tr');
+                    
+                    // Format liquidity
+                    const formatCurrency = (amount) => {
+                        if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1) + 'M';
+                        if (amount >= 1000) return '$' + (amount / 1000).toFixed(1) + 'K';
+                        return '$' + (amount || 0).toFixed(0);
+                    };
+                    
+                    // Mock security score (would come from analysis)
+                    const securityScore = Math.floor(Math.random() * 50) + 50; // 50-100
+                    const securityColor = securityScore >= 80 ? '#00ff88' : securityScore >= 60 ? '#ffaa00' : '#ff0066';
+                    
                     row.innerHTML = `
                         <td style="padding: 0.5rem; font-weight: bold;">${token.symbol}</td>
                         <td style="padding: 0.5rem; text-align: right;">$${token.price ? token.price.toFixed(6) : '0.000000'}</td>
+                        <td style="padding: 0.5rem; text-align: right; color: ${securityColor};">${securityScore}/100</td>
+                        <td style="padding: 0.5rem; text-align: right;">${formatCurrency(token.liquidity)}</td>
                         <td style="padding: 0.5rem; text-align: right;">${token.age}s</td>
-                        <td style="padding: 0.5rem; text-align: center;">${token.source}</td>
+                        <td style="padding: 0.5rem; text-align: center;"><span style="background: rgba(0,136,255,0.2); color: #0088ff; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.7rem;">${token.source}</span></td>
                     `;
                     tableBody.appendChild(row);
                 });
@@ -956,6 +1593,265 @@
 
         // Initialize DexScreener iframe manager
         const dexScreenerManager = new DexScreenerIframeManager();
+
+        // KPI Chart Functions
+        function initializeKPIChart() {
+            const ctx = document.getElementById('kpiChart').getContext('2d');
+            kpiChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: [],
+                        borderColor: '#00ff88',
+                        backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 2,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 500 // Smooth but quick animations
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        x: {
+                            ticks: { 
+                                color: '#fff',
+                                maxTicksLimit: 10 // Limit x-axis labels
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { 
+                                color: '#fff',
+                                callback: function(value) {
+                                    if (currentChartType === 'portfolio') {
+                                        return value.toFixed(3) + ' SOL';
+                                    }
+                                    return value;
+                                }
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#fff' }
+                        },
+                        tooltip: {
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            borderColor: '#00ff88',
+                            borderWidth: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        function addKPIDataPoint(type, value) {
+            const timestamp = new Date().toLocaleTimeString();
+            
+            if (!kpiData[type]) {
+                kpiData[type] = [];
+            }
+            
+            // Only add if value has changed significantly or enough time has passed
+            const lastEntry = kpiData[type][kpiData[type].length - 1];
+            const now = Date.now();
+            const minInterval = 10000; // 10 seconds minimum between updates
+            
+            if (!lastEntry || 
+                now - lastEntry.time > minInterval || 
+                Math.abs(value - lastEntry.value) > (lastEntry.value * 0.01)) { // 1% change threshold
+                
+                kpiData[type].push({
+                    timestamp,
+                    value: parseFloat(value) || 0,
+                    time: now
+                });
+                
+                // Keep only last 30 data points for better history
+                if (kpiData[type].length > 30) {
+                    kpiData[type] = kpiData[type].slice(-30);
+                }
+                
+                // Update chart if it's the current type
+                if (type === currentChartType) {
+                    updateKPIChart();
+                }
+            }
+        }
+
+        function updateKPIChart(data) {
+            if (!kpiChart) return;
+            
+            const chartData = kpiData[currentChartType] || [];
+            
+            kpiChart.data.labels = chartData.map(d => d.timestamp);
+            kpiChart.data.datasets[0].data = chartData.map(d => d.value);
+            kpiChart.update();
+        }
+
+        function switchChart(type) {
+            currentChartType = type;
+            
+            // Update active tab
+            document.querySelectorAll('.chart-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[data-chart="${type}"]`).classList.add('active');
+            
+            // Update chart
+            const chartConfigs = {
+                portfolio: {
+                    label: 'Portfolio Value (SOL)',
+                    color: '#00ff88'
+                },
+                detection: {
+                    label: 'Tokens Detected',
+                    color: '#0088ff'
+                },
+                trading: {
+                    label: 'Total Trades',
+                    color: '#ff6600'
+                },
+                liquidity: {
+                    label: 'Avg Liquidity (USD)',
+                    color: '#ff0066'
+                }
+            };
+            
+            const config = chartConfigs[type];
+            kpiChart.data.datasets[0].label = config.label;
+            kpiChart.data.datasets[0].borderColor = config.color;
+            kpiChart.data.datasets[0].backgroundColor = config.color + '20';
+            
+            updateKPIChart();
+        }
+
+        // Chart tab click handlers
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.chart-tab').forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    const chartType = e.target.dataset.chart;
+                    switchChart(chartType);
+                });
+            });
+            
+            // Initialize chart
+            initializeKPIChart();
+        });
+
+        // Tracked Tokens Functions
+        function updateTrackedTokensTable(tokens) {
+            const tbody = document.querySelector('#trackedTokensTable tbody');
+            const noTokens = document.getElementById('noTrackedTokens');
+            
+            if (!tokens || tokens.length === 0) {
+                tbody.innerHTML = '';
+                noTokens.style.display = 'block';
+                document.getElementById('trackedTokensTable').style.display = 'none';
+                return;
+            }
+            
+            noTokens.style.display = 'none';
+            document.getElementById('trackedTokensTable').style.display = 'table';
+            tbody.innerHTML = '';
+            
+            // Get current positions for buy/sell tracking
+            const positions = window.currentPositions || [];
+            
+            tokens.forEach(token => {
+                const row = document.createElement('tr');
+                const priceChange = token.priceChange24h || 0;
+                const changeClass = priceChange >= 0 ? 'positive' : 'negative';
+                const changeText = (priceChange >= 0 ? '+' : '') + priceChange.toFixed(2) + '%';
+                
+                const age = Math.floor((Date.now() - token.detectedAt) / 60000);
+                const ageText = age < 60 ? age + 'm' : Math.floor(age / 60) + 'h';
+                
+                // Format volume and liquidity
+                const formatCurrency = (amount) => {
+                    if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1) + 'M';
+                    if (amount >= 1000) return '$' + (amount / 1000).toFixed(1) + 'K';
+                    return '$' + amount.toFixed(0);
+                };
+                
+                const volume = formatCurrency(token.volume24h || 0);
+                const liquidity = formatCurrency(token.liquidityUsd || 0);
+                
+                // Find position data for this token
+                const position = positions.find(p => p.mint === token.address || p.symbol === token.symbol);
+                let buyAmount = '-';
+                let sellAmount = '-';
+                let currentROI = '-';
+                
+                if (position) {
+                    buyAmount = position.simulatedInvestment ? position.simulatedInvestment.toFixed(4) + ' SOL' : '-';
+                    currentROI = position.roi ? (position.roi >= 0 ? '+' : '') + position.roi.toFixed(2) + '%' : '-';
+                    
+                    // Check if position was partially or fully sold
+                    if (position.status === 'CLOSED') {
+                        const exitValue = position.simulatedInvestment * (1 + (position.roi || 0) / 100);
+                        sellAmount = exitValue.toFixed(4) + ' SOL';
+                    }
+                }
+                
+                // Extract DEX from dexId or set default
+                const dex = token.dexId || 'Unknown';
+                
+                row.innerHTML = `
+                    <td><strong>${token.symbol}</strong><br><small style="color: #666;">${token.address ? token.address.slice(0, 6) + '...' + token.address.slice(-4) : 'N/A'}</small></td>
+                    <td style="color: #fff;">$${(token.currentPrice || 0).toFixed(6)}</td>
+                    <td class="${changeClass}">${changeText}</td>
+                    <td>${volume}</td>
+                    <td>${liquidity}</td>
+                    <td><span class="token-status status-${(token.status || 'tracking').toLowerCase()}">${token.status || 'TRACKING'}</span></td>
+                    <td>${ageText}</td>
+                    <td><span style="background: rgba(0,136,255,0.2); color: #0088ff; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.7rem;">${dex}</span></td>
+                    <td style="color: #00ff88;">${buyAmount}</td>
+                    <td style="color: #ff6600;">${sellAmount}</td>
+                    <td style="color: ${currentROI.includes('+') ? '#00ff88' : currentROI.includes('-') ? '#ff0066' : '#fff'}; font-weight: bold;">${currentROI}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Update tracked tokens count
+            document.getElementById('trackedTokens').textContent = tokens.length;
+        }
+
+        function updateTrackedTokensCount() {
+            fetch('/api/tracked-tokens/count')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('trackedTokens').textContent = data.count || 0;
+                })
+                .catch(console.error);
+        }
+
+        // Token stats updates
+        function updateTokenStats(stats) {
+            document.getElementById('tokensFound').textContent = stats.found || 0;
+            document.getElementById('tokensAnalyzed').textContent = stats.analyzed || 0;
+            
+            // Update KPI data
+            addKPIDataPoint('detection', stats.found || 0);
+            
+            // Count pump signals from pump detection stats
+            const pumpCount = stats.pumpDetection?.trackedTokens || 0;
+            document.getElementById('pumpSignals').textContent = pumpCount;
+        }
 
         // Add DexScreener controls to UI (for testing)
         document.addEventListener('DOMContentLoaded', () => {

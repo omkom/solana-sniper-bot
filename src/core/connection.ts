@@ -18,10 +18,10 @@ export class ConnectionManager {
   private requestQueue: RequestQueueItem[] = [];
   private isProcessingQueue = false;
   private activeRequests = 0;
-  private maxConcurrentRequests = 1; // Reduced from 3 to 1
-  private requestDelay = 1000; // Increased from 200ms to 1000ms
+  private maxConcurrentRequests = 3; // Allow 3 concurrent requests for monitoring
+  private requestDelay = 300; // Reduced to 300ms for better performance
   private lastRequestTime = 0;
-  private retryDelays = [2000, 5000, 10000, 20000]; // Longer backoff delays
+  private retryDelays = [500, 1000, 2000, 5000]; // Shorter backoff delays for detection
 
   constructor() {
     this.config = Config.getInstance();
@@ -42,7 +42,7 @@ export class ConnectionManager {
       try {
         const connection = new Connection(endpoint, {
           commitment: 'processed' as Commitment,
-          confirmTransactionInitialTimeout: 30000, // Increased timeout
+          confirmTransactionInitialTimeout: 10000, // Reduced timeout for faster detection
           wsEndpoint: endpoint.replace('https://', 'wss://').replace('http://', 'ws://'),
           httpHeaders: {
             'Content-Type': 'application/json',
@@ -165,7 +165,8 @@ export class ConnectionManager {
         queueItem.retryCount++;
         const retryDelay = this.retryDelays[Math.min(queueItem.retryCount - 1, this.retryDelays.length - 1)];
         
-        logger.warn(`Request failed, retrying in ${retryDelay}ms (attempt ${queueItem.retryCount}/${queueItem.maxRetries})`, { error });
+        // Comment out excessive retry logging
+        // logger.warn(`Request failed, retrying in ${retryDelay}ms (attempt ${queueItem.retryCount}/${queueItem.maxRetries})`, { error });
         
         setTimeout(() => {
           this.requestQueue.unshift(queueItem); // Add back to front for priority
@@ -243,7 +244,8 @@ export class ConnectionManager {
   setRateLimit(maxConcurrent: number, requestDelay: number): void {
     this.maxConcurrentRequests = maxConcurrent;
     this.requestDelay = requestDelay;
-    logger.info('Rate limit parameters updated', { maxConcurrent, requestDelay });
+    // Reduce frequent rate limit update logging
+    // logger.info('Rate limit parameters updated', { maxConcurrent, requestDelay });
   }
 
   // Cleanup method

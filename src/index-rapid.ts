@@ -18,7 +18,7 @@ async function main() {
     const rapidAnalyzer = new RapidTokenAnalyzer(simulationEngine);
     
     // Initialize dashboard
-    const dashboard = new EducationalDashboard(simulationEngine, rapidAnalyzer);
+    const dashboard = new EducationalDashboard(simulationEngine, undefined, undefined, undefined, rapidAnalyzer);
     
     // Set up event handlers
     setupEventHandlers(rapidAnalyzer, simulationEngine);

@@ -13,6 +13,7 @@
     "dev:unified:rapid": "ts-node src/index-unified.ts rapid",
     "dev:unified:real": "ts-node src/index-unified.ts real",
     "dev:unified:hybrid": "ts-node src/index-unified.ts hybrid",
+    "dev:unified:sniper": "ts-node src/index-unified.ts sniper",
     "dev:unified:demo": "ts-node src/index-unified.ts demo",
     "start:rapid": "node dist/index-rapid.js",
     "start:unified": "node dist/index-unified.js",

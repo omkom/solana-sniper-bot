@@ -17,7 +17,7 @@ export class SecurityAnalyzer {
   }
 
   async analyzeToken(tokenInfo: TokenInfo): Promise<SecurityAnalysis> {
-    console.log(`🔒 Analyzing security for token: ${tokenInfo.symbol || tokenInfo.mint}`);
+    // console.log(`🔒 Analyzing security for token: ${tokenInfo.symbol || tokenInfo.mint}`);
 
     const checks: SecurityCheck[] = [];
 
@@ -29,7 +29,7 @@ export class SecurityAnalyzer {
           !this.isValidSolanaAddress(tokenInfo.mint)) {
         
         if (!this.isValidSolanaAddress(tokenInfo.mint)) {
-          console.warn(`⚠️ Invalid Solana address format: ${tokenInfo.mint}`);
+          // console.warn(`⚠️ Invalid Solana address format: ${tokenInfo.mint}`);
         }
         return this.simulateSecurityAnalysis(tokenInfo);
       }
@@ -247,7 +247,7 @@ export class SecurityAnalyzer {
     
     const overall = failedChecks.length <= 1 && normalizedScore >= 30;
 
-    console.log(`📊 Security analysis complete: ${normalizedScore}/100 (${overall ? 'PASS' : 'FAIL'})`);
+    // console.log(`📊 Security analysis complete: ${normalizedScore}/100 (${overall ? 'PASS' : 'FAIL'})`);
 
     return {
       overall,
@@ -279,12 +279,12 @@ export class SecurityAnalyzer {
   }
 
   async checkForHoneypot(tokenInfo: TokenInfo): Promise<boolean> {
-    console.log(`🍯 Checking for honeypot patterns: ${tokenInfo.symbol || tokenInfo.mint}`);
+    // console.log(`🍯 Checking for honeypot patterns: ${tokenInfo.symbol || tokenInfo.mint}`);
     
     // Educational honeypot detection simulation
     if (tokenInfo.mint.startsWith('SIMULATED_') || tokenInfo.mint.startsWith('EXTRACTED_')) {
       const isHoneypot = Math.random() < 0.03; // 3% chance for demo
-      console.log(`🔍 Honeypot check result: ${isHoneypot ? 'SUSPICIOUS' : 'CLEAN'} (simulated)`);
+      // console.log(`🔍 Honeypot check result: ${isHoneypot ? 'SUSPICIOUS' : 'CLEAN'} (simulated)`);
       return isHoneypot;
     }
 
@@ -292,7 +292,7 @@ export class SecurityAnalyzer {
     try {
       // This would involve simulating buy/sell transactions
       // For educational purposes, return false
-      console.log('🔍 Honeypot check: Not implemented for real tokens (educational system)');
+      // console.log('🔍 Honeypot check: Not implemented for real tokens (educational system)');
       return false;
     } catch (error) {
       console.warn('⚠️ Honeypot check failed:', error);

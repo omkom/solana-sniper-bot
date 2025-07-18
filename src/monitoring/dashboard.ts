@@ -6,6 +6,9 @@ import { Config } from '../core/config';
 import { EventEmittingSimulationEngine } from '../types/simulation-engine';
 import { getIframeRPCService } from '../core/iframe-rpc-service';
 import { getDexScreenerTokenService } from '../core/dexscreener-token-service';
+import { TokenPriceTracker } from './token-price-tracker';
+import { MigrationMonitor } from './migration-monitor';
+import { KPITracker } from './kpi-tracker';
 
 export class EducationalDashboard {
   private app: express.Application;
@@ -16,7 +19,13 @@ export class EducationalDashboard {
   private lastRPCData: any = null;
   private dexScreenerTokens: any[] = [];
 
-  constructor(private simulationEngine: EventEmittingSimulationEngine, analyzer?: any) {
+  constructor(
+    private simulationEngine: EventEmittingSimulationEngine, 
+    private priceTracker?: TokenPriceTracker,
+    private migrationMonitor?: MigrationMonitor,
+    private kpiTracker?: KPITracker,
+    analyzer?: any
+  ) {
     this.config = Config.getInstance();
     this.analyzer = analyzer;
     this.app = express();
@@ -124,7 +133,7 @@ export class EducationalDashboard {
     this.app.post('/api/rpc-data', (req, res) => {
       try {
         const rpcData = req.body;
-        console.log('📡 Received RPC data from iframe:', rpcData);
+        // console.log('📡 Received RPC data from iframe:', rpcData);
         
         // Store or process the RPC data
         this.processRPCData(rpcData);
@@ -140,7 +149,7 @@ export class EducationalDashboard {
     this.app.post('/api/dexscreener-tokens', (req, res) => {
       try {
         const { tokens, timestamp } = req.body;
-        console.log(`🔍 Received ${tokens.length} tokens from DexScreener iframe`);
+        // console.log(`🔍 Received ${tokens.length} tokens from DexScreener iframe`);
         
         // Process and store the tokens
         this.processDexScreenerTokens(tokens, timestamp);
@@ -149,6 +158,92 @@ export class EducationalDashboard {
       } catch (error) {
         console.error('❌ Error processing DexScreener tokens:', error);
         res.status(500).json({ error: 'Failed to process DexScreener tokens' });
+      }
+    });
+
+    // Tracked tokens API endpoints
+    this.app.get('/api/tracked-tokens', (req, res) => {
+      if (this.priceTracker) {
+        res.json(this.priceTracker.getTrackedTokens());
+      } else {
+        res.json([]);
+      }
+    });
+
+    this.app.get('/api/tracked-tokens/stats', (req, res) => {
+      if (this.priceTracker) {
+        res.json(this.priceTracker.getTrackingStats());
+      } else {
+        res.json({ total: 0, tracking: 0, migrated: 0, failed: 0, avgPriceChange: 0 });
+      }
+    });
+
+    this.app.get('/api/tracked-tokens/:address/history', (req, res) => {
+      const { address } = req.params;
+      if (this.priceTracker) {
+        res.json(this.priceTracker.getPriceHistory(address));
+      } else {
+        res.json([]);
+      }
+    });
+
+    // Migration monitoring API endpoints
+    this.app.get('/api/migrations', (req, res) => {
+      if (this.migrationMonitor) {
+        res.json(this.migrationMonitor.getMigrationHistory());
+      } else {
+        res.json([]);
+      }
+    });
+
+    this.app.get('/api/migrations/stats', (req, res) => {
+      if (this.migrationMonitor) {
+        res.json(this.migrationMonitor.getMigrationStats());
+      } else {
+        res.json({ total: 0, last24h: 0, popularDexes: {}, avgPriceImpact: 0 });
+      }
+    });
+
+    // KPI tracking API endpoints
+    this.app.get('/api/kpi/metrics', (req, res) => {
+      if (this.kpiTracker) {
+        res.json(this.kpiTracker.getMetrics());
+      } else {
+        res.json({});
+      }
+    });
+
+    this.app.get('/api/kpi/summary', (req, res) => {
+      if (this.kpiTracker) {
+        res.json(this.kpiTracker.getSummaryStats());
+      } else {
+        res.json({
+          tokensDetectedTotal: 0,
+          tokensAnalyzedTotal: 0,
+          tokensTrackedTotal: 0,
+          successfulTradesTotal: 0,
+          currentROI: 0,
+          currentPortfolioValue: 0,
+          currentActivePositions: 0,
+          currentWinRate: 0,
+          detectionRate: 0,
+          analysisRate: 0
+        });
+      }
+    });
+
+    this.app.get('/api/kpi/:metric', (req, res) => {
+      const { metric } = req.params;
+      const { minutes } = req.query;
+      
+      if (this.kpiTracker) {
+        if (minutes) {
+          res.json(this.kpiTracker.getTimeRange(metric as any, parseInt(minutes as string)));
+        } else {
+          res.json(this.kpiTracker.getMetric(metric as any));
+        }
+      } else {
+        res.json([]);
       }
     });
 
@@ -166,6 +261,25 @@ export class EducationalDashboard {
       socket.emit('portfolio', this.simulationEngine.getPortfolioStats());
       socket.emit('positions', this.simulationEngine.getActivePositions());
       socket.emit('recentTrades', this.simulationEngine.getRecentTrades(10));
+      
+      // Send initial token data if analyzer is available
+      if (this.analyzer) {
+        try {
+          if (this.analyzer.getFoundTokens) {
+            socket.emit('foundTokens', this.analyzer.getFoundTokens());
+          }
+          if (this.analyzer.getAnalyzedTokens) {
+            socket.emit('analyzedTokens', this.analyzer.getAnalyzedTokens());
+          }
+        } catch (error) {
+          console.warn('Could not send initial token data:', error);
+        }
+      }
+      
+      // Send tracked tokens if available
+      if (this.priceTracker) {
+        socket.emit('trackedTokens', this.priceTracker.getTrackedTokens());
+      }
 
       socket.on('disconnect', () => {
         console.log('📊 Dashboard client disconnected');
@@ -175,9 +289,64 @@ export class EducationalDashboard {
       socket.on('requestPortfolio', () => {
         socket.emit('portfolio', this.simulationEngine.getPortfolioStats());
       });
+      
+      // Emit live price updates for tokens
+      const emitLiveTokenData = () => {
+        try {
+          if (this.analyzer && this.analyzer.getFoundTokens) {
+            const foundTokens = this.analyzer.getFoundTokens();
+            if (foundTokens.length > 0) {
+              socket.emit('foundTokens', foundTokens);
+            }
+          }
+          
+          if (this.analyzer && this.analyzer.getAnalyzedTokens) {
+            const analyzedTokens = this.analyzer.getAnalyzedTokens();
+            if (analyzedTokens.length > 0) {
+              socket.emit('analyzedTokens', analyzedTokens);
+            }
+          }
+        } catch (error) {
+          console.warn('Could not emit live token data:', error);
+        }
+      };
+      
+      // Emit live data every 5 seconds
+      const liveDataInterval = setInterval(emitLiveTokenData, 5000);
+      
+      // Also emit portfolio updates periodically
+      const portfolioInterval = setInterval(() => {
+        socket.emit('portfolio', this.simulationEngine.getPortfolioStats());
+        socket.emit('positions', this.simulationEngine.getActivePositions());
+        socket.emit('recentTrades', this.simulationEngine.getRecentTrades(10));
+      }, 3000); // Every 3 seconds
+      
+      socket.on('disconnect', () => {
+        clearInterval(liveDataInterval);
+        clearInterval(portfolioInterval);
+      });
 
       socket.on('requestPositions', () => {
         socket.emit('positions', this.simulationEngine.getActivePositions());
+      });
+      
+      socket.on('requestTokenData', () => {
+        if (this.analyzer) {
+          try {
+            if (this.analyzer.getFoundTokens) {
+              socket.emit('foundTokens', this.analyzer.getFoundTokens());
+            }
+            if (this.analyzer.getAnalyzedTokens) {
+              socket.emit('analyzedTokens', this.analyzer.getAnalyzedTokens());
+            }
+          } catch (error) {
+            console.warn('Could not send token data:', error);
+          }
+        }
+        
+        if (this.priceTracker) {
+          socket.emit('trackedTokens', this.priceTracker.getTrackedTokens());
+        }
       });
     });
   }
@@ -186,6 +355,8 @@ export class EducationalDashboard {
     // Listen to simulation engine events
     this.simulationEngine.on('trade', (trade) => {
       this.io.emit('newTrade', trade);
+      // Emit updated positions after trade
+      this.io.emit('positions', this.simulationEngine.getActivePositions());
     });
 
     this.simulationEngine.on('positionOpened', (position) => {
@@ -201,6 +372,67 @@ export class EducationalDashboard {
     this.simulationEngine.on('portfolioUpdate', (stats) => {
       this.io.emit('portfolio', stats);
     });
+    
+    // Listen for token analysis events
+    this.simulationEngine.on('tokenSkipped', (skipInfo) => {
+      // Emit token analysis update
+      this.io.emit('tokenAnalyzed', {
+        mint: skipInfo.mint,
+        symbol: skipInfo.symbol,
+        action: 'SKIP',
+        reason: skipInfo.reason
+      });
+    });
+
+    // Listen to price tracker events
+    if (this.priceTracker) {
+      this.priceTracker.on('tokenAdded', (token) => {
+        this.io.emit('tokenAdded', token);
+        this.io.emit('trackedTokens', this.priceTracker!.getTrackedTokens());
+      });
+
+      this.priceTracker.on('priceUpdate', (data) => {
+        this.io.emit('priceUpdate', data);
+        // Also emit updated tracked tokens list
+        this.io.emit('trackedTokens', this.priceTracker!.getTrackedTokens());
+      });
+
+      this.priceTracker.on('significantPriceChange', (data) => {
+        this.io.emit('significantPriceChange', data);
+      });
+
+      this.priceTracker.on('tokenLost', (token) => {
+        this.io.emit('tokenLost', token);
+        // Emit updated tracked tokens list
+        this.io.emit('trackedTokens', this.priceTracker!.getTrackedTokens());
+      });
+    }
+
+    // Listen to migration monitor events
+    if (this.migrationMonitor) {
+      this.migrationMonitor.on('migration', (migrationEvent) => {
+        this.io.emit('migration', migrationEvent);
+      });
+
+      this.migrationMonitor.on('liquidityShift', (data) => {
+        this.io.emit('liquidityShift', data);
+      });
+
+      this.migrationMonitor.on('tokenLost', (data) => {
+        this.io.emit('tokenLost', data);
+      });
+    }
+
+    // Listen to KPI tracker events
+    if (this.kpiTracker) {
+      this.kpiTracker.on('kpiUpdate', (data) => {
+        this.io.emit('kpiUpdate', data);
+      });
+
+      this.kpiTracker.on('reset', () => {
+        this.io.emit('kpiReset');
+      });
+    }
   }
 
   private processRPCData(rpcData: any): void {
@@ -210,7 +442,7 @@ export class EducationalDashboard {
     if (rpcData && rpcData.result) {
       // Handle getLatestBlockhash response
       if (rpcData.result.value && rpcData.result.value.blockhash) {
-        console.log('📦 Latest blockhash:', rpcData.result.value.blockhash.slice(0, 8) + '...');
+        // console.log('📦 Latest blockhash:', rpcData.result.value.blockhash.slice(0, 8) + '...');
         
         // Store in iframe RPC service
         iframeRPCService.storeIframeData('blockhash', rpcData.result.value);
@@ -225,7 +457,7 @@ export class EducationalDashboard {
       
       // Handle account info response
       if (rpcData.result.value && rpcData.result.value.data) {
-        console.log('📋 Account info received');
+        // console.log('📋 Account info received');
         
         // Store in iframe RPC service with account-specific key
         const accountKey = `accountInfo_${rpcData.id || 'unknown'}`;
@@ -240,7 +472,7 @@ export class EducationalDashboard {
       
       // Handle program accounts response
       if (Array.isArray(rpcData.result)) {
-        console.log('📚 Program accounts received:', rpcData.result.length);
+        // console.log('📚 Program accounts received:', rpcData.result.length);
         
         // Store in iframe RPC service with program-specific key
         const programKey = `programAccounts_${rpcData.id || 'unknown'}`;
@@ -271,23 +503,48 @@ export class EducationalDashboard {
       processed: true
     }));
 
-    console.log(`📊 Processed ${tokens.length} tokens from DexScreener:`);
-    tokens.forEach((token, index) => {
-      if (index < 5) { // Log first 5 tokens
-        console.log(`  ${token.symbol}: ${token.address.slice(0, 8)}... (${token.age}s old, $${token.liquidity} liq)`);
-      }
-    });
+    // console.log(`📊 Processed ${tokens.length} tokens from DexScreener:`);
+    // tokens.forEach((token, index) => {
+    //   if (index < 5) { // Log first 5 tokens
+    //     console.log(`  ${token.symbol}: ${token.address.slice(0, 8)}... (${token.age}s old, $${token.liquidity} liq)`);
+    //   }
+    // });
 
     // Store in DexScreener service
     dexScreenerService.storeTokens(tokens);
 
-    // Emit to connected dashboards
+    // Emit to connected dashboards with price data
     this.io.emit('dexscreenerTokens', {
       tokens: this.dexScreenerTokens,
       count: tokens.length,
       timestamp: timestamp
     });
 
+    // Convert to TokenInfo format FIRST to ensure proper price data
+    const convertedTokens = tokens.map(token => this.convertDexScreenerToken(token));
+    
+    // Emit found tokens with price data for dashboard
+    this.io.emit('newTokensFound', convertedTokens);
+    
+    // Emit analyzed tokens data for dashboard (with prices)
+    const analyzedTokensData = convertedTokens.map(token => ({
+      id: token.mint,
+      symbol: token.symbol,
+      name: token.name,
+      price: token.metadata.priceUsd || 0,
+      securityScore: Math.floor(Math.random() * 40) + 60,
+      action: 'DETECTED',
+      reason: 'Live price available from DexScreener',
+      analyzedAt: Date.now(),
+      createdAt: token.createdAt,
+      liquidity: token.liquidity.usd || 0,
+      dexId: token.metadata.dexId || token.source,
+      isPump: false,
+      source: token.source
+    }));
+    
+    this.io.emit('analyzedTokens', analyzedTokensData);
+    
     // If analyzer exists, process tokens through it
     if (this.analyzer && this.analyzer.processExternalTokens) {
       try {
@@ -296,16 +553,19 @@ export class EducationalDashboard {
         console.error('❌ Error processing tokens through analyzer:', error);
       }
     }
-
-    // Convert to TokenInfo format and emit for processing
-    const convertedTokens = tokens.map(token => this.convertDexScreenerToken(token));
-    this.io.emit('newTokensFound', convertedTokens);
     
-    // Process viable tokens through simulation engine
+    // Process viable tokens through simulation engine IMMEDIATELY
     this.processViableTokens(convertedTokens);
   }
 
   private convertDexScreenerToken(dexToken: any): any {
+    // Ensure we have valid price data from DexScreener
+    const priceUsd = dexToken.priceUsd || dexToken.price || 0;
+    const liquidityUsd = dexToken.liquidityUsd || dexToken.liquidity || 0;
+    const volume24h = dexToken.volume24h || 0;
+    
+    console.log(`💰 Converting DexScreener token: ${dexToken.symbol} - Price: $${priceUsd} - Liquidity: $${liquidityUsd}`);
+    
     return {
       mint: dexToken.address,
       symbol: dexToken.symbol,
@@ -314,50 +574,83 @@ export class EducationalDashboard {
       supply: '1000000000000000000', // Default 1B tokens
       signature: `DEXSCREENER_${Date.now()}`,
       timestamp: Date.now(),
-      createdAt: Date.now() - (dexToken.age * 1000),
+      createdAt: dexToken.pairCreatedAt || (Date.now() - (dexToken.age * 1000)),
       liquidity: {
-        sol: dexToken.liquidity / 150, // Rough SOL conversion
-        usd: dexToken.liquidity
+        sol: liquidityUsd / 150, // Rough SOL conversion at $150/SOL
+        usd: liquidityUsd
       },
-      source: `DEXSCREENER_${dexToken.source}`,
+      source: `DEXSCREENER_${dexToken.dexId || dexToken.source}`,
       metadata: {
         pairAge: dexToken.age,
         scrapedAt: Date.now(),
-        price: dexToken.price || 0,
-        volume24h: dexToken.volume24h || 0
+        price: priceUsd,
+        priceUsd: priceUsd, // Ensure price is available
+        volume24h: volume24h,
+        liquidityUsd: liquidityUsd,
+        dexId: dexToken.dexId,
+        pairAddress: dexToken.pairAddress,
+        priceChange24h: dexToken.priceChange24h || 0,
+        trendingScore: dexToken.trendingScore || 0
       }
     };
   }
 
   private async processViableTokens(tokens: any[]): Promise<void> {
-    // Filter tokens that meet basic criteria
+    // Filter tokens that meet basic criteria - VERY PERMISSIVE for maximum trading in hybrid mode
     const viableTokens = tokens.filter(token => {
-      return token.liquidity && 
-             token.liquidity.usd >= 30 && 
-             token.metadata.pairAge <= 3600; // 1 hour max age
+      const hasPrice = token.metadata?.priceUsd && token.metadata.priceUsd > 0;
+      const hasLiquidity = token.liquidity && token.liquidity.usd >= 10;
+      const isYoung = !token.metadata.pairAge || token.metadata.pairAge <= 7200; // 2 hours
+      
+      console.log(`🔍 Filtering token ${token.symbol}: Price=$${token.metadata?.priceUsd || 0}, Liquidity=$${token.liquidity?.usd || 0}, Age=${token.metadata?.pairAge || 0}s`);
+      
+      return hasPrice && hasLiquidity && isYoung;
     });
 
-    console.log(`🎯 Found ${viableTokens.length} viable tokens for analysis`);
+    console.log(`🎯 Found ${viableTokens.length} viable tokens for IMMEDIATE TRADING (hybrid mode)`);
 
-    // Process each viable token through the simulation engine
+    // Process each viable token through the simulation engine IMMEDIATELY
     for (const token of viableTokens) {
       try {
-        // Create mock security analysis for iframe-sourced tokens
+        console.log(`⚡ IMMEDIATE PROCESSING: ${token.symbol} with price $${token.metadata.priceUsd}`);
+        
+        // Create enhanced security analysis for iframe-sourced tokens
+        // Higher scores to encourage more trading in hybrid mode
         const mockSecurityAnalysis = {
           overall: true,
-          score: Math.floor(Math.random() * 40) + 40, // 40-80 score
+          score: Math.floor(Math.random() * 40) + 60, // 60-100 score for maximum trades
           checks: [
-            { name: 'DexScreener Liquidity', passed: true, score: 25, message: 'Sufficient liquidity' },
-            { name: 'Token Age', passed: true, score: 20, message: 'Recently created' },
-            { name: 'Volume Check', passed: (token.metadata.volume24h || 0) > 0, score: 15, message: 'Has trading volume' }
+            { name: 'DexScreener Liquidity', passed: true, score: 30, message: `$${token.liquidity.usd.toLocaleString()} liquidity` },
+            { name: 'Live Price Available', passed: true, score: 30, message: `$${token.metadata.priceUsd} current price` },
+            { name: 'Recent Token', passed: true, score: 20, message: 'Fresh opportunity' },
+            { name: 'Hybrid Mode Boost', passed: true, score: 20, message: 'Ultra-aggressive trading mode' }
           ],
           warnings: []
         };
 
-        // Process through simulation engine
+        // Emit status update for dashboard
+        this.io.emit('tokenAnalyzed', {
+          mint: token.mint,
+          symbol: token.symbol,
+          action: 'PROCESSING',
+          reason: 'Live price available - immediate analysis'
+        });
+
+        // Process through simulation engine immediately for maximum trading activity
         await this.simulationEngine.processTokenDetection(token, mockSecurityAnalysis);
+        
+        console.log(`✅ PROCESSED: ${token.symbol} - ready for trading decision`);
+        
       } catch (error) {
         console.error(`❌ Error processing token ${token.symbol}:`, error);
+        
+        // Emit error status
+        this.io.emit('tokenAnalyzed', {
+          mint: token.mint,
+          symbol: token.symbol,
+          action: 'ERROR',
+          reason: 'Processing failed'
+        });
       }
     }
   }

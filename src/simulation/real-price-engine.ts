@@ -6,6 +6,7 @@ import { RealTokenMonitor } from '../detection/real-token-monitor';
 import { Config } from '../core/config';
 import { logger } from '../monitoring/logger';
 import { PriceConverter } from '../utils/price-converter';
+import { EnhancedTransactionWorkflows } from '../trading/enhanced-transaction-workflows';
 
 export class RealPriceSimulationEngine extends EventEmitter implements EventEmittingSimulationEngine {
   private config: AnalysisConfig;
@@ -14,6 +15,7 @@ export class RealPriceSimulationEngine extends EventEmitter implements EventEmit
   private trades: SimulatedTrade[] = [];
   private priceHistory: Map<string, Array<{price: number, timestamp: number}>> = new Map();
   private priceConverter: PriceConverter;
+  private enhancedWorkflows: EnhancedTransactionWorkflows;
   
   private portfolio = {
     startingBalance: 1, // 1 SOL starting balance for simulation
@@ -28,6 +30,7 @@ export class RealPriceSimulationEngine extends EventEmitter implements EventEmit
     this.config = Config.getInstance().getConfig();
     this.realTokenMonitor = realTokenMonitor;
     this.priceConverter = new PriceConverter();
+    this.enhancedWorkflows = new EnhancedTransactionWorkflows();
     this.setupPriceUpdateListener();
     this.startPeriodicSummary();
     
@@ -86,7 +89,15 @@ export class RealPriceSimulationEngine extends EventEmitter implements EventEmit
   }
 
   async processTokenDetection(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): Promise<void> {
-    // Get real token data
+    // Check if this is a demo token
+    if (tokenInfo.source === 'demo' || tokenInfo.metadata?.demo === true) {
+      console.log(`🎮 Processing demo token: ${tokenInfo.symbol}`);
+      // Handle demo tokens with simulated data
+      await this.processDemoToken(tokenInfo, securityAnalysis);
+      return;
+    }
+    
+    // Get real token data for non-demo tokens
     const realToken = this.realTokenMonitor.getTokenInfo(tokenInfo.mint);
     
     if (!realToken) {
@@ -115,58 +126,134 @@ export class RealPriceSimulationEngine extends EventEmitter implements EventEmit
   }
 
   private shouldSimulateBuy(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis, realToken: RealTokenInfo): boolean {
-    // Base security check
-    if (securityAnalysis.score < this.config.minConfidenceScore) {
+    // Use enhanced transaction workflows for decision making
+    try {
+      const decision = this.enhancedWorkflows.evaluateTradeOpportunity(tokenInfo, securityAnalysis);
+      console.log(`🎯 ENHANCED DECISION: ${decision.action} - ${decision.reason}`);
+      
+      if (decision.action === 'BUY' || decision.action === 'PRIORITY_BUY') {
+        // Additional production-ready validation for real tokens
+        return this.validateRealTokenForTrading(tokenInfo, securityAnalysis, realToken);
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ Error in enhanced workflows decision making:', error);
+      return this.fallbackShouldBuy(tokenInfo, securityAnalysis, realToken);
+    }
+  }
+
+  private validateRealTokenForTrading(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis, realToken: RealTokenInfo): boolean {
+    // Production-ready validation for real tokens
+    
+    // Security score must be high
+    if (securityAnalysis.score < 70) {
+      console.log(`⚠️ Security score too low: ${securityAnalysis.score} < 70`);
       return false;
     }
 
     // Position limits
     if (this.positions.size >= this.config.maxSimulatedPositions) {
+      console.log(`⚠️ Max positions reached: ${this.positions.size}/${this.config.maxSimulatedPositions}`);
       return false;
     }
 
     // Balance check
     if (this.portfolio.currentBalance < this.config.simulatedInvestment) {
+      console.log(`⚠️ Insufficient balance: ${this.portfolio.currentBalance.toFixed(3)} SOL`);
       return false;
     }
 
-    // Real market data checks
+    // Liquidity must be substantial
+    if (realToken.liquidityUsd < 15000) {
+      console.log(`⚠️ Liquidity too low: $${realToken.liquidityUsd.toLocaleString()} < $15,000`);
+      return false;
+    }
+
+    // Volume must show activity
+    if (realToken.volume24h < 5000) {
+      console.log(`⚠️ Volume too low: $${realToken.volume24h.toLocaleString()} < $5,000`);
+      return false;
+    }
+
+    // Price change filters - avoid extreme volatility
+    if (Math.abs(realToken.priceChange5m) > 100) {
+      console.log(`⚠️ Too volatile: ${realToken.priceChange5m.toFixed(1)}% in 5m`);
+      return false;
+    }
+
+    // Avoid tokens in freefall
+    if (realToken.priceChange1h < -50) {
+      console.log(`⚠️ Token in freefall: ${realToken.priceChange1h.toFixed(1)}% in 1h`);
+      return false;
+    }
+
+    // Market cap should be reasonable
+    if (realToken.marketCap && realToken.marketCap < 50000) {
+      console.log(`⚠️ Market cap too low: $${realToken.marketCap.toLocaleString()}`);
+      return false;
+    }
+
+    // Age filter - only very fresh tokens
+    const ageMs = Date.now() - tokenInfo.createdAt;
+    if (ageMs > 30 * 60 * 1000) { // 30 minutes
+      console.log(`⚠️ Token too old: ${Math.round(ageMs / 60000)} minutes`);
+      return false;
+    }
+
+    console.log(`✅ Real token validation passed for ${tokenInfo.symbol}`);
+    return true;
+  }
+
+  private fallbackShouldBuy(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis, realToken: RealTokenInfo): boolean {
+    // Conservative fallback logic if enhanced workflows fail
+    console.log(`⚠️ Using fallback logic for ${tokenInfo.symbol}`);
     
-    // Liquidity check (enhanced)
-    if (realToken.liquidityUsd < 5000) { // Require at least $5k liquidity
+    if (securityAnalysis.score < 80) {
       return false;
     }
 
-    // Volume check
-    if (realToken.volume24h < 1000) { // Require at least $1k 24h volume
+    if (this.positions.size >= this.config.maxSimulatedPositions) {
       return false;
     }
 
-    // Price stability check (avoid tokens in extreme volatility)
-    if (Math.abs(realToken.priceChange5m) > 50) { // More than 50% change in 5 minutes
+    if (this.portfolio.currentBalance < this.config.simulatedInvestment) {
       return false;
     }
 
-    // Avoid tokens with negative momentum
-    if (realToken.priceChange1h < -30) { // Down more than 30% in 1 hour
+    // Conservative real market data checks for fallback
+    
+    // High liquidity requirement
+    if (realToken.liquidityUsd < 25000) {
       return false;
     }
 
-    // Market cap check (avoid micro caps for simulation)
-    if (realToken.marketCap && realToken.marketCap < 10000) { // Less than $10k market cap
+    // High volume requirement
+    if (realToken.volume24h < 15000) {
       return false;
     }
 
-    // Transaction activity check
-    if (realToken.txns5m < 3) { // Less than 3 transactions in 5 minutes
+    // Strict volatility limits
+    if (Math.abs(realToken.priceChange5m) > 25) {
       return false;
     }
 
-    // Random market condition (for educational variety)
-    if (Math.random() < 0.3) { // 30% chance to skip for "market conditions"
+    // Avoid any negative momentum
+    if (realToken.priceChange1h < -15) {
       return false;
     }
 
+    // Higher market cap requirement
+    if (realToken.marketCap && realToken.marketCap < 100000) {
+      return false;
+    }
+
+    // Higher transaction activity requirement
+    if (realToken.txns5m < 10) {
+      return false;
+    }
+
+    console.log(`✅ Fallback validation passed for ${tokenInfo.symbol}`);
     return true;
   }
 
@@ -563,5 +650,98 @@ export class RealPriceSimulationEngine extends EventEmitter implements EventEmit
     } else {
       return `${seconds}s`;
     }
+  }
+
+  private async processDemoToken(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): Promise<void> {
+    console.log(`🎮 Demo token processing: ${tokenInfo.symbol}`);
+    console.log(`📊 Security Score: ${securityAnalysis.score}`);
+    console.log(`💰 Demo Liquidity: $${tokenInfo.liquidity?.usd || 0}`);
+    console.log(`💵 Demo Price: $${tokenInfo.metadata?.priceUsd || 'N/A'}`);
+    
+    // Check if we should buy this demo token
+    if (!this.shouldBuyDemoToken(tokenInfo, securityAnalysis)) {
+      const reason = this.getSkipReasonDemo(tokenInfo, securityAnalysis);
+      console.log(`⏭️ Skipping demo token: ${reason}`);
+      this.emit('tokenSkipped', { 
+        mint: tokenInfo.mint, 
+        symbol: tokenInfo.symbol, 
+        reason 
+      });
+      return;
+    }
+
+    // Simulate buy for demo token
+    await this.simulateDemoBuy(tokenInfo, securityAnalysis.score);
+  }
+
+  private shouldBuyDemoToken(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): boolean {
+    // Very permissive for demo tokens
+    if (securityAnalysis.score < 5) return false;
+    if (this.positions.size >= this.config.maxSimulatedPositions) return false;
+    if (this.portfolio.currentBalance < 0.001) return false;
+    return true;
+  }
+
+  private getSkipReasonDemo(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): string {
+    if (securityAnalysis.score < 5) {
+      return `Demo token security too low (${securityAnalysis.score} < 5)`;
+    }
+    if (this.positions.size >= this.config.maxSimulatedPositions) {
+      return `Max positions reached (${this.positions.size}/${this.config.maxSimulatedPositions})`;
+    }
+    if (this.portfolio.currentBalance < 0.001) {
+      return `Insufficient balance (${this.portfolio.currentBalance.toFixed(3)} SOL)`;
+    }
+    return 'Unknown reason';
+  }
+
+  private async simulateDemoBuy(tokenInfo: TokenInfo, securityScore: number): Promise<void> {
+    const positionId = `demo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Use a small position size for demo
+    const positionSize = Math.min(0.01, this.portfolio.currentBalance);
+    
+    // Use the demo price or generate one
+    const entryPrice = tokenInfo.metadata?.priceUsd || (Math.random() * 0.00001 + 0.000001);
+    
+    const position: SimulatedPosition = {
+      id: positionId,
+      mint: tokenInfo.mint,
+      symbol: tokenInfo.symbol || 'DEMO',
+      entryTime: Date.now(),
+      entryPrice,
+      simulatedInvestment: positionSize,
+      currentPrice: entryPrice,
+      status: 'ACTIVE',
+      hasLivePrice: true,
+      reason: `Demo token - Score: ${securityScore}`
+    };
+
+    this.positions.set(position.id, position);
+    this.portfolio.currentBalance -= positionSize;
+
+    const buyTrade: SimulatedTrade = {
+      id: tradeId,
+      type: 'BUY',
+      mint: tokenInfo.mint,
+      symbol: tokenInfo.symbol || 'DEMO',
+      amount: positionSize,
+      price: entryPrice,
+      timestamp: Date.now(),
+      reason: `Demo token buy - Score: ${securityScore}`,
+      simulation: true
+    };
+
+    this.trades.push(buyTrade);
+    
+    console.log(`💰 DEMO BUY: ${tokenInfo.symbol} - ${positionSize.toFixed(4)} SOL @ $${entryPrice.toFixed(8)}`);
+    console.log(`📊 Balance: ${this.portfolio.currentBalance.toFixed(4)} SOL`);
+    
+    this.emit('trade', buyTrade);
+    this.emit('positionOpened', position);
+    
+    // Update portfolio metrics
+    this.updatePortfolioMetrics();
   }
 }

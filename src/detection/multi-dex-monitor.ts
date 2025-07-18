@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { ConnectionManager } from '../core/connection';
 import { TokenInfo } from '../types';
 import { RaydiumMonitor } from './raydium-monitor';
+import { TransactionParser } from '../utils/transaction-parser';
 
 export class MultiDexMonitor extends EventEmitter {
   private connection: Connection;
@@ -13,6 +14,7 @@ export class MultiDexMonitor extends EventEmitter {
   private detectedTokens: Map<string, TokenInfo> = new Map();
   private processedTransactions: Set<string> = new Set();
   private transactionCacheTimeout = 300000; // 5 minutes
+  private transactionParser: TransactionParser;
   
   // DEX program addresses
   private static readonly DEX_PROGRAMS = {
@@ -41,16 +43,17 @@ export class MultiDexMonitor extends EventEmitter {
     this.connectionManager = new ConnectionManager();
     this.connection = this.connectionManager.getConnection();
     this.raydiumMonitor = new RaydiumMonitor();
+    this.transactionParser = new TransactionParser(this.connection);
     
     // Set up Raydium monitor event forwarding
     this.raydiumMonitor.on('tokenDetected', (tokenInfo: TokenInfo) => {
       this.handleTokenDetected(tokenInfo, 'RAYDIUM_DIRECT');
     });
     
-    // Set conservative rate limiting for DEX monitoring
-    this.connectionManager.setRateLimit(1, 1500); // Max 1 concurrent, 1500ms delay
+    // Set optimized rate limiting for DEX monitoring
+    this.connectionManager.setRateLimit(3, 300); // Max 3 concurrent, 300ms delay
     
-    console.log('🌐 Multi-DEX Monitor initialized with optimized rate limiting');
+    console.log('🌐 Multi-DEX Monitor initialized with enhanced parsing and optimized rate limiting');
   }
 
   async startMonitoring(): Promise<void> {
@@ -68,8 +71,8 @@ export class MultiDexMonitor extends EventEmitter {
       // Start monitoring other DEX programs
       await this.startDexProgramMonitoring();
       
-      // Disable transaction stream monitoring to reduce RPC load
-      // await this.startTransactionStreamMonitoring();
+      // Enable transaction stream monitoring for comprehensive detection
+      await this.startTransactionStreamMonitoring();
       
       this.isMonitoring = true;
       console.log('✅ Multi-DEX monitoring started');
@@ -133,13 +136,17 @@ export class MultiDexMonitor extends EventEmitter {
         return;
       }
 
-      console.log(`🔍 ${dexName} pool creation detected: ${signature}`);
+      //console.log(`🔍 ${dexName} pool creation detected: ${signature}`);
       
       // Process transaction with context
+      //console.log(`🔍 Processing transaction for token extraction...`);
       const tokenInfo = await this.processTransaction(signature, dexName, programId);
       
       if (tokenInfo) {
+        console.log(`✅ Token extracted successfully: ${tokenInfo.symbol || 'Unknown'} (${tokenInfo.mint})`);
         this.handleTokenDetected(tokenInfo, dexName);
+      } else {
+        console.log(`❌ No token info extracted from transaction ${signature}`);
       }
 
     } catch (error) {
@@ -180,7 +187,7 @@ export class MultiDexMonitor extends EventEmitter {
           this.processTransaction(logs.signature, 'UNKNOWN_DEX', 'UNKNOWN').catch(error => {
             console.error('❌ Error processing unknown transaction:', error);
           });
-        }, 2000); // Increased delay to reduce load
+        }, 1000); // Reduced delay for faster detection
       }
 
     } catch (error) {
@@ -192,6 +199,7 @@ export class MultiDexMonitor extends EventEmitter {
     try {
       // Skip if already processed
       if (this.processedTransactions.has(signature)) {
+        console.log(`⏭️ Transaction already processed: ${signature}`);
         return null;
       }
       
@@ -204,17 +212,31 @@ export class MultiDexMonitor extends EventEmitter {
         oldEntries.forEach(entry => this.processedTransactions.delete(entry));
       }
       
+      console.log(`📡 Fetching transaction data for ${signature}...`);
+      
       // Use optimized connection manager with retry logic
       const transaction = await this.connectionManager.getParsedTransactionWithRetry(signature, 3);
 
       if (!transaction) {
+        console.log(`❌ Failed to fetch transaction data for ${signature}`);
         return null;
       }
-
-      // Extract token information
-      const tokenInfo = await this.extractTokenInfo(transaction, signature, dexName, programId);
       
-      return tokenInfo;
+      console.log(`✅ Transaction data fetched, extracting token info...`);
+
+      // Extract token information using enhanced parser
+      const parsedTokenInfo = await this.transactionParser.extractTokenInfoFromTransaction(transaction, signature);
+      
+      if (parsedTokenInfo) {
+        // Convert to TokenInfo format
+        const tokenInfo = this.transactionParser.convertToTokenInfo(parsedTokenInfo, signature, `${dexName}_MONITOR`);
+        console.log(`✅ Token info extracted using enhanced parser: ${tokenInfo.mint}`);
+        console.log(`📊 Transfer logs found: ${parsedTokenInfo.transfers.length}`);
+        return tokenInfo;
+      } else {
+        console.log(`❌ No token info found in transaction using enhanced parser`);
+        return null;
+      }
 
     } catch (error) {
       console.error(`❌ Error processing transaction ${signature}:`, error);
@@ -232,12 +254,34 @@ export class MultiDexMonitor extends EventEmitter {
 
       // Look for new token mints in the transaction
       const tokenBalances = meta.postTokenBalances || [];
-      const newTokens = tokenBalances.filter((balance: any) => {
-        // Filter for newly created tokens
-        return balance.uiTokenAmount?.amount !== '0' && 
-               balance.mint !== '11111111111111111111111111111112' &&
-               !this.detectedTokens.has(balance.mint);
+      
+      // First, try to find tokens with amounts > 0 (the ideal case)
+      let newTokens = tokenBalances.filter((balance: any) => {
+        const isValidAmount = balance.uiTokenAmount?.amount !== '0';
+        const isNotSol = balance.mint !== '11111111111111111111111111111112';
+        const isNotWSol = balance.mint !== 'So11111111111111111111111111111111111111112';
+        const isNew = !this.detectedTokens.has(balance.mint);
+        const hasValidMint = balance.mint && balance.mint.length >= 32;
+        return isValidAmount && isNotSol && isNotWSol && isNew && hasValidMint;
       });
+      
+      // If no tokens with amounts found, try looking for mint creation events
+      if (newTokens.length === 0) {
+        const preTokenBalances = meta.preTokenBalances || [];
+        const postTokenBalances = meta.postTokenBalances || [];
+        
+        // Look for newly created token accounts
+        const newMints = postTokenBalances.filter((post: any) => {
+          const wasNotPresent = !preTokenBalances.some((pre: any) => pre.mint === post.mint);
+          const isNotSol = post.mint !== '11111111111111111111111111111112';
+          const isNotWSol = post.mint !== 'So11111111111111111111111111111111111111112';
+          const isNew = !this.detectedTokens.has(post.mint);
+          const hasValidMint = post.mint && post.mint.length >= 32;
+          return wasNotPresent && isNotSol && isNotWSol && isNew && hasValidMint;
+        });
+        
+        newTokens = newMints;
+      }
 
       if (newTokens.length === 0) {
         return null;

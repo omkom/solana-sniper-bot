@@ -2,17 +2,20 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { EventEmitter } from 'events';
 import { TokenInfo } from '../types';
 import { ConnectionManager } from '../core/connection';
+import { UnifiedTokenFilter, TokenFilterCriteria } from './unified-token-filter';
 
 export class TokenMonitor extends EventEmitter {
   private connection: Connection;
   private connectionManager: ConnectionManager;
   private isRunning: boolean = false;
   private subscriptions: Map<string, number> = new Map();
+  private tokenFilter: UnifiedTokenFilter;
 
   constructor() {
     super();
     this.connectionManager = new ConnectionManager();
     this.connection = this.connectionManager.getConnection();
+    this.tokenFilter = new UnifiedTokenFilter(this.connection);
   }
 
   async start(): Promise<void> {
@@ -22,11 +25,11 @@ export class TokenMonitor extends EventEmitter {
     }
 
     this.isRunning = true;
-    console.log('🔍 Starting token monitor (analysis mode only)');
+    // console.log('🔍 Starting token monitor (analysis mode only)');
 
     try {
       await this.subscribeToNewTokens();
-      console.log('✅ Token monitor started successfully');
+      // console.log('✅ Token monitor started successfully');
     } catch (error) {
       console.error('❌ Failed to start token monitor:', error);
       this.isRunning = false;
@@ -44,7 +47,7 @@ export class TokenMonitor extends EventEmitter {
     // Unsubscribe from all subscriptions
     for (const [program, subscriptionId] of this.subscriptions) {
       try {
-        await this.connection.removeAccountChangeListener(subscriptionId);
+        await this.connection.removeOnLogsListener(subscriptionId);
         console.log(`🔇 Unsubscribed from ${program}`);
       } catch (error) {
         console.warn(`⚠️ Failed to unsubscribe from ${program}:`, error);
@@ -56,22 +59,29 @@ export class TokenMonitor extends EventEmitter {
   }
 
   private async subscribeToNewTokens(): Promise<void> {
-    // Monitor pump.fun program for educational analysis
-    const PUMP_FUN_PROGRAM = new PublicKey('6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P');
+    // Monitor key DEX programs for real token detection
+    const DEX_PROGRAMS = {
+      'pump.fun': new PublicKey('6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'),
+      'raydium': new PublicKey('675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8'),
+      'orca': new PublicKey('whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc'),
+      'meteora': new PublicKey('Eo7WjKq67rjJQSZxS6z3YkapzY3eMj6Xy8X5EQVn5UaB')
+    };
     
-    try {
-      const subscriptionId = this.connection.onProgramAccountChange(
-        PUMP_FUN_PROGRAM,
-        (accountInfo, context) => {
-          this.handleProgramAccountChange(accountInfo, context, 'pump.fun');
-        },
-        'confirmed'
-      );
+    for (const [name, programId] of Object.entries(DEX_PROGRAMS)) {
+      try {
+        const subscriptionId = this.connection.onLogs(
+          programId,
+          (logs) => {
+            this.handleProgramLogs(logs, name);
+          },
+          'confirmed'
+        );
 
-      this.subscriptions.set('pump.fun', subscriptionId);
-      console.log('📡 Subscribed to pump.fun program for analysis');
-    } catch (error) {
-      console.error('❌ Failed to subscribe to pump.fun program:', error);
+        this.subscriptions.set(name, subscriptionId);
+        console.log(`📡 Subscribed to ${name} program for token detection`);
+      } catch (error) {
+        console.error(`❌ Failed to subscribe to ${name} program:`, error);
+      }
     }
 
     // Monitor for general token creation patterns
@@ -90,10 +100,27 @@ export class TokenMonitor extends EventEmitter {
         await this.scanRecentActivity();
       } catch (error) {
         console.warn('⚠️ Error during token scanning:', error);
+        // Add reconnection logic
+        await this.reconnectIfNeeded();
       }
-    }, 10000); // Scan every 10 seconds
+    }, 5000); // Scan every 5 seconds for better detection
 
-    console.log('🔄 Started periodic token scanning');
+    console.log('🔄 Started periodic token scanning (5s intervals)');
+  }
+  
+  private async reconnectIfNeeded(): Promise<void> {
+    try {
+      // Test connection
+      await this.connection.getSlot();
+    } catch (error) {
+      console.log('🔄 Connection lost, attempting to reconnect...');
+      try {
+        this.connection = this.connectionManager.getConnection();
+        console.log('✅ Reconnected to Solana RPC');
+      } catch (reconnectError) {
+        console.error('❌ Failed to reconnect:', reconnectError);
+      }
+    }
   }
 
   private async scanRecentActivity(): Promise<void> {
@@ -113,7 +140,13 @@ export class TokenMonitor extends EventEmitter {
           if (tx && this.looksLikeTokenCreation(tx)) {
             const tokenInfo = await this.extractTokenInfo(tx, sig.signature);
             if (tokenInfo) {
-              this.emit('tokenDetected', tokenInfo);
+              // Apply unified token filtering with aggressive criteria
+              const filterResult = await this.tokenFilter.filterToken(tokenInfo, UnifiedTokenFilter.AGGRESSIVE_CRITERIA);
+              
+              if (filterResult.passed) {
+                console.log(`✅ Scanned token passed filter: ${tokenInfo.symbol}`);
+                this.emit('tokenDetected', tokenInfo);
+              }
             }
           }
         } catch (error) {
@@ -125,56 +158,101 @@ export class TokenMonitor extends EventEmitter {
     }
   }
 
-  private handleProgramAccountChange(accountInfo: any, context: any, source: string): void {
+  private async handleProgramLogs(logs: any, source: string): Promise<void> {
     try {
-      // For educational analysis - don't process real trades
-      console.log(`📊 Program account change detected from ${source}`);
-      
-      // Simulate token detection for analysis
-      const simulatedToken: TokenInfo = {
-        mint: 'SIMULATED_' + Date.now(),
-        symbol: 'SIM',
-        name: 'Simulated Token',
-        decimals: 9,
-        supply: '1000000000',
-        signature: 'simulated_signature',
-        timestamp: Date.now(),
-        source: source,
-        createdAt: Date.now(),
-        metadata: {
-          simulation: true,
-          educational: true
-        }
-      };
+      // Look for token creation patterns in logs
+      const tokenCreationPatterns = [
+        'initialize',
+        'createPool',
+        'InitializePool',
+        'createAccount',
+        'mint',
+        'create'
+      ];
 
-      this.emit('tokenDetected', simulatedToken);
+      const hasTokenCreation = logs.logs.some((log: string) => 
+        tokenCreationPatterns.some(pattern => 
+          log.toLowerCase().includes(pattern.toLowerCase())
+        )
+      );
+
+      if (hasTokenCreation) {
+        console.log(`🔍 Potential token creation detected from ${source}: ${logs.signature}`);
+        
+        // Process the transaction to extract real token info
+        try {
+          const tokenInfo = await this.processTokenCreationTransaction(logs.signature, source);
+          
+          if (tokenInfo) {
+            // Apply unified token filtering with aggressive criteria
+            const filterResult = await this.tokenFilter.filterToken(tokenInfo, UnifiedTokenFilter.AGGRESSIVE_CRITERIA);
+            
+            if (filterResult.passed) {
+              console.log(`✅ Token passed filter with score ${filterResult.score}: ${tokenInfo.symbol}`);
+              this.emit('tokenDetected', tokenInfo);
+            } else {
+              console.log(`❌ Token failed filter: ${tokenInfo.symbol} - ${filterResult.reasons.join(', ')}`);
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error processing token creation from ${source}:`, error);
+          // Continue processing other transactions
+        }
+      }
     } catch (error) {
-      console.warn('⚠️ Error processing account change:', error);
+      console.warn('⚠️ Error processing program logs:', error);
     }
   }
 
   private looksLikeTokenCreation(transaction: any): boolean {
-    // Simple heuristic to identify token creation transactions
     const instructions = transaction.transaction.message.instructions || [];
     
     return instructions.some((ix: any) => {
-      // Look for InitializeMint instruction or similar patterns
-      return ix.data && (
-        ix.data.includes('InitializeMint') ||
-        ix.data.includes('CreateAccount')
-      );
+      // Check for SPL token program instructions
+      const programId = ix.programId || ix.programIdIndex;
+      
+      // Look for token creation patterns
+      if (ix.parsed) {
+        const type = ix.parsed.type;
+        return type === 'initializeMint' || 
+               type === 'createAccount' || 
+               type === 'initializeAccount' ||
+               type === 'initialize';
+      }
+      
+      return false;
     });
   }
 
   private async extractTokenInfo(transaction: any, signature: string): Promise<TokenInfo | null> {
     try {
-      // Extract basic token information for analysis
+      const { meta } = transaction;
+      
+      if (!meta || !meta.postTokenBalances) {
+        return null;
+      }
+
+      // Find new token mints
+      const newTokens = meta.postTokenBalances.filter((balance: any) => {
+        const isValidMint = balance.mint && balance.mint.length >= 32;
+        const isNotSol = balance.mint !== '11111111111111111111111111111112';
+        const isNotWSol = balance.mint !== 'So11111111111111111111111111111111111111112';
+        return isValidMint && isNotSol && isNotWSol;
+      });
+
+      if (newTokens.length === 0) {
+        return null;
+      }
+
+      const tokenBalance = newTokens[0];
+      const mint = tokenBalance.mint;
+
       return {
-        mint: `EXTRACTED_${Date.now()}`,
-        symbol: 'EXT',
-        name: 'Extracted Token',
-        decimals: 9,
-        supply: '1000000000',
+        mint: mint,
+        symbol: this.generateSymbol(mint),
+        name: `New Token ${mint.slice(0, 8)}`,
+        decimals: tokenBalance.uiTokenAmount?.decimals || 9,
+        supply: tokenBalance.uiTokenAmount?.amount || '0',
         signature: signature,
         timestamp: Date.now(),
         source: 'scanner',
@@ -186,6 +264,36 @@ export class TokenMonitor extends EventEmitter {
       };
     } catch (error) {
       console.warn('⚠️ Error extracting token info:', error);
+      return null;
+    }
+  }
+
+  private generateSymbol(mint: string): string {
+    // Generate a deterministic symbol from mint address
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let symbol = '';
+    
+    for (let i = 0; i < 4; i++) {
+      const charIndex = mint.charCodeAt(i) % chars.length;
+      symbol += chars[charIndex];
+    }
+    
+    return symbol;
+  }
+
+  private async processTokenCreationTransaction(signature: string, source: string): Promise<TokenInfo | null> {
+    try {
+      const transaction = await this.connection.getTransaction(signature, {
+        maxSupportedTransactionVersion: 0
+      });
+
+      if (!transaction) {
+        return null;
+      }
+
+      return this.extractTokenInfo(transaction, signature);
+    } catch (error) {
+      console.warn('⚠️ Error processing token creation transaction:', error);
       return null;
     }
   }

@@ -10,7 +10,7 @@ export class LogCleaner {
   private logsDirectory = 'logs';
   private maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
   private maxSize = 10 * 1024 * 1024; // 10MB in bytes
-  private startupMaxAge = 1 * 24 * 60 * 60 * 1000; // 1 day for startup cleanup
+  private startupMaxAge = 60 * 1000; // 60 secondes for startup cleanup
 
   async cleanLogs(isStartup: boolean = false): Promise<void> {
     const cleanupType = isStartup ? 'startup' : 'regular';

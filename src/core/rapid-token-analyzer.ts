@@ -37,7 +37,7 @@ export class RapidTokenAnalyzer extends EventEmitter {
     this.securityAnalyzer = new SecurityAnalyzer();
     
     this.setupEventHandlers();
-    console.log('⚡ Rapid Token Analyzer initialized');
+    // console.log('⚡ Rapid Token Analyzer initialized');
   }
 
   private setupEventHandlers(): void {
@@ -48,7 +48,7 @@ export class RapidTokenAnalyzer extends EventEmitter {
 
     this.multiDexMonitor.on('error', (error: any) => {
       this.processingStats.errors++;
-      console.error('❌ Multi-DEX Monitor error:', error);
+      // console.error('❌ Multi-DEX Monitor error:', error);
     });
 
     // Pump Detector events
@@ -58,7 +58,7 @@ export class RapidTokenAnalyzer extends EventEmitter {
 
     this.pumpDetector.on('error', (error: any) => {
       this.processingStats.errors++;
-      console.error('❌ Pump Detector error:', error);
+      // console.error('❌ Pump Detector error:', error);
     });
 
     // Real Token Monitor events
@@ -68,7 +68,7 @@ export class RapidTokenAnalyzer extends EventEmitter {
 
     this.realTokenMonitor.on('error', (error: any) => {
       this.processingStats.errors++;
-      console.error('❌ Real Token Monitor error:', error);
+      // console.error('❌ Real Token Monitor error:', error);
     });
 
     // DexScreener service events
@@ -89,23 +89,42 @@ export class RapidTokenAnalyzer extends EventEmitter {
 
     try {
       console.log('🚀 Starting rapid token analysis...');
+      console.log('📊 DEBUGGING: Starting detection systems...');
       
       // Start all detection systems
+      console.log('🔄 Starting MultiDexMonitor...');
       await this.multiDexMonitor.startMonitoring();
+      console.log('✅ MultiDexMonitor started');
+      
+      console.log('🔄 Starting PumpDetector...');
       await this.pumpDetector.start();
+      console.log('✅ PumpDetector started');
+      
+      console.log('🔄 Starting RealTokenMonitor...');
       await this.realTokenMonitor.start();
+      console.log('✅ RealTokenMonitor started');
       
       // Start token processing loop
+      console.log('🔄 Starting token processing queue...');
       this.startTokenProcessing();
+      console.log('✅ Token processing queue started');
+      
+      // Log a heartbeat to confirm processing is active
+      setInterval(() => {
+        console.log(`💗 Rapid Analyzer Heartbeat: Queue=${this.tokenQueue.length}, Processed=${this.processingStats.totalProcessed}, Viable=${this.processingStats.totalViable}`);
+      }, 30000); // Every 30 seconds
       
       this.isRunning = true;
       this.processingStats.startTime = Date.now();
       
-      console.log('✅ Rapid token analysis started');
+      console.log('✅ Rapid token analysis started successfully');
+      const status = this.multiDexMonitor.getStatus();
+      console.log(`📊 MultiDex Status:`, status);
       this.emit('analysisStarted');
       
     } catch (error) {
       console.error('❌ Error starting rapid token analysis:', error);
+      console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
       this.emit('error', error);
     }
   }
@@ -212,18 +231,24 @@ export class RapidTokenAnalyzer extends EventEmitter {
       }
 
       // Apply rapid filtering criteria
+      console.log(`🔍 Checking viability for ${tokenInfo.symbol}: Security=${securityAnalysis.score}, Liquidity=$${tokenInfo.liquidity?.usd || 0}`);
+      
       if (this.isTokenViable(tokenInfo, securityAnalysis)) {
         this.processingStats.totalViable++;
         
         console.log(`✅ Viable token found: ${tokenInfo.symbol} (Score: ${securityAnalysis.score})`);
+        console.log(`📊 Token details: Source=${tokenInfo.source}, Age=${Math.round((Date.now() - tokenInfo.createdAt) / 60000)}m, Liquidity=$${tokenInfo.liquidity?.usd || 0}`);
+        console.log(`🚀 PASSING TO SIMULATION ENGINE: ${this.simulationEngine.constructor.name}`);
         
         // Process through simulation engine
         await this.simulationEngine.processTokenDetection(tokenInfo, securityAnalysis);
         
+        console.log(`✅ SIMULATION ENGINE PROCESSING COMPLETED`);
         this.processingStats.totalPositions++;
         this.emit('viableTokenFound', { tokenInfo, securityAnalysis });
       } else {
         console.log(`❌ Token filtered out: ${tokenInfo.symbol} (Score: ${securityAnalysis.score})`);
+        console.log(`📊 Production filter: Security=${securityAnalysis.score}<60, Liquidity=$${tokenInfo.liquidity?.usd || 0}<5000, Age>${Math.round((Date.now() - tokenInfo.createdAt) / 60000)}>${30}min`);
         this.emit('tokenFiltered', { tokenInfo, securityAnalysis });
       }
       
@@ -235,26 +260,20 @@ export class RapidTokenAnalyzer extends EventEmitter {
   }
 
   private isTokenViable(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis): boolean {
-    // MODIFIED: Very permissive criteria - buy almost every token
+    // ULTRA-AGGRESSIVE INSTANT SNIPING: BUY ABSOLUTELY EVERYTHING - ZERO FILTERS!
     
-    // Only skip if security score is extremely low (below 10)
-    if (securityAnalysis.score < 10) {
+    // Skip demo tokens only
+    if (tokenInfo.source === 'demo' || tokenInfo.metadata?.demo) {
       return false;
     }
     
-    // Very low liquidity threshold (only $1 USD)
-    if (!tokenInfo.liquidity || tokenInfo.liquidity.usd < 1) {
-      return false;
-    }
+    const ageMinutes = Math.round((Date.now() - tokenInfo.createdAt) / 60000);
     
-    // Very generous age threshold (24 hours)
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-    if (Date.now() - tokenInfo.createdAt > maxAge) {
-      return false;
-    }
+    console.log(`⚡ INSTANT SNIPE TARGET: ${tokenInfo.symbol || tokenInfo.mint.slice(0, 8)}`);
+    console.log(`   📊 Age: ${ageMinutes}min | Security: ${securityAnalysis.score} | Liquidity: $${tokenInfo.liquidity?.usd || 0}`);
+    console.log(`   🎯 SNIPING REGARDLESS OF ALL METRICS - PURE SPEED MODE!`);
     
-    // Accept all sources - no source filtering
-    return true;
+    return true; // SNIPE ABSOLUTELY EVERYTHING!
   }
 
   async stopAnalyzing(): Promise<void> {

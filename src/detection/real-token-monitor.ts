@@ -96,9 +96,9 @@ export class RealTokenMonitor extends EventEmitter {
     try {
       // Get trending tokens from DexScreener - LAST 30 MINUTES ONLY
       const trendingTokens = await this.dexClient.getTrendingTokens({
-        minLiquidity: 2000,    // $2000 min liquidity for real activity
-        maxAge: 0.5,           // 30 minutes max age (0.5 hours)
-        minVolume: 1000        // $1000 min volume for serious tokens
+        minLiquidityUSD: 2000,    // $2000 min liquidity for real activity
+        maxAgeHours: 0.5,         // 30 minutes max age (0.5 hours)
+        minVolume24h: 1000        // $1000 min volume for serious tokens
       });
 
       logger.verbose('Discovered trending tokens', { 

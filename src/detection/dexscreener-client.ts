@@ -1,16 +1,22 @@
 import axios from 'axios';
 import { logger } from '../monitoring/logger';
-import { DexScreenerResponse, DexScreenerPair, RealTokenInfo, MarketFilters } from '../types/dexscreener';
+import { DexScreenerResponse, DexScreenerPair, RealTokenInfo } from '../types/dexscreener';
+import { UnifiedTokenFilter, TokenFilterCriteria } from './unified-token-filter';
+import { ConnectionManager } from '../core/connection';
 
 export class DexScreenerClient {
   private baseUrl = 'https://api.dexscreener.com';
   private lastRequestTime = 0;
-  private rateLimitDelay = 3000; // 3 seconds between requests
+  private rateLimitDelay = 500; // 500ms between requests for better performance
   private cache = new Map<string, { data: any; timestamp: number }>();
   private cacheTimeout = 30000; // 30 seconds cache
+  private tokenFilter: UnifiedTokenFilter;
+  private connectionManager: ConnectionManager;
 
   constructor() {
-    console.log('🔗 DexScreener API client initialized');
+    this.connectionManager = new ConnectionManager();
+    this.tokenFilter = new UnifiedTokenFilter(this.connectionManager.getConnection());
+    console.log('🔗 DexScreener API client initialized with unified token filter');
   }
 
   private async throttleRequest(): Promise<void> {
@@ -40,19 +46,9 @@ export class DexScreenerClient {
     });
   }
 
-  async getTrendingTokens(filters?: Partial<MarketFilters>): Promise<RealTokenInfo[]> {
-    const defaultFilters: MarketFilters = {
-      chainIds: ['solana'],
-      dexIds: ['pumpfun', 'raydium', 'orca', 'meteora', 'pumpswap'],
-      rankBy: 'trendingScoreM5',
-      order: 'desc',
-      minLiquidity: 500, // $500 min liquidity for real tokens
-      maxAge: 3, // 3 hours max age
-      minVolume: 100 // $100 min volume (relaxed for testing)
-    };
-
-    const finalFilters = { ...defaultFilters, ...filters };
-    const cacheKey = `trending_${JSON.stringify(finalFilters)}`;
+  async getTrendingTokens(criteria?: TokenFilterCriteria): Promise<RealTokenInfo[]> {
+    const filterCriteria = criteria || UnifiedTokenFilter.AGGRESSIVE_CRITERIA;
+    const cacheKey = `trending_${JSON.stringify(filterCriteria)}`;
     
     // Check cache first
     const cached = this.getCachedData(cacheKey);
@@ -65,9 +61,9 @@ export class DexScreenerClient {
 
     try {
       // Use the pairs endpoint for solana chain specifically
-      const url = `${this.baseUrl}/latest/dex/pairs/solana`;
+      const url = `${this.baseUrl}/token-profiles/latest/v1`;
       
-      logger.info('Fetching latest Solana trading pairs', { filters: finalFilters });
+      logger.info('Fetching latest Solana trading pairs', { criteria: filterCriteria });
       
       const response = await axios.get(url, {
         timeout: 10000,
@@ -77,63 +73,46 @@ export class DexScreenerClient {
       });
 
       let allTokens: RealTokenInfo[] = [];
-
-      if (response.data) {
+      if (response.data && response.data.pairs) {
         // Handle DexScreener trading pairs response format
-        let pairs = [];
-        if (response.data.pairs) {
-          pairs = response.data.pairs;
-          logger.info(`Trading pairs returned ${pairs.length} pairs`);
-        } else {
-          logger.warn('No pairs found in response', { keys: Object.keys(response.data) });
-        }
+        const pairs = response.data.pairs;
+        logger.info(`Trading pairs returned ${pairs.length} pairs`);
         
         if (pairs.length > 0) {
-          // Log sample pairs for debugging
-          logger.info('Sample DexScreener pairs', {
-            samplePairs: pairs.slice(0, 3).map((pair: any) => ({
-              chainId: pair.chainId,
-              dexId: pair.dexId,
-              symbol: pair.baseToken?.symbol,
-              priceUsd: pair.priceUsd,
-              liquidity: pair.liquidity?.usd
-            }))
-          });
+          // Log sample pairs for debugging - commented out to reduce logs
+           logger.info('Sample DexScreener pairs', {
+             samplePairs: pairs.slice(0, 3).map((pair: any) => ({
+               chainId: pair.chainId,
+               dexId: pair.dexId,
+               symbol: pair.baseToken?.symbol,
+               priceUsd: pair.priceUsd,
+               liquidity: pair.liquidity?.usd
+             }))
+           });
           
-          // Debug: Show all unique chainIds and dexIds
-          const uniqueChainIds = [...new Set(pairs.map((p: any) => p.chainId))];
-          const uniqueDexIds = [...new Set(pairs.map((p: any) => p.dexId))];
-          logger.info('DexScreener chain and dex IDs found', {
-            chainIds: uniqueChainIds,
-            dexIds: uniqueDexIds
-          });
+          // Debug: Show all unique chainIds and dexIds - commented out to reduce logs
+          // const uniqueChainIds = [...new Set(pairs.map((p: any) => p.chainId))];
+          // const uniqueDexIds = [...new Set(pairs.map((p: any) => p.dexId))];
+          // logger.info('DexScreener chain and dex IDs found', {
+          //   chainIds: uniqueChainIds,
+          //   dexIds: uniqueDexIds
+          // });
           
-          // Filter to Solana chain first - be more flexible with chain ID
-          const solanaPairs = pairs.filter((pair: any) => {
-            return pair.chainId === 'solana' || 
-                   pair.chainId === 'sol' || 
-                   pair.dexId === 'raydium' || 
-                   pair.dexId === 'orca' || 
-                   pair.dexId === 'meteora' || 
-                   pair.dexId === 'pumpfun' ||
-                   pair.dexId === 'pump' ||
-                   pair.dexId === 'jupiter';
-          });
+          // Convert all pairs to token info first
+          const rawTokens = pairs
+            .filter((pair: any) => pair.chainId === 'solana' && pair.priceUsd && parseFloat(pair.priceUsd) > 0)
+            .map((pair: any) => this.convertPairToTokenInfo(pair))
+            .filter((token: RealTokenInfo | null) => token !== null);
           
-          logger.info(`Found ${solanaPairs.length} Solana pairs from ${pairs.length} total pairs`);
+          logger.info(`Found ${rawTokens.length} Solana tokens from ${pairs.length} total pairs`);
           
-          // Apply basic filtering and convert to our format
-          const filteredPairs = solanaPairs.filter((pair: any) => {
-            return pair.priceUsd && parseFloat(pair.priceUsd) > 0 &&
-                   pair.liquidity?.usd && 
-                   (finalFilters.minLiquidity === undefined || pair.liquidity.usd >= finalFilters.minLiquidity);
-          });
+          // Apply unified token filtering
+          const filteredTokens = await this.tokenFilter.filterTrendingTokens(rawTokens);
+          logger.info(`After unified filtering: ${filteredTokens.length} tokens`);
           
-          logger.info(`After liquidity filtering: ${filteredPairs.length} pairs`);
-          
-          const tokens = filteredPairs.map((pair: any) => this.convertPairToTokenInfo(pair)).filter((token: RealTokenInfo | null) => token !== null);
-          logger.info(`After token conversion: ${tokens.length} tokens`);
-          allTokens = tokens;
+          allTokens = filteredTokens;
+        } else {
+          logger.warn('No pairs found in response', { keys: Object.keys(response.data) });
         }
       }
       
@@ -153,10 +132,11 @@ export class DexScreenerClient {
       return limitedTokens;
 
     } catch (error) {
-      logger.error('Failed to fetch trending tokens', {
-        error: error instanceof Error ? error.message : String(error),
-        filters: finalFilters
-      });
+      // Comment out excessive error logging for API failures
+       logger.error('Failed to fetch trending tokens', {
+         error: error instanceof Error ? error.message : String(error),
+         criteria: filterCriteria
+       });
       
       // Return empty array if API fails - no demo tokens
       return [];
@@ -208,17 +188,15 @@ export class DexScreenerClient {
       return null;
     }
   }
+  
+  // Alias for compatibility
+  async getTokenByAddress(address: string): Promise<RealTokenInfo | null> {
+    return this.getTokenDetails(address);
+  }
 
   async searchNewTokens(): Promise<RealTokenInfo[]> {
-    // Get tokens created in the last 30 minutes
-    const filters: Partial<MarketFilters> = {
-      maxAge: 3, // 3 hours in hours
-      minLiquidity: 500, // Real minimum for serious tokens
-      minVolume: 1000, // Real minimum volume
-      rankBy: 'trendingScoreM5'
-    };
-
-    return this.getTrendingTokens(filters);
+    // Use aggressive criteria for maximum detection
+    return this.getTrendingTokens(UnifiedTokenFilter.AGGRESSIVE_CRITERIA);
   }
 
   private removeDuplicatesAndSort(tokens: RealTokenInfo[]): RealTokenInfo[] {
@@ -243,40 +221,13 @@ export class DexScreenerClient {
 
 
 
-  private processPairsData(pairs: DexScreenerPair[], filters: MarketFilters): RealTokenInfo[] {
-    const now = Date.now();
-    const maxAgeMs = filters.maxAge ? filters.maxAge * 60 * 60 * 1000 : Infinity;
-    
-    return pairs
-      .filter(pair => {
-        // Filter by DEX (chainId already filtered in calling function)
-        if (!filters.dexIds.includes(pair.dexId)) return false;
-        
-        // Filter by age
-        if (pair.pairCreatedAt && (now - pair.pairCreatedAt) > maxAgeMs) return false;
-        
-        // Filter by liquidity
-        if (filters.minLiquidity && (!pair.liquidity?.usd || pair.liquidity.usd < filters.minLiquidity)) return false;
-        
-        // Filter by volume
-        if (filters.minVolume && pair.volume.h24 < filters.minVolume) return false;
-        
-        // Must have USD price
-        if (!pair.priceUsd || parseFloat(pair.priceUsd) <= 0) return false;
-        
-        return true;
-      })
-      .map(pair => this.convertPairToTokenInfo(pair))
-      .filter((token: RealTokenInfo | null) => token !== null)
-      .slice(0, 50); // Limit to 50 tokens
-  }
 
   private convertPairToTokenInfo(pair: DexScreenerPair): RealTokenInfo | null {
     const now = Date.now();
-    
+     
     // Validate Solana address format before processing
     if (!this.isValidSolanaAddress(pair.baseToken.address)) {
-      console.warn(`⚠️ Skipping token with invalid Solana address: ${pair.baseToken.symbol} (${pair.baseToken.address})`);
+      logger.warn(`Skipping token with invalid Solana address: ${pair.baseToken.symbol} (${pair.baseToken.address})`);
       return null;
     }
     
@@ -306,6 +257,50 @@ export class DexScreenerClient {
       websites: pair.info?.websites?.map(w => w.url),
       socials: pair.info?.socials,
       trendingScore: this.calculateTrendingScore(pair),
+      detected: true,
+      detectedAt: now
+    };
+  }
+
+  private convertBoostToTokenInfo(boost: any): RealTokenInfo | null {
+    const now = Date.now();
+    
+    // Validate Solana address format before processing
+    if (!this.isValidSolanaAddress(boost.tokenAddress)) {
+      logger.warn(`Skipping boost with invalid Solana address: ${boost.description} (${boost.tokenAddress})`);
+      return null;
+    }
+    
+    // Extract symbol from description (fallback to first word)
+    const symbol = boost.description ? boost.description.split(' ')[0].toUpperCase() : 'BOOST';
+    
+    return {
+      chainId: boost.chainId,
+      address: boost.tokenAddress,
+      name: boost.description || 'Boosted Token',
+      symbol: symbol,
+      priceUsd: 0, // Not available in boost data
+      priceNative: '0',
+      volume24h: 0, // Not available in boost data
+      volume1h: 0,
+      volume5m: 0,
+      priceChange24h: 0, // Not available in boost data
+      priceChange1h: 0,
+      priceChange5m: 0,
+      liquidityUsd: 0, // Not available in boost data
+      marketCap: 0,
+      fdv: 0,
+      txns24h: 0, // Not available in boost data
+      txns1h: 0,
+      txns5m: 0,
+      pairAddress: '', // Not available in boost data
+      dexId: 'boost', // Mark as boost source
+      pairCreatedAt: now,
+      imageUrl: boost.icon,
+      websites: boost.links ? boost.links.filter((link: any) => link.type === 'website').map((link: any) => link.url) : [],
+      socials: boost.links ? boost.links.filter((link: any) => link.type !== 'website').map((link: any) => ({ type: link.type, url: link.url })) : [],
+      trendingScore: Math.min(100, (boost.totalAmount || 0) + (boost.amount || 0)), // Use boost amounts as trending score
+      riskScore: 50, // Default risk score for boosted tokens
       detected: true,
       detectedAt: now
     };
@@ -381,9 +376,9 @@ export class DexScreenerClient {
 
     try {
       // Use pairs endpoint for solana chain specifically
-      const url = `${this.baseUrl}/latest/dex/pairs/solana`;
+      const url = `${this.baseUrl}/token-boosts/latest/v1`;
       
-      logger.info('Fetching latest Solana trading pairs for boost analysis');
+      // logger.info('Fetching latest Solana trading pairs for boost analysis');
       
       const response = await axios.get(url, {
         timeout: 10000,
@@ -393,20 +388,34 @@ export class DexScreenerClient {
       });
 
       let boostedTokens: RealTokenInfo[] = [];
-
-      if (response.data && response.data.pairs) {
-        const pairs = response.data.pairs;
+      if (response.data && response.data.length) {
+        const pairs = response.data;
         logger.info(`Trading pairs returned ${pairs.length} pairs for boost analysis`);
         
-        // Filter for high-volume/trending tokens as boost candidates
-        const boostCandidates = pairs.filter((pair: any) => {
-          return pair.priceChange?.m5 > 10 || // 10%+ price increase in 5 minutes
-                 pair.volume?.m5 > 5000 ||      // High 5-minute volume
-                 (pair.txns?.m5?.buys + pair.txns?.m5?.sells) > 20; // High transaction activity
-        });
+        // Convert boost data to tokens (different format than pairs)
+        const rawTokens = pairs
+          .filter((boost: any) => boost.chainId === 'solana')
+          .map((boost: any) => this.convertBoostToTokenInfo(boost))
+          .filter((token: RealTokenInfo | null) => token !== null);
         
-        logger.info(`Found ${boostCandidates.length} boost candidate pairs`);
-        boostedTokens = boostCandidates.map((pair: DexScreenerPair) => this.convertPairToTokenInfo(pair)).filter((token: RealTokenInfo | null) => token !== null);
+        // Apply aggressive filtering for high-momentum tokens
+        const boostCriteria: TokenFilterCriteria = {
+          ...UnifiedTokenFilter.AGGRESSIVE_CRITERIA,
+          minPriceChangePercent: 5,
+          minVolume5m: 1000,
+          minTransactions5m: 10
+        };
+        
+        const filteredTokens: RealTokenInfo[] = [];
+        for (const token of rawTokens) {
+          const result = await this.tokenFilter.filterToken(token, boostCriteria);
+          if (result.passed) {
+            filteredTokens.push(token);
+          }
+        }
+        
+        logger.info(`Found ${filteredTokens.length} boost candidate tokens after filtering`);
+        boostedTokens = filteredTokens;
       }
 
       // Cache the results
@@ -419,9 +428,10 @@ export class DexScreenerClient {
       return boostedTokens;
 
     } catch (error) {
-      logger.error('Failed to fetch latest boosted tokens', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      // Comment out excessive error logging for API failures
+       logger.error('Failed to fetch latest boosted tokens', {
+         error: error instanceof Error ? error.message : String(error)
+       });
       return [];
     }
   }
@@ -439,9 +449,9 @@ export class DexScreenerClient {
 
     try {
       // Use pairs endpoint for solana chain specifically
-      const url = `${this.baseUrl}/latest/dex/pairs/solana`;
+      const url = `${this.baseUrl}/token-boosts/top/v1`;
       
-      logger.info('Fetching Solana trading pairs for top activity analysis');
+       logger.info('Fetching Solana trading pairs for top activity analysis');
       
       const response = await axios.get(url, {
         timeout: 10000,
@@ -456,19 +466,33 @@ export class DexScreenerClient {
         const pairs = response.data.pairs;
         logger.info(`Trading pairs returned ${pairs.length} pairs for top activity analysis`);
         
-        // Filter for top performing tokens (highest activity/momentum)
-        const topCandidates = pairs
-          .filter((pair: any) => pair.volume?.h24 > 10000) // Minimum 24h volume
-          .sort((a: any, b: any) => {
-            // Sort by a combination of volume and price change
-            const scoreA = (a.volume?.h24 || 0) * (1 + (a.priceChange?.h24 || 0) / 100);
-            const scoreB = (b.volume?.h24 || 0) * (1 + (b.priceChange?.h24 || 0) / 100);
-            return scoreB - scoreA;
-          })
-          .slice(0, 20); // Top 20
+        // Convert and filter for top performing tokens
+        const rawTokens = pairs
+          .filter((pair: any) => pair.chainId === 'solana')
+          .map((pair: any) => this.convertPairToTokenInfo(pair))
+          .filter((token: RealTokenInfo | null) => token !== null);
         
-        logger.info(`Found ${topCandidates.length} top activity pairs`);
-        topBoostedTokens = topCandidates.map((pair: DexScreenerPair) => this.convertPairToTokenInfo(pair)).filter((token: RealTokenInfo | null) => token !== null);
+        // Apply conservative filtering for top tokens
+        const topCriteria: TokenFilterCriteria = {
+          ...UnifiedTokenFilter.CONSERVATIVE_CRITERIA,
+          minVolume24h: 10000,
+          minTransactions24h: 50
+        };
+        
+        const filteredTokens: RealTokenInfo[] = [];
+        for (const token of rawTokens) {
+          const result = await this.tokenFilter.filterToken(token, topCriteria);
+          if (result.passed) {
+            filteredTokens.push(token);
+          }
+        }
+        
+        // Sort by trending score and take top 20
+        topBoostedTokens = filteredTokens
+          .sort((a, b) => (b.trendingScore || 0) - (a.trendingScore || 0))
+          .slice(0, 20);
+        
+        logger.info(`Found ${topBoostedTokens.length} top activity tokens after filtering`);
       }
 
       // Cache the results
@@ -481,9 +505,10 @@ export class DexScreenerClient {
       return topBoostedTokens;
 
     } catch (error) {
-      logger.error('Failed to fetch top boosted tokens', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      // Comment out excessive error logging for API failures
+       logger.error('Failed to fetch top boosted tokens', {
+         error: error instanceof Error ? error.message : String(error)
+       });
       return [];
     }
   }
@@ -496,9 +521,12 @@ export class DexScreenerClient {
         this.getTopBoosts()
       ]);
 
-      // Combine and deduplicate
+      // Combine and deduplicate using unified filter
       const allBoosts = [...latestBoosts, ...topBoosts];
       const uniqueBoosts = this.removeDuplicatesAndSort(allBoosts);
+      
+      // Final filtering pass with aggressive criteria
+      const finalFiltered = await this.tokenFilter.filterTrendingTokens(uniqueBoosts);
       
       logger.info('Combined boosted tokens', {
         latest: latestBoosts.length,
@@ -506,7 +534,7 @@ export class DexScreenerClient {
         unique: uniqueBoosts.length
       });
 
-      return uniqueBoosts;
+      return finalFiltered;
     } catch (error) {
       logger.error('Failed to fetch boosted tokens', { error });
       return [];
