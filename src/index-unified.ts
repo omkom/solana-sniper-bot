@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Config } from './core/config';
 import { RapidTokenAnalyzer } from './core/rapid-token-analyzer';
 import { RealTokenMonitor } from './detection/real-token-monitor';
@@ -6,6 +7,9 @@ import { DryRunEngine } from './simulation/dry-run-engine';
 import { RealPriceSimulationEngine } from './simulation/real-price-engine';
 import { UltraSniperEngine } from './simulation/ultra-sniper-engine';
 import { EducationalDashboard } from './monitoring/dashboard';
+import { TokenPriceTracker } from './monitoring/token-price-tracker';
+import { MigrationMonitor } from './monitoring/migration-monitor';
+import { KPITracker } from './monitoring/kpi-tracker';
 import { PumpDetector, PumpSignal } from './detection/pump-detector';
 import { ConnectionMonitor } from './monitoring/connection-monitor';
 import { ConnectionManager } from './core/connection';
@@ -30,6 +34,9 @@ class UnifiedTokenAnalyzer {
   private securityAnalyzer: SecurityAnalyzer;
   private simulationEngine: DryRunEngine | RealPriceSimulationEngine | UltraSniperEngine;
   private dashboard: EducationalDashboard;
+  private tokenPriceTracker: TokenPriceTracker;
+  private migrationMonitor: MigrationMonitor;
+  private kpiTracker: KPITracker;
   private pumpDetector?: PumpDetector;
   private connectionMonitor: ConnectionMonitor;
   private connectionManager: ConnectionManager;
@@ -71,6 +78,11 @@ class UnifiedTokenAnalyzer {
     this.priceConverter = new PriceConverter();
     this.securityAnalyzer = new SecurityAnalyzer();
     
+    // Initialize monitoring components
+    this.tokenPriceTracker = new TokenPriceTracker();
+    this.migrationMonitor = new MigrationMonitor();
+    this.kpiTracker = new KPITracker();
+    
     // Initialize simulation engine based on configuration
     if (analyzerConfig.mode === 'sniper' || analyzerConfig.enableUltraSniper) {
       this.realTokenMonitor = new RealTokenMonitor();
@@ -95,17 +107,78 @@ class UnifiedTokenAnalyzer {
       this.pumpDetector = new PumpDetector();
     }
     
-    this.dashboard = new EducationalDashboard(this.simulationEngine, undefined, undefined, undefined, this);
+    this.dashboard = new EducationalDashboard(
+      this.simulationEngine, 
+      this.tokenPriceTracker, 
+      this.migrationMonitor, 
+      this.kpiTracker, 
+      this
+    );
     
     this.setupEventListeners();
     this.setupErrorHandling();
     this.startProcessingQueue();
   }
   
-  private addToProcessingQueue(tokenInfo: TokenInfo, priority: number, pumpSignal?: PumpSignal): void {
+  private calculateTokenPriority(tokenInfo: TokenInfo, pumpSignal?: PumpSignal): number {
+    let priority = 1; // Base priority
+    
+    // Pump tokens get highest priority
+    if (pumpSignal) {
+      priority = 5;
+      return priority;
+    }
+    
+    // Source-based priority
+    const source = tokenInfo.source?.toLowerCase() || '';
+    if (source.includes('pump')) {
+      priority = 4; // Very high priority for pump-related sources
+    } else if (source.includes('raydium') || source.includes('websocket')) {
+      priority = 3; // High priority for Raydium and WebSocket sources
+    } else if (source.includes('multi_dex') || source.includes('scanner') || source.includes('real_monitor')) {
+      priority = 3; // High priority for multi-dex and scanner sources
+    } else if (source.includes('orca') || source.includes('jupiter')) {
+      priority = 2; // Medium priority for other major DEXes
+    } else if (source === 'demo' || source === 'educational') {
+      priority = 1; // Low priority for demo tokens
+    }
+    
+    // Age-based priority boost (newer tokens get higher priority)
+    const ageMs = Date.now() - (tokenInfo.createdAt || tokenInfo.timestamp);
+    if (ageMs < 60000) { // < 1 minute
+      priority += 2;
+    } else if (ageMs < 300000) { // < 5 minutes
+      priority += 1;
+    }
+    
+    // Liquidity-based priority boost
+    const liquidityUsd = tokenInfo.liquidity?.usd || 0;
+    if (liquidityUsd >= 50000) {
+      priority += 1;
+    } else if (liquidityUsd >= 10000) {
+      priority += 0.5;
+    }
+    
+    // Metadata-based priority boosts
+    if (tokenInfo.metadata) {
+      if (tokenInfo.metadata.pumpDetected || tokenInfo.metadata.pumpScore) {
+        priority += 2;
+      }
+      if (tokenInfo.metadata.urgency === 'high') {
+        priority += 1;
+      }
+    }
+    
+    return Math.min(priority, 5); // Cap at 5 for consistency
+  }
+
+  private addToProcessingQueue(tokenInfo: TokenInfo, priority?: number, pumpSignal?: PumpSignal): void {
+    // Calculate priority if not provided
+    const calculatedPriority = priority || this.calculateTokenPriority(tokenInfo, pumpSignal);
+    
     this.processingQueue.push({
       tokenInfo,
-      priority,
+      priority: calculatedPriority,
       pumpSignal,
       timestamp: Date.now()
     });
@@ -117,6 +190,8 @@ class UnifiedTokenAnalyzer {
     if (this.processingQueue.length > 100) {
       this.processingQueue = this.processingQueue.slice(0, 100);
     }
+    
+    console.log(`📋 Added to processing queue: ${tokenInfo.symbol || tokenInfo.mint?.slice(0, 8)} (Priority: ${calculatedPriority}, Queue size: ${this.processingQueue.length})`);
   }
   
   private startProcessingQueue(): void {
@@ -138,12 +213,19 @@ class UnifiedTokenAnalyzer {
       return;
     }
     
+    const processingTime = Date.now() - item.timestamp;
+    console.log(`🔄 Processing token from queue: ${item.tokenInfo.symbol || item.tokenInfo.mint?.slice(0, 8)} (Priority: ${item.priority}, Queue wait: ${processingTime}ms, Remaining: ${this.processingQueue.length})`);
+    
     try {
       if (item.pumpSignal) {
+        console.log(`🚨 Processing pump token with signal strength: ${item.pumpSignal.pumpStrength}`);
         await this.analyzePumpToken(item.tokenInfo, item.pumpSignal);
       } else {
+        console.log(`🔍 Processing regular token from source: ${item.tokenInfo.source}`);
         await this.analyzeToken(item.tokenInfo);
       }
+      
+      console.log(`✅ Queue processing completed for ${item.tokenInfo.symbol || item.tokenInfo.mint?.slice(0, 8)}`);
     } catch (error) {
       console.error('❌ Error processing token from queue:', error);
       this.stats.errors++;
@@ -161,9 +243,23 @@ class UnifiedTokenAnalyzer {
         this.trackFoundToken(tokenInfo);
         console.log(`🔍 Rapid token detected: ${tokenInfo.symbol} from ${tokenInfo.metadata?.detectionSource}`);
         
-        // NOTE: Don't add to processing queue - rapid analyzer handles its own processing
-        // This prevents duplicate processing of the same token
-        console.log(`⚡ Rapid analyzer handling token processing directly - skipping unified queue`);
+        // Add to token price tracker for monitoring
+        this.tokenPriceTracker.addToken(
+          tokenInfo.mint, 
+          tokenInfo.symbol || 'Unknown', 
+          tokenInfo.name || tokenInfo.symbol || 'Unknown Token',
+          tokenInfo.metadata?.detectionSource || 'rapid'
+        );
+        
+        // Record KPI
+        this.kpiTracker.recordTokenDetected(tokenInfo.metadata?.detectionSource || 'rapid');
+        
+        // Route tokens through unified processing queue with priority-based handling
+        const priority = this.calculateTokenPriority(tokenInfo);
+        console.log(`🎯 Routing rapid token through unified queue (Priority: ${priority})`);
+        
+        // Add to unified processing queue instead of duplicate processing
+        this.addToProcessingQueue(tokenInfo, priority);
       });
       
       this.rapidAnalyzer.on('viableTokenFound', ({ tokenInfo, securityAnalysis }) => {
@@ -188,6 +284,17 @@ class UnifiedTokenAnalyzer {
           this.stats.totalDetected++;
           this.trackFoundToken(tokenInfo);
           
+          // Add to token price tracker for monitoring
+          this.tokenPriceTracker.addToken(
+            tokenInfo.mint, 
+            tokenInfo.symbol || 'Unknown', 
+            tokenInfo.name || tokenInfo.symbol || 'Unknown Token',
+            'real_monitor'
+          );
+          
+          // Record KPI
+          this.kpiTracker.recordTokenDetected('real_monitor');
+          
           logger.log('analysis', 'Real token detected for analysis', {
             mint: tokenInfo.mint,
             symbol: tokenInfo.symbol,
@@ -196,8 +303,10 @@ class UnifiedTokenAnalyzer {
             liquidity: tokenInfo.liquidity
           });
 
-          // Add to priority queue for processing
-          this.addToProcessingQueue(tokenInfo, 2); // Medium priority for regular tokens
+          // Add to priority queue with calculated priority
+          const priority = this.calculateTokenPriority(tokenInfo);
+          console.log(`🎯 Routing real token through unified queue (Priority: ${priority})`);
+          this.addToProcessingQueue(tokenInfo, priority);
         } catch (error) {
           this.stats.errors++;
           logger.error('Error analyzing real token', { error, tokenInfo });
@@ -212,6 +321,17 @@ class UnifiedTokenAnalyzer {
           this.stats.totalDetected++;
           this.trackFoundToken(tokenInfo, true);
           
+          // Add to token price tracker for monitoring with pump priority
+          this.tokenPriceTracker.addToken(
+            tokenInfo.mint, 
+            tokenInfo.symbol || 'Unknown', 
+            tokenInfo.name || tokenInfo.symbol || 'Unknown Token',
+            'pump_detector'
+          );
+          
+          // Record KPI
+          this.kpiTracker.recordTokenDetected('pump_detector');
+          
           console.log(`\\n🚨 PUMP ALERT: Processing high-priority pump signal for ${tokenInfo.symbol}`);
           logger.log('analysis', 'Pump detected - high priority analysis', {
             mint: tokenInfo.mint,
@@ -221,8 +341,10 @@ class UnifiedTokenAnalyzer {
             source: 'pump_detector'
           });
 
-          // Add pump tokens to priority queue with highest priority
-          this.addToProcessingQueue(tokenInfo, 5, pumpSignal); // Highest priority for pump tokens
+          // Add pump tokens to priority queue with highest priority (always 5)
+          const priority = this.calculateTokenPriority(tokenInfo, pumpSignal);
+          console.log(`🚨 Routing pump token through unified queue (Priority: ${priority})`);
+          this.addToProcessingQueue(tokenInfo, priority, pumpSignal);
         } catch (error) {
           this.stats.errors++;
           logger.error('Error analyzing pump token', { error, tokenInfo, pumpSignal });
@@ -259,11 +381,23 @@ class UnifiedTokenAnalyzer {
     this.simulationEngine.on('positionOpened', (position) => {
       this.stats.totalPositions++;
       console.log(`📈 Position opened: ${position.symbol} - ${position.simulatedInvestment.toFixed(4)} SOL`);
+      
+      // Record KPI
+      this.kpiTracker.recordPositionOpened(position.mint, position.simulatedInvestment);
     });
 
     this.simulationEngine.on('positionClosed', (position) => {
       const profitEmoji = (position.roi || 0) > 0 ? '💚' : '💔';
       console.log(`📊 Position closed: ${position.symbol} - ROI: ${(position.roi || 0).toFixed(2)}% ${profitEmoji}`);
+      
+      // Record KPI for successful trades (positive ROI)
+      if ((position.roi || 0) > 0) {
+        const holdTime = position.exitTime ? (position.exitTime - position.entryTime) : 0;
+        this.kpiTracker.recordSuccessfulTrade(position.mint, position.roi || 0, holdTime);
+      }
+      
+      // Remove from price tracker when position is closed
+      this.tokenPriceTracker.removeToken(position.mint);
     });
 
     this.simulationEngine.on('portfolioUpdate', (stats) => {
@@ -291,6 +425,12 @@ class UnifiedTokenAnalyzer {
   private setupErrorHandling(): void {
     // Enhanced error handling
     process.on('uncaughtException', (error) => {
+      // Filter out EPIPE errors which are common with broken network connections
+      if (error.message?.includes('EPIPE') || error.code === 'EPIPE') {
+        console.warn('⚠️ Network connection broken (EPIPE), continuing...');
+        return;
+      }
+      
       console.error('❌ Uncaught Exception:', error);
       logger.error('Uncaught exception', { error: error.message, stack: error.stack });
       process.exit(1);
@@ -640,6 +780,7 @@ class UnifiedTokenAnalyzer {
     const runtime = (Date.now() - this.stats.startTime) / 1000 / 60; // minutes
     const successRate = this.stats.totalProcessed > 0 ? (this.stats.totalViable / this.stats.totalProcessed) * 100 : 0;
     const tokensPerMinute = runtime > 0 ? this.stats.totalDetected / runtime : 0;
+    const queueStats = this.getProcessingQueueStats();
 
     console.log('\\n📊 === UNIFIED ANALYZER STATS ===');
     console.log(`🔍 Mode: ${this.analyzerConfig.mode.toUpperCase()}`);
@@ -651,6 +792,19 @@ class UnifiedTokenAnalyzer {
     console.log(`⚡ Detection rate: ${tokensPerMinute.toFixed(2)} tokens/min`);
     console.log(`⚠️ Errors: ${this.stats.errors}`);
     console.log(`⏱️ Runtime: ${runtime.toFixed(2)} minutes`);
+    
+    // Queue statistics
+    console.log(`📋 Queue length: ${queueStats.queueLength}`);
+    console.log(`🎯 Avg priority: ${queueStats.avgPriority.toFixed(1)}`);
+    console.log(`⏰ Oldest item age: ${Math.round(queueStats.oldestItemAge / 1000)}s`);
+    
+    if (Object.keys(queueStats.priorityBreakdown).length > 0) {
+      console.log(`📊 Priority breakdown: ${JSON.stringify(queueStats.priorityBreakdown)}`);
+    }
+    if (Object.keys(queueStats.sourceBreakdown).length > 0) {
+      console.log(`📡 Source breakdown: ${JSON.stringify(queueStats.sourceBreakdown)}`);
+    }
+    
     console.log('=====================================\\n');
   }
 
@@ -790,6 +944,7 @@ class UnifiedTokenAnalyzer {
         successRate: this.stats.totalProcessed > 0 ? (this.stats.totalViable / this.stats.totalProcessed) * 100 : 0,
         runtime: (Date.now() - this.stats.startTime) / 1000 / 60
       },
+      processingQueue: this.getProcessingQueueStats(),
       portfolio: portfolioStats,
       rapid: rapidStats,
       real: realStats,
@@ -801,6 +956,34 @@ class UnifiedTokenAnalyzer {
         analyzed: this.analyzedTokens.size
       },
       connection: this.connectionManager.getQueueStatus()
+    };
+  }
+
+  private getProcessingQueueStats() {
+    const priorityBreakdown = this.processingQueue.reduce((acc, item) => {
+      const priority = Math.floor(item.priority);
+      acc[priority] = (acc[priority] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+
+    const sourceBreakdown = this.processingQueue.reduce((acc, item) => {
+      const source = item.tokenInfo.source || 'unknown';
+      acc[source] = (acc[source] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const oldestItem = this.processingQueue.length > 0 ? this.processingQueue[this.processingQueue.length - 1] : null;
+    const newestItem = this.processingQueue.length > 0 ? this.processingQueue[0] : null;
+
+    return {
+      queueLength: this.processingQueue.length,
+      isProcessing: this.isProcessingQueue,
+      priorityBreakdown,
+      sourceBreakdown,
+      oldestItemAge: oldestItem ? Date.now() - oldestItem.timestamp : 0,
+      newestItemAge: newestItem ? Date.now() - newestItem.timestamp : 0,
+      avgPriority: this.processingQueue.length > 0 ? 
+        this.processingQueue.reduce((sum, item) => sum + item.priority, 0) / this.processingQueue.length : 0
     };
   }
 

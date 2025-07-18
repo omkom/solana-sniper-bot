@@ -447,6 +447,7 @@ export class TransactionParser {
    */
   convertToTokenInfo(parsedInfo: ParsedTokenInfo, signature: string, source: string): TokenInfo {
     return {
+      address: parsedInfo.mint,
       mint: parsedInfo.mint,
       symbol: parsedInfo.symbol || 'UNKNOWN',
       name: parsedInfo.name || 'Unknown Token',
@@ -456,6 +457,8 @@ export class TransactionParser {
       timestamp: Date.now(),
       createdAt: Date.now(),
       source,
+      detected: true,
+      detectedAt: Date.now(),
       liquidity: parsedInfo.liquidity || { sol: 0, usd: 0 },
       metadata: {
         ...parsedInfo.metadata,

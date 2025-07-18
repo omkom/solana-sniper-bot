@@ -41,11 +41,119 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
   private strategies: Map<string, TradeStrategy> = new Map();
   private watchList: Map<string, { token: TokenInfo; strategy: TradeStrategy; watchedSince: number }> = new Map();
   private activePositions: Map<string, SimulatedPosition> = new Map();
+  private sourceMapping: Map<string, string> = new Map();
   
   constructor() {
     super();
+    this.initializeSourceMapping();
     this.initializeTradeStrategies();
     console.log('🎯 Enhanced Transaction Workflows initialized');
+  }
+
+  private initializeSourceMapping(): void {
+    // Demo and Educational Sources
+    this.sourceMapping.set('demo', 'DEMO');
+    this.sourceMapping.set('educational', 'DEMO');
+    this.sourceMapping.set('test', 'DEMO');
+    this.sourceMapping.set('simulation', 'DEMO');
+    
+    // Pump.fun Sources
+    this.sourceMapping.set('pump.fun', 'PUMP_FUN');
+    this.sourceMapping.set('pumpfun', 'PUMP_FUN');
+    this.sourceMapping.set('pump', 'PUMP_FUN');
+    this.sourceMapping.set('pump_detector', 'PUMP_FUN');
+    this.sourceMapping.set('pump_fun', 'PUMP_FUN');
+    this.sourceMapping.set('pump-fun', 'PUMP_FUN');
+    
+    // Raydium Sources
+    this.sourceMapping.set('raydium', 'RAYDIUM');
+    this.sourceMapping.set('raydium_monitor', 'RAYDIUM');
+    this.sourceMapping.set('raydium-monitor', 'RAYDIUM');
+    this.sourceMapping.set('raydium_amm', 'RAYDIUM');
+    this.sourceMapping.set('raydium_v4', 'RAYDIUM');
+    this.sourceMapping.set('websocket-raydium', 'RAYDIUM');
+    this.sourceMapping.set('websocket_raydium', 'RAYDIUM');
+    this.sourceMapping.set('ray', 'RAYDIUM');
+    this.sourceMapping.set('raydium_clmm', 'RAYDIUM');
+    
+    // Multi-DEX and Scanner Sources
+    this.sourceMapping.set('multi_dex', 'RAYDIUM'); // Default to Raydium for multi-dex
+    this.sourceMapping.set('multi-dex', 'RAYDIUM');
+    this.sourceMapping.set('multidex', 'RAYDIUM');
+    this.sourceMapping.set('scanner', 'RAYDIUM');
+    this.sourceMapping.set('multi_dex_monitor', 'RAYDIUM');
+    this.sourceMapping.set('unified_detector', 'RAYDIUM');
+    this.sourceMapping.set('unified-detector', 'RAYDIUM');
+    
+    // Real-time Monitor Sources
+    this.sourceMapping.set('real_monitor', 'RAYDIUM');
+    this.sourceMapping.set('real-monitor', 'RAYDIUM');
+    this.sourceMapping.set('real_token_monitor', 'RAYDIUM');
+    this.sourceMapping.set('real-token-monitor', 'RAYDIUM');
+    this.sourceMapping.set('realtime_monitor', 'RAYDIUM');
+    this.sourceMapping.set('realtime-monitor', 'RAYDIUM');
+    
+    // Orca Sources
+    this.sourceMapping.set('orca', 'ORCA');
+    this.sourceMapping.set('orca_whirlpool', 'ORCA');
+    this.sourceMapping.set('orca-whirlpool', 'ORCA');
+    this.sourceMapping.set('whirlpool', 'ORCA');
+    this.sourceMapping.set('orca_v2', 'ORCA');
+    this.sourceMapping.set('orca_clmm', 'ORCA');
+    
+    // DexScreener Sources
+    this.sourceMapping.set('dexscreener', 'DEXSCREENER');
+    this.sourceMapping.set('dex_screener', 'DEXSCREENER');
+    this.sourceMapping.set('dex-screener', 'DEXSCREENER');
+    this.sourceMapping.set('dexscreen', 'DEXSCREENER');
+    this.sourceMapping.set('screener', 'DEXSCREENER');
+    this.sourceMapping.set('dexscreener_client', 'DEXSCREENER');
+    this.sourceMapping.set('dexscreener-client', 'DEXSCREENER');
+    
+    // Jupiter Sources
+    this.sourceMapping.set('jupiter', 'JUPITER');
+    this.sourceMapping.set('jup', 'JUPITER');
+    this.sourceMapping.set('jupiter_v6', 'JUPITER');
+    this.sourceMapping.set('jupiter_aggregator', 'JUPITER');
+    this.sourceMapping.set('jupiter-aggregator', 'JUPITER');
+    
+    // Meteora Sources  
+    this.sourceMapping.set('meteora', 'METEORA');
+    this.sourceMapping.set('meteora_pools', 'METEORA');
+    this.sourceMapping.set('meteora-pools', 'METEORA');
+    this.sourceMapping.set('meteora_dlmm', 'METEORA');
+    this.sourceMapping.set('meteora_v2', 'METEORA');
+    
+    // Serum Sources
+    this.sourceMapping.set('serum', 'SERUM');
+    this.sourceMapping.set('serum_v3', 'SERUM');
+    this.sourceMapping.set('serum_dex', 'SERUM');
+    this.sourceMapping.set('serum-dex', 'SERUM');
+    this.sourceMapping.set('openbook', 'SERUM');
+    this.sourceMapping.set('openbook_v2', 'SERUM');
+    
+    // WebSocket Sources
+    this.sourceMapping.set('websocket', 'RAYDIUM'); // Default WebSocket to Raydium
+    this.sourceMapping.set('websocket_monitor', 'RAYDIUM');
+    this.sourceMapping.set('websocket-monitor', 'RAYDIUM');
+    this.sourceMapping.set('ws', 'RAYDIUM');
+    this.sourceMapping.set('ws_monitor', 'RAYDIUM');
+    
+    // Generic Sources
+    this.sourceMapping.set('api', 'DEXSCREENER');
+    this.sourceMapping.set('client', 'DEXSCREENER');
+    this.sourceMapping.set('monitor', 'RAYDIUM');
+    this.sourceMapping.set('detector', 'RAYDIUM');
+    this.sourceMapping.set('tracker', 'RAYDIUM');
+    this.sourceMapping.set('watcher', 'RAYDIUM');
+    
+    // Rapid Analyzer Sources
+    this.sourceMapping.set('rapid_analyzer', 'RAYDIUM');
+    this.sourceMapping.set('rapid-analyzer', 'RAYDIUM');
+    this.sourceMapping.set('rapid_token_analyzer', 'RAYDIUM');
+    this.sourceMapping.set('rapid-token-analyzer', 'RAYDIUM');
+    
+    console.log(`🗺️ Initialized source mapping with ${this.sourceMapping.size} source variations`);
   }
 
   private initializeTradeStrategies(): void {
@@ -96,7 +204,7 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
       maxHoldTime: 30 * 60 * 1000, // 30 minutes max
       entryConditions: {
         minSecurityScore: 10, // Very permissive for pump.fun
-        maxTokenAge: 5 * 60 * 1000, // 5 minutes max age
+        maxTokenAge: 10 * 60 * 1000, // 10 minutes max age (increased for processing delays)
         minLiquidity: 1000, // $1000 minimum
         requiredChecks: ['mintAuthority', 'freezeAuthority']
       },
@@ -148,7 +256,7 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
       maxHoldTime: 60 * 60 * 1000, // 1 hour max
       entryConditions: {
         minSecurityScore: 25,
-        maxTokenAge: 15 * 60 * 1000, // 15 minutes max age
+        maxTokenAge: 30 * 60 * 1000, // 30 minutes max age (increased for processing delays) (increased for processing delays) (increased for processing delays)
         minLiquidity: 2500, // $2500 minimum
         requiredChecks: ['mintAuthority', 'liquidityDistribution']
       },
@@ -201,7 +309,7 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
       maxHoldTime: 90 * 60 * 1000, // 1.5 hours max
       entryConditions: {
         minSecurityScore: 35,
-        maxTokenAge: 20 * 60 * 1000, // 20 minutes max age
+        maxTokenAge: 30 * 60 * 1000, // 30 minutes max age (increased for processing delays) (increased for processing delays)
         minLiquidity: 5000, // $5000 minimum
         requiredChecks: ['mintAuthority', 'liquidityDistribution', 'volumePattern']
       },
@@ -252,7 +360,7 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
       maxHoldTime: 120 * 60 * 1000, // 2 hours max
       entryConditions: {
         minSecurityScore: 40,
-        maxTokenAge: 30 * 60 * 1000, // 30 minutes max age
+        maxTokenAge: 35 * 60 * 1000, // 35 minutes max age (increased for processing delays)
         minLiquidity: 7500, // $7500 minimum
         requiredChecks: ['mintAuthority', 'volumePattern', 'priceStability']
       },
@@ -295,6 +403,153 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
       }
     });
 
+    // Jupiter Strategy - Medium Priority
+    this.strategies.set('JUPITER', {
+      source: 'jupiter',
+      priority: 'MEDIUM',
+      basePositionSize: 0.005,
+      maxHoldTime: 90 * 60 * 1000, // 1.5 hours max
+      entryConditions: {
+        minSecurityScore: 30,
+        maxTokenAge: 30 * 60 * 1000, // 30 minutes max age (increased for processing delays)
+        minLiquidity: 5000, // $5000 minimum
+        requiredChecks: ['mintAuthority', 'liquidityDistribution']
+      },
+      exitConditions: {
+        takeProfitLevels: [
+          { roi: 500, sellPercentage: 75, reason: '500%+ gains - Jupiter success' },
+          { roi: 250, sellPercentage: 60, reason: '250%+ gains - Jupiter exit' },
+          { roi: 100, sellPercentage: 40, reason: '100%+ gains - Jupiter profit' },
+          { roi: 50, sellPercentage: 25, reason: '50%+ gains - Jupiter early profit' }
+        ],
+        stopLoss: { roi: -18, reason: 'Jupiter stop loss' },
+        timeBasedExit: { maxHoldTime: 90 * 60 * 1000, reason: 'Jupiter max hold time' }
+      },
+      positionSizing: {
+        ageMultiplier: [
+          { maxAge: 5 * 60 * 1000, multiplier: 2.0 },
+          { maxAge: 15 * 60 * 1000, multiplier: 1.7 },
+          { maxAge: 25 * 60 * 1000, multiplier: 1.4 }
+        ],
+        securityMultiplier: [
+          { minScore: 75, multiplier: 1.8 },
+          { minScore: 60, multiplier: 1.5 },
+          { minScore: 45, multiplier: 1.3 },
+          { minScore: 30, multiplier: 1.1 }
+        ],
+        liquidityMultiplier: [
+          { minLiquidity: 50000, multiplier: 1.8 },
+          { minLiquidity: 25000, multiplier: 1.5 },
+          { minLiquidity: 10000, multiplier: 1.3 }
+        ],
+        sourceMultiplier: 1.6,
+        urgencyMultiplier: [
+          { urgency: 'ULTRA_HIGH', multiplier: 1.8 },
+          { urgency: 'HIGH', multiplier: 1.5 },
+          { urgency: 'MEDIUM', multiplier: 1.3 },
+          { urgency: 'LOW', multiplier: 1.0 }
+        ]
+      }
+    });
+
+    // Meteora Strategy - Medium Priority
+    this.strategies.set('METEORA', {
+      source: 'meteora',
+      priority: 'MEDIUM',
+      basePositionSize: 0.005,
+      maxHoldTime: 90 * 60 * 1000, // 1.5 hours max
+      entryConditions: {
+        minSecurityScore: 35,
+        maxTokenAge: 30 * 60 * 1000, // 30 minutes max age (increased for processing delays) (increased for processing delays)
+        minLiquidity: 6000, // $6000 minimum
+        requiredChecks: ['mintAuthority', 'liquidityDistribution']
+      },
+      exitConditions: {
+        takeProfitLevels: [
+          { roi: 400, sellPercentage: 70, reason: '400%+ gains - Meteora success' },
+          { roi: 200, sellPercentage: 55, reason: '200%+ gains - Meteora exit' },
+          { roi: 100, sellPercentage: 35, reason: '100%+ gains - Meteora profit' },
+          { roi: 50, sellPercentage: 20, reason: '50%+ gains - Meteora early profit' }
+        ],
+        stopLoss: { roi: -16, reason: 'Meteora stop loss' },
+        timeBasedExit: { maxHoldTime: 90 * 60 * 1000, reason: 'Meteora max hold time' }
+      },
+      positionSizing: {
+        ageMultiplier: [
+          { maxAge: 4 * 60 * 1000, multiplier: 2.0 },
+          { maxAge: 12 * 60 * 1000, multiplier: 1.6 },
+          { maxAge: 20 * 60 * 1000, multiplier: 1.3 }
+        ],
+        securityMultiplier: [
+          { minScore: 80, multiplier: 1.8 },
+          { minScore: 65, multiplier: 1.5 },
+          { minScore: 50, multiplier: 1.3 },
+          { minScore: 35, multiplier: 1.1 }
+        ],
+        liquidityMultiplier: [
+          { minLiquidity: 50000, multiplier: 1.8 },
+          { minLiquidity: 25000, multiplier: 1.5 },
+          { minLiquidity: 12000, multiplier: 1.3 }
+        ],
+        sourceMultiplier: 1.5,
+        urgencyMultiplier: [
+          { urgency: 'ULTRA_HIGH', multiplier: 1.8 },
+          { urgency: 'HIGH', multiplier: 1.5 },
+          { urgency: 'MEDIUM', multiplier: 1.3 },
+          { urgency: 'LOW', multiplier: 1.0 }
+        ]
+      }
+    });
+
+    // Serum Strategy - Low Priority
+    this.strategies.set('SERUM', {
+      source: 'serum',
+      priority: 'LOW',
+      basePositionSize: 0.004,
+      maxHoldTime: 120 * 60 * 1000, // 2 hours max
+      entryConditions: {
+        minSecurityScore: 50,
+        maxTokenAge: 50 * 60 * 1000, // 50 minutes max age (increased for processing delays)
+        minLiquidity: 10000, // $10000 minimum
+        requiredChecks: ['mintAuthority', 'liquidityDistribution', 'volumePattern']
+      },
+      exitConditions: {
+        takeProfitLevels: [
+          { roi: 300, sellPercentage: 65, reason: '300%+ gains - Serum success' },
+          { roi: 150, sellPercentage: 50, reason: '150%+ gains - Serum exit' },
+          { roi: 75, sellPercentage: 30, reason: '75%+ gains - Serum profit' },
+          { roi: 40, sellPercentage: 15, reason: '40%+ gains - Serum early profit' }
+        ],
+        stopLoss: { roi: -12, reason: 'Serum stop loss' },
+        timeBasedExit: { maxHoldTime: 120 * 60 * 1000, reason: 'Serum max hold time' }
+      },
+      positionSizing: {
+        ageMultiplier: [
+          { maxAge: 10 * 60 * 1000, multiplier: 1.8 },
+          { maxAge: 25 * 60 * 1000, multiplier: 1.5 },
+          { maxAge: 45 * 60 * 1000, multiplier: 1.2 }
+        ],
+        securityMultiplier: [
+          { minScore: 85, multiplier: 1.7 },
+          { minScore: 70, multiplier: 1.4 },
+          { minScore: 55, multiplier: 1.2 },
+          { minScore: 50, multiplier: 1.1 }
+        ],
+        liquidityMultiplier: [
+          { minLiquidity: 75000, multiplier: 1.7 },
+          { minLiquidity: 40000, multiplier: 1.4 },
+          { minLiquidity: 20000, multiplier: 1.2 }
+        ],
+        sourceMultiplier: 1.3,
+        urgencyMultiplier: [
+          { urgency: 'ULTRA_HIGH', multiplier: 1.6 },
+          { urgency: 'HIGH', multiplier: 1.3 },
+          { urgency: 'MEDIUM', multiplier: 1.1 },
+          { urgency: 'LOW', multiplier: 1.0 }
+        ]
+      }
+    });
+
     console.log(`🎯 Initialized ${this.strategies.size} trading strategies`);
     this.strategies.forEach((strategy, source) => {
       console.log(`   - ${source}: ${strategy.priority} priority, ${strategy.basePositionSize} SOL base`);
@@ -306,7 +561,7 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
     const source = this.identifyTokenSource(tokenInfo);
     const strategy = this.getStrategyForSource(source);
     
-    console.log(`🎯 [ENHANCED] Evaluating ${tokenInfo.symbol || tokenInfo.mint.slice(0, 8)} from ${source}`);
+    console.log(`🎯 [ENHANCED] Evaluating ${tokenInfo.symbol || (tokenInfo.mint || tokenInfo.address).slice(0, 8)} from ${source}`);
     console.log(`📋 Strategy: ${strategy.priority} priority, base size: ${strategy.basePositionSize} SOL`);
 
     // Check entry conditions
@@ -349,44 +604,94 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
   }
 
   private identifyTokenSource(tokenInfo: TokenInfo): string {
-    const source = tokenInfo.source?.toLowerCase() || 'unknown';
+    const source = tokenInfo.source?.toLowerCase().trim() || 'unknown';
     
-    // Map source variations to standard names - more flexible matching
-    if (source.includes('pump') || source === 'pump_detector') return 'PUMP_FUN';
-    if (source.includes('raydium')) return 'RAYDIUM';
-    if (source.includes('orca')) return 'ORCA';
-    if (source.includes('dexscreener')) return 'DEXSCREENER';
-    if (source.includes('jupiter')) return 'JUPITER';
-    if (source.includes('meteora')) return 'METEORA';
-    if (source.includes('serum')) return 'SERUM';
+    console.log(`🔍 [SOURCE MAPPING] Input source: "${source}" (original: "${tokenInfo.source}")`);
     
-    // Multi-DEX monitor sources
-    if (source === 'multi_dex' || source === 'scanner') return 'RAYDIUM'; // Default to Raydium for multi-dex
+    // First try exact match from source mapping
+    if (this.sourceMapping.has(source)) {
+      const mappedSource = this.sourceMapping.get(source)!;
+      console.log(`✅ [SOURCE MAPPING] Exact match: "${source}" -> "${mappedSource}"`);
+      return mappedSource;
+    }
     
-    // Use UNKNOWN strategy which has lower requirements
+    // Try partial matching with contains logic for complex source names
+    for (const [key, value] of this.sourceMapping.entries()) {
+      if (source.includes(key) || key.includes(source)) {
+        console.log(`✅ [SOURCE MAPPING] Partial match: "${source}" contains "${key}" -> "${value}"`);
+        return value;
+      }
+    }
+    
+    // Special case handling for metadata-based detection
+    if (tokenInfo.metadata) {
+      // Check for demo tokens in metadata
+      if (tokenInfo.metadata.demo || tokenInfo.metadata.educational || tokenInfo.metadata.test) {
+        console.log(`✅ [SOURCE MAPPING] Demo token detected via metadata -> "DEMO"`);
+        return 'DEMO';
+      }
+      
+      // Check for pump detection indicators
+      if (tokenInfo.metadata.pumpDetected || tokenInfo.metadata.pumpScore) {
+        console.log(`✅ [SOURCE MAPPING] Pump detected via metadata -> "PUMP_FUN"`);
+        return 'PUMP_FUN';
+      }
+      
+      // Check for specific DEX indicators in metadata
+      if (tokenInfo.metadata.raydiumPool || tokenInfo.metadata.ammId) {
+        console.log(`✅ [SOURCE MAPPING] Raydium pool detected via metadata -> "RAYDIUM"`);
+        return 'RAYDIUM';
+      }
+      
+      if (tokenInfo.metadata.orcaPool || tokenInfo.metadata.whirlpool) {
+        console.log(`✅ [SOURCE MAPPING] Orca pool detected via metadata -> "ORCA"`);
+        return 'ORCA';
+      }
+      
+      if (tokenInfo.metadata.dexScreener || tokenInfo.metadata.pairAddress) {
+        console.log(`✅ [SOURCE MAPPING] DexScreener detected via metadata -> "DEXSCREENER"`);
+        return 'DEXSCREENER';
+      }
+    }
+    
+    // Fallback: check for common patterns in source string
+    const fallbackPatterns = [
+      { pattern: ['pump', 'fun'], strategy: 'PUMP_FUN' },
+      { pattern: ['ray', 'raydium'], strategy: 'RAYDIUM' },
+      { pattern: ['orca', 'whirl'], strategy: 'ORCA' },
+      { pattern: ['dex', 'screener', 'screen'], strategy: 'DEXSCREENER' },
+      { pattern: ['jupiter', 'jup'], strategy: 'JUPITER' },
+      { pattern: ['meteora', 'dlmm'], strategy: 'METEORA' },
+      { pattern: ['serum', 'openbook'], strategy: 'SERUM' },
+      { pattern: ['multi', 'scanner', 'unified'], strategy: 'RAYDIUM' },
+      { pattern: ['websocket', 'ws', 'real', 'monitor'], strategy: 'RAYDIUM' },
+      { pattern: ['demo', 'test', 'educational'], strategy: 'DEMO' }
+    ];
+    
+    for (const { pattern, strategy } of fallbackPatterns) {
+      if (pattern.some(p => source.includes(p))) {
+        console.log(`✅ [SOURCE MAPPING] Fallback match: "${source}" contains pattern ${pattern} -> "${strategy}"`);
+        return strategy;
+      }
+    }
+    
+    // Final fallback: use unknown strategy
+    console.log(`⚠️ [SOURCE MAPPING] No match found for "${source}" -> "UNKNOWN"`);
     return 'UNKNOWN';
   }
 
   private getStrategyForSource(source: string): TradeStrategy {
-    // Handle demo source specifically
-    if (source === 'demo') {
-      return this.strategies.get('DEMO') || this.getDefaultStrategy();
+    // Source is already mapped by identifyTokenSource(), so we can use it directly
+    const strategy = this.strategies.get(source);
+    
+    if (strategy) {
+      console.log(`✅ [STRATEGY] Found strategy for source "${source}": ${strategy.priority} priority, ${strategy.basePositionSize} SOL base`);
+      return strategy;
     }
     
-    // Map source variations to strategy keys
-    const sourceMap: { [key: string]: string } = {
-      'pump.fun': 'PUMP_FUN',
-      'pump': 'PUMP_FUN',
-      'raydium': 'RAYDIUM',
-      'raydium_monitor': 'RAYDIUM',
-      'orca': 'ORCA',
-      'orca_whirlpool': 'ORCA',
-      'dexscreener': 'DEXSCREENER',
-      'demo': 'DEMO'
-    };
-    
-    const strategyKey = sourceMap[source.toLowerCase()] || source.toUpperCase();
-    return this.strategies.get(strategyKey) || this.getDefaultStrategy();
+    // If no strategy found, log warning and use default
+    console.log(`⚠️ [STRATEGY] No strategy found for source "${source}", using default strategy`);
+    return this.getDefaultStrategy();
   }
 
   private getDefaultStrategy(): TradeStrategy {
@@ -397,7 +702,7 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
       maxHoldTime: 60 * 60 * 1000, // 1 hour max
       entryConditions: {
         minSecurityScore: 70, // Higher security requirement
-        maxTokenAge: 15 * 60 * 1000, // 15 minutes max age
+        maxTokenAge: 30 * 60 * 1000, // 30 minutes max age (increased for processing delays) (increased for processing delays) (increased for processing delays)
         minLiquidity: 10000 // $10k minimum liquidity
       },
       exitConditions: {
@@ -429,8 +734,8 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
       };
     }
 
-    // Token age check
-    const ageMs = Date.now() - tokenInfo.createdAt;
+    // Token age check with processing delay adjustment
+    const ageMs = this.calculateAdjustedTokenAge(tokenInfo);
     if (ageMs > conditions.maxTokenAge) {
       return {
         canEnter: false,
@@ -471,8 +776,8 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
     let size = strategy.basePositionSize;
     const sizing = strategy.positionSizing;
 
-    // Age multiplier
-    const ageMs = Date.now() - tokenInfo.createdAt;
+    // Age multiplier using adjusted age
+    const ageMs = this.calculateAdjustedTokenAge(tokenInfo);
     const ageMultiplier = sizing.ageMultiplier.find(m => ageMs <= m.maxAge)?.multiplier || 1.0;
 
     // Security multiplier
@@ -497,6 +802,33 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
     return Math.min(size, 0.1); // Cap at 0.1 SOL for safety
   }
 
+  private calculateAdjustedTokenAge(tokenInfo: TokenInfo): number {
+    const now = Date.now();
+    let baseAge = now - (tokenInfo.createdAt || now);
+    
+    // Check if we have detection timestamp to calculate processing delay
+    const detectedAt = tokenInfo.metadata?.detectedAt;
+    if (detectedAt && detectedAt > (tokenInfo.createdAt || detectedAt)) {
+      // Calculate processing delay
+      const processingDelay = detectedAt - (tokenInfo.createdAt || detectedAt);
+      
+      // Subtract processing delay from current age calculation
+      // This accounts for the time between token creation and our detection
+      baseAge = now - detectedAt;
+      
+      console.log(`🕐 Age adjustment: Token created ${Math.round((now - (tokenInfo.createdAt || now))/60000)}m ago, detected ${Math.round(processingDelay/60000)}m later, effective age: ${Math.round(baseAge/60000)}m`);
+    }
+    
+    // Apply freshness bonus for very new tokens (detected within last 30 seconds)
+    if (detectedAt && (now - detectedAt) < 30000) {
+      // Give extra 30 seconds of "freshness" for very new tokens
+      baseAge = Math.max(0, baseAge - 30000);
+      console.log(`🚀 Freshness bonus applied: Reducing effective age by 30s`);
+    }
+    
+    return baseAge;
+  }
+
   private determineUrgency(tokenInfo: TokenInfo, securityAnalysis: SecurityAnalysis, strategy: TradeStrategy): 'ULTRA_HIGH' | 'HIGH' | 'MEDIUM' | 'LOW' {
     let urgencyScore = 0;
 
@@ -511,9 +843,10 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
     else if (securityAnalysis.score >= 75) urgencyScore += 2;
     else if (securityAnalysis.score >= 60) urgencyScore += 1;
 
-    // Age impact (newer = more urgent)
-    const ageMs = Date.now() - tokenInfo.createdAt;
-    if (ageMs < 60 * 1000) urgencyScore += 3; // < 1 min
+    // Age impact (newer = more urgent) - using adjusted age
+    const ageMs = this.calculateAdjustedTokenAge(tokenInfo);
+    if (ageMs < 30 * 1000) urgencyScore += 4; // < 30 sec (ultra fresh)
+    else if (ageMs < 60 * 1000) urgencyScore += 3; // < 1 min
     else if (ageMs < 5 * 60 * 1000) urgencyScore += 2; // < 5 min
     else if (ageMs < 15 * 60 * 1000) urgencyScore += 1; // < 15 min
 
@@ -554,7 +887,7 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
     else if (liquidityUsd >= 25000) confidence += 5;
 
     // Age contribution (0-10 points)
-    const ageMs = Date.now() - tokenInfo.createdAt;
+    const ageMs = Date.now() - (tokenInfo.createdAt || Date.now());
     if (ageMs < 2 * 60 * 1000) confidence += 10; // Very fresh
     else if (ageMs < 10 * 60 * 1000) confidence += 5; // Fresh
 
@@ -581,7 +914,7 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
     else if (liquidityUsd < 50000) riskScore += 1;
 
     // Age impact (newer = higher risk)
-    const ageMs = Date.now() - tokenInfo.createdAt;
+    const ageMs = Date.now() - (tokenInfo.createdAt || Date.now());
     if (ageMs < 2 * 60 * 1000) riskScore += 2;
     else if (ageMs < 10 * 60 * 1000) riskScore += 1;
 
@@ -633,6 +966,68 @@ export class EnhancedTransactionWorkflows extends EventEmitter {
       strategies: stats,
       watchListSize: this.watchList.size,
       activePositions: this.activePositions.size
+    };
+  }
+
+  getSourceMappingStats(): any {
+    const mappingsByStrategy: { [key: string]: string[] } = {};
+    
+    // Group all source variations by their target strategy
+    this.sourceMapping.forEach((strategy, source) => {
+      if (!mappingsByStrategy[strategy]) {
+        mappingsByStrategy[strategy] = [];
+      }
+      mappingsByStrategy[strategy].push(source);
+    });
+
+    return {
+      totalMappings: this.sourceMapping.size,
+      mappingsByStrategy,
+      strategiesWithMappings: Object.keys(mappingsByStrategy).length,
+      availableStrategies: Array.from(this.strategies.keys())
+    };
+  }
+
+  testSourceMapping(testSources: string[]): any {
+    const results: any[] = [];
+    
+    for (const testSource of testSources) {
+      const mockTokenInfo = {
+        address: 'test',
+        mint: 'test',
+        symbol: 'TEST',
+        name: 'Test Token',
+        decimals: 9,
+        supply: '1000000',
+        signature: 'test',
+        timestamp: Date.now(),
+        createdAt: Date.now(),
+        source: testSource,
+        detected: true,
+        detectedAt: Date.now(),
+        liquidity: { sol: 1, usd: 100 },
+        metadata: {}
+      };
+      
+      const identifiedSource = this.identifyTokenSource(mockTokenInfo);
+      const strategy = this.getStrategyForSource(identifiedSource);
+      
+      results.push({
+        inputSource: testSource,
+        identifiedSource,
+        strategy: strategy.source,
+        priority: strategy.priority,
+        basePositionSize: strategy.basePositionSize
+      });
+    }
+    
+    return {
+      testResults: results,
+      summary: {
+        totalTested: testSources.length,
+        strategiesUsed: [...new Set(results.map(r => r.identifiedSource))],
+        unknownSources: results.filter(r => r.identifiedSource === 'UNKNOWN').length
+      }
     };
   }
 }

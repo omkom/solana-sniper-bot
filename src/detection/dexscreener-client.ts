@@ -7,9 +7,9 @@ import { ConnectionManager } from '../core/connection';
 export class DexScreenerClient {
   private baseUrl = 'https://api.dexscreener.com';
   private lastRequestTime = 0;
-  private rateLimitDelay = 500; // 500ms between requests for better performance
+  private rateLimitDelay = 2000; // 2 seconds between requests to avoid rate limits
   private cache = new Map<string, { data: any; timestamp: number }>();
-  private cacheTimeout = 30000; // 30 seconds cache
+  private cacheTimeout = 60000; // 60 seconds cache to reduce API calls
   private tokenFilter: UnifiedTokenFilter;
   private connectionManager: ConnectionManager;
 
@@ -66,7 +66,7 @@ export class DexScreenerClient {
       logger.info('Fetching latest Solana trading pairs', { criteria: filterCriteria });
       
       const response = await axios.get(url, {
-        timeout: 10000,
+        timeout: 30000, // Increase timeout to 30 seconds
         headers: {
           'User-Agent': 'Educational-Token-Analyzer/1.0'
         }
@@ -131,12 +131,23 @@ export class DexScreenerClient {
 
       return limitedTokens;
 
-    } catch (error) {
-      // Comment out excessive error logging for API failures
-       logger.error('Failed to fetch trending tokens', {
-         error: error instanceof Error ? error.message : String(error),
-         criteria: filterCriteria
-       });
+    } catch (error: any) {
+      // Check if it's a rate limit error (429) and wait longer
+      if (error.response?.status === 429) {
+        logger.warn('Rate limited by DexScreener API, increasing delay');
+        this.rateLimitDelay = Math.min(this.rateLimitDelay * 2, 10000); // Max 10 seconds
+        await new Promise(resolve => setTimeout(resolve, this.rateLimitDelay));
+      } else {
+        // Only log non-timeout errors to reduce noise
+        if (!error.message?.includes('timeout') && 
+            !error.message?.includes('ECONNRESET') && 
+            !error.message?.includes('ENOTFOUND')) {
+          logger.warn('Failed to fetch trending tokens', {
+            error: error instanceof Error ? error.message : String(error),
+            status: error.response?.status
+          });
+        }
+      }
       
       // Return empty array if API fails - no demo tokens
       return [];
@@ -158,7 +169,7 @@ export class DexScreenerClient {
       logger.verbose('Fetching token details', { address });
       
       const response = await axios.get<DexScreenerResponse>(url, {
-        timeout: 10000,
+        timeout: 30000, // Increase timeout to 30 seconds
         headers: {
           'User-Agent': 'Educational-Token-Analyzer/1.0'
         }
@@ -236,6 +247,12 @@ export class DexScreenerClient {
       address: pair.baseToken.address,
       name: pair.baseToken.name,
       symbol: pair.baseToken.symbol,
+      decimals: 9,
+      supply: '1000000000',
+      price: parseFloat(pair.priceUsd || '0'),
+      liquidity: pair.liquidity?.usd || 0,
+      age: pair.pairCreatedAt ? Math.floor((Date.now() - pair.pairCreatedAt) / 1000) : 0,
+      source: 'dexscreener',
       priceUsd: parseFloat(pair.priceUsd || '0'),
       priceNative: pair.priceNative,
       volume24h: pair.volume.h24,
@@ -279,6 +296,12 @@ export class DexScreenerClient {
       address: boost.tokenAddress,
       name: boost.description || 'Boosted Token',
       symbol: symbol,
+      decimals: 9,
+      supply: '1000000000',
+      price: 0,
+      liquidity: 0,
+      age: 0,
+      source: 'dexscreener_boost',
       priceUsd: 0, // Not available in boost data
       priceNative: '0',
       volume24h: 0, // Not available in boost data
@@ -360,7 +383,7 @@ export class DexScreenerClient {
   // Get current price for a token (for live tracking)
   async getCurrentPrice(address: string): Promise<number | null> {
     const tokenInfo = await this.getTokenDetails(address);
-    return tokenInfo ? tokenInfo.priceUsd : null;
+    return tokenInfo ? (tokenInfo.priceUsd || null) : null;
   }
 
   // Get latest boosted tokens for pump detection
@@ -381,7 +404,7 @@ export class DexScreenerClient {
       // logger.info('Fetching latest Solana trading pairs for boost analysis');
       
       const response = await axios.get(url, {
-        timeout: 10000,
+        timeout: 30000, // Increase timeout to 30 seconds
         headers: {
           'User-Agent': 'Educational-Token-Analyzer/1.0'
         }
@@ -454,7 +477,7 @@ export class DexScreenerClient {
        logger.info('Fetching Solana trading pairs for top activity analysis');
       
       const response = await axios.get(url, {
-        timeout: 10000,
+        timeout: 30000, // Increase timeout to 30 seconds
         headers: {
           'User-Agent': 'Educational-Token-Analyzer/1.0'
         }

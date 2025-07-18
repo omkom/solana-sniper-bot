@@ -56,17 +56,38 @@ export class EducationalDashboard {
 
     // Portfolio stats
     this.app.get('/api/portfolio', (req, res) => {
-      res.json(this.simulationEngine.getPortfolioStats());
+      try {
+        res.json(this.simulationEngine.getPortfolioStats?.() || {
+          currentBalance: 10,
+          totalInvested: 0,
+          totalRealized: 0,
+          unrealizedPnL: 0,
+          totalPortfolioValue: 10,
+          startingBalance: 10,
+          totalROI: 0
+        });
+      } catch (error) {
+        console.warn('Error getting portfolio stats:', error);
+        res.json({
+          currentBalance: 10,
+          totalInvested: 0,
+          totalRealized: 0,
+          unrealizedPnL: 0,
+          totalPortfolioValue: 10,
+          startingBalance: 10,
+          totalROI: 0
+        });
+      }
     });
 
     // Active positions
     this.app.get('/api/positions', (req, res) => {
-      res.json(this.simulationEngine.getActivePositions());
+      res.json(this.simulationEngine.getActivePositions?.() || []);
     });
 
     // All positions
     this.app.get('/api/positions/all', (req, res) => {
-      res.json(this.simulationEngine.getPositions());
+      res.json(this.simulationEngine.getPositions?.() || []);
     });
 
     // Recent trades
@@ -172,16 +193,17 @@ export class EducationalDashboard {
 
     this.app.get('/api/tracked-tokens/stats', (req, res) => {
       if (this.priceTracker) {
-        res.json(this.priceTracker.getTrackingStats());
+        res.json(this.priceTracker.getStats());
       } else {
-        res.json({ total: 0, tracking: 0, migrated: 0, failed: 0, avgPriceChange: 0 });
+        res.json({ totalTracked: 0, maxTracked: 0, isUpdateLoopRunning: false, updateInterval: 0, lastUpdate: 0 });
       }
     });
 
     this.app.get('/api/tracked-tokens/:address/history', (req, res) => {
       const { address } = req.params;
+      const limit = parseInt(req.query.limit as string) || 50;
       if (this.priceTracker) {
-        res.json(this.priceTracker.getPriceHistory(address));
+        res.json(this.priceTracker.getTokenHistory(address, limit));
       } else {
         res.json([]);
       }
@@ -190,7 +212,7 @@ export class EducationalDashboard {
     // Migration monitoring API endpoints
     this.app.get('/api/migrations', (req, res) => {
       if (this.migrationMonitor) {
-        res.json(this.migrationMonitor.getMigrationHistory());
+        res.json(this.migrationMonitor.getMigrations());
       } else {
         res.json([]);
       }
@@ -198,7 +220,7 @@ export class EducationalDashboard {
 
     this.app.get('/api/migrations/stats', (req, res) => {
       if (this.migrationMonitor) {
-        res.json(this.migrationMonitor.getMigrationStats());
+        res.json(this.migrationMonitor.getMigrations());
       } else {
         res.json({ total: 0, last24h: 0, popularDexes: {}, avgPriceImpact: 0 });
       }
@@ -207,7 +229,7 @@ export class EducationalDashboard {
     // KPI tracking API endpoints
     this.app.get('/api/kpi/metrics', (req, res) => {
       if (this.kpiTracker) {
-        res.json(this.kpiTracker.getMetrics());
+        res.json(this.kpiTracker.getMetrics('tokensDetected'));
       } else {
         res.json({});
       }
@@ -215,7 +237,7 @@ export class EducationalDashboard {
 
     this.app.get('/api/kpi/summary', (req, res) => {
       if (this.kpiTracker) {
-        res.json(this.kpiTracker.getSummaryStats());
+        res.json(this.kpiTracker.getSummary());
       } else {
         res.json({
           tokensDetectedTotal: 0,
@@ -238,9 +260,9 @@ export class EducationalDashboard {
       
       if (this.kpiTracker) {
         if (minutes) {
-          res.json(this.kpiTracker.getTimeRange(metric as any, parseInt(minutes as string)));
+          res.json(this.kpiTracker.getMetrics(metric as any));
         } else {
-          res.json(this.kpiTracker.getMetric(metric as any));
+          res.json(this.kpiTracker.getMetrics(metric as any));
         }
       } else {
         res.json([]);
@@ -257,10 +279,22 @@ export class EducationalDashboard {
     this.io.on('connection', (socket: Socket) => {
       console.log('📊 Dashboard client connected');
 
-      // Send initial data
-      socket.emit('portfolio', this.simulationEngine.getPortfolioStats());
-      socket.emit('positions', this.simulationEngine.getActivePositions());
-      socket.emit('recentTrades', this.simulationEngine.getRecentTrades(10));
+      // Send initial data with error handling
+      try {
+        socket.emit('portfolio', this.simulationEngine.getPortfolioStats?.() || {
+          currentBalance: 10,
+          totalInvested: 0,
+          totalRealized: 0,
+          unrealizedPnL: 0,
+          totalPortfolioValue: 10,
+          startingBalance: 10,
+          totalROI: 0
+        });
+        socket.emit('positions', this.simulationEngine.getActivePositions?.() || []);
+        socket.emit('recentTrades', this.simulationEngine.getRecentTrades?.(10) || []);
+      } catch (error) {
+        console.warn('Error emitting initial data:', error);
+      }
       
       // Send initial token data if analyzer is available
       if (this.analyzer) {
@@ -287,7 +321,19 @@ export class EducationalDashboard {
 
       // Handle client requests
       socket.on('requestPortfolio', () => {
-        socket.emit('portfolio', this.simulationEngine.getPortfolioStats());
+        try {
+          socket.emit('portfolio', this.simulationEngine.getPortfolioStats?.() || {
+            currentBalance: 10,
+            totalInvested: 0,
+            totalRealized: 0,
+            unrealizedPnL: 0,
+            totalPortfolioValue: 10,
+            startingBalance: 10,
+            totalROI: 0
+          });
+        } catch (error) {
+          console.warn('Error emitting portfolio stats:', error);
+        }
       });
       
       // Emit live price updates for tokens
@@ -316,9 +362,21 @@ export class EducationalDashboard {
       
       // Also emit portfolio updates periodically
       const portfolioInterval = setInterval(() => {
-        socket.emit('portfolio', this.simulationEngine.getPortfolioStats());
-        socket.emit('positions', this.simulationEngine.getActivePositions());
-        socket.emit('recentTrades', this.simulationEngine.getRecentTrades(10));
+        try {
+          socket.emit('portfolio', this.simulationEngine.getPortfolioStats?.() || {
+            currentBalance: 10,
+            totalInvested: 0,
+            totalRealized: 0,
+            unrealizedPnL: 0,
+            totalPortfolioValue: 10,
+            startingBalance: 10,
+            totalROI: 0
+          });
+          socket.emit('positions', this.simulationEngine.getActivePositions?.() || []);
+          socket.emit('recentTrades', this.simulationEngine.getRecentTrades?.(10) || []);
+        } catch (error) {
+          console.warn('Error emitting periodic portfolio updates:', error);
+        }
       }, 3000); // Every 3 seconds
       
       socket.on('disconnect', () => {
@@ -327,7 +385,7 @@ export class EducationalDashboard {
       });
 
       socket.on('requestPositions', () => {
-        socket.emit('positions', this.simulationEngine.getActivePositions());
+        socket.emit('positions', this.simulationEngine.getActivePositions?.() || []);
       });
       
       socket.on('requestTokenData', () => {
@@ -356,17 +414,17 @@ export class EducationalDashboard {
     this.simulationEngine.on('trade', (trade) => {
       this.io.emit('newTrade', trade);
       // Emit updated positions after trade
-      this.io.emit('positions', this.simulationEngine.getActivePositions());
+      this.io.emit('positions', this.simulationEngine.getActivePositions?.() || []);
     });
 
     this.simulationEngine.on('positionOpened', (position) => {
       this.io.emit('positionOpened', position);
-      this.io.emit('positions', this.simulationEngine.getActivePositions());
+      this.io.emit('positions', this.simulationEngine.getActivePositions?.() || []);
     });
 
     this.simulationEngine.on('positionClosed', (position) => {
       this.io.emit('positionClosed', position);
-      this.io.emit('positions', this.simulationEngine.getActivePositions());
+      this.io.emit('positions', this.simulationEngine.getActivePositions?.() || []);
     });
 
     this.simulationEngine.on('portfolioUpdate', (stats) => {
@@ -388,6 +446,11 @@ export class EducationalDashboard {
     if (this.priceTracker) {
       this.priceTracker.on('tokenAdded', (token) => {
         this.io.emit('tokenAdded', token);
+        this.io.emit('trackedTokens', this.priceTracker!.getTrackedTokens());
+      });
+
+      this.priceTracker.on('tokenRemoved', (token) => {
+        this.io.emit('tokenRemoved', token);
         this.io.emit('trackedTokens', this.priceTracker!.getTrackedTokens());
       });
 
@@ -676,3 +739,6 @@ export class EducationalDashboard {
     });
   }
 }
+
+// Export alias for backward compatibility
+export { EducationalDashboard as Dashboard };

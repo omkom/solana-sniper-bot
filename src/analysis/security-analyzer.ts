@@ -23,12 +23,13 @@ export class SecurityAnalyzer {
 
     try {
       // For demo tokens or invalid addresses, use simulation
-      if (tokenInfo.mint.startsWith('SIMULATED_') || 
+      if (!tokenInfo.mint ||
+          tokenInfo.mint.startsWith('SIMULATED_') || 
           tokenInfo.mint.startsWith('EXTRACTED_') || 
           tokenInfo.mint.startsWith('DEMO_') ||
           !this.isValidSolanaAddress(tokenInfo.mint)) {
         
-        if (!this.isValidSolanaAddress(tokenInfo.mint)) {
+        if (tokenInfo.mint && !this.isValidSolanaAddress(tokenInfo.mint)) {
           // console.warn(`⚠️ Invalid Solana address format: ${tokenInfo.mint}`);
         }
         return this.simulateSecurityAnalysis(tokenInfo);
@@ -183,8 +184,9 @@ export class SecurityAnalyzer {
     }
 
     const minLiquiditySOL = 1; // Minimum 1 SOL
-    const passed = liquidity.sol >= minLiquiditySOL;
-    const score = Math.min(25, liquidity.sol * 5); // Up to 25 points
+    const solAmount = liquidity.sol || 0;
+    const passed = solAmount >= minLiquiditySOL;
+    const score = Math.min(25, solAmount * 5); // Up to 25 points
 
     return {
       name: 'Liquidity Analysis',
@@ -202,39 +204,193 @@ export class SecurityAnalyzer {
   }
 
   private simulateSecurityAnalysis(tokenInfo: TokenInfo): SecurityAnalysis {
-    // Simulate analysis for educational demo tokens with higher pass rates
-    const checks: SecurityCheck[] = [
-      {
-        name: 'Mint Authority',
-        passed: Math.random() > 0.15,
-        score: Math.random() > 0.15 ? 30 : 0,
-        message: 'Simulated mint authority check',
-        details: { simulation: true }
-      },
-      {
-        name: 'Freeze Authority', 
-        passed: Math.random() > 0.1,
-        score: Math.random() > 0.1 ? 20 : 0,
-        message: 'Simulated freeze authority check',
-        details: { simulation: true }
-      },
-      {
-        name: 'Supply Analysis',
-        passed: Math.random() > 0.05,
-        score: Math.random() > 0.05 ? 15 : 0,
-        message: 'Simulated supply analysis',
-        details: { simulation: true }
-      },
-      {
-        name: 'Liquidity Analysis',
-        passed: Math.random() > 0.2,
-        score: Math.floor(Math.random() * 25) + 5, // Minimum 5 points
-        message: 'Simulated liquidity analysis',
-        details: { simulation: true }
-      }
-    ];
+    // Generate weighted random score between 60-95 with higher probability above 70
+    const baseScore = this.generateWeightedScore(tokenInfo);
+    
+    // Apply source-based boosting for trusted sources
+    const sourceBoostedScore = this.applySourceBasedBoosting(baseScore, tokenInfo);
+    
+    // Distribute the final score across checks realistically
+    const checks = this.generateRealisticChecks(sourceBoostedScore, tokenInfo);
 
-    return this.compileAnalysis(checks);
+    return this.compileAnalysisWithTargetScore(checks, sourceBoostedScore);
+  }
+
+  private generateWeightedScore(tokenInfo: TokenInfo): number {
+    // Use weighted randomization for more realistic distribution
+    // Higher probability for scores above 70
+    const rand = Math.random();
+    
+    let score: number;
+    if (rand < 0.15) {
+      // 15% chance for 60-70 range (lower scores)
+      score = 60 + Math.random() * 10;
+    } else if (rand < 0.40) {
+      // 25% chance for 70-80 range (good scores)
+      score = 70 + Math.random() * 10;
+    } else if (rand < 0.75) {
+      // 35% chance for 80-90 range (very good scores)
+      score = 80 + Math.random() * 10;
+    } else {
+      // 25% chance for 90-95 range (excellent scores)
+      score = 90 + Math.random() * 5;
+    }
+    
+    return Math.round(score);
+  }
+
+  private applySourceBasedBoosting(baseScore: number, tokenInfo: TokenInfo): number {
+    const source = tokenInfo.source?.toLowerCase() || '';
+    let boostedScore = baseScore;
+    
+    // Source-based score boosting for trusted sources
+    if (source === 'demo' || source === 'educational') {
+      // Demo tokens get +5 boost for educational purposes
+      boostedScore += 5;
+    } else if (source.includes('raydium')) {
+      // Raydium sources get +3 boost (established DEX)
+      boostedScore += 3;
+    } else if (source.includes('orca') || source.includes('jupiter')) {
+      // Other major DEXes get +2 boost
+      boostedScore += 2;
+    } else if (source.includes('pump')) {
+      // Pump sources get -2 penalty (higher risk)
+      boostedScore -= 2;
+    } else if (source.includes('websocket') || source.includes('real_monitor')) {
+      // Real-time sources get +1 boost (verified activity)
+      boostedScore += 1;
+    }
+    
+    // Apply metadata-based boosts
+    if (tokenInfo.metadata) {
+      if (tokenInfo.metadata.educational || tokenInfo.metadata.demo) {
+        boostedScore += 3; // Educational tokens are safer
+      }
+      if (tokenInfo.metadata.verified) {
+        boostedScore += 2; // Verified tokens get boost
+      }
+    }
+    
+    // Age-based boost (newer tokens might be less tested)
+    if (tokenInfo.createdAt) {
+      const ageMs = Date.now() - tokenInfo.createdAt;
+      const ageHours = ageMs / (1000 * 60 * 60);
+      
+      if (ageHours > 24) {
+        boostedScore += 2; // Older tokens get small boost
+      } else if (ageHours < 1) {
+        boostedScore -= 1; // Very new tokens get small penalty
+      }
+    }
+    
+    // Ensure score stays within 60-95 range
+    return Math.max(60, Math.min(95, Math.round(boostedScore)));
+  }
+
+  private generateRealisticChecks(targetScore: number, tokenInfo: TokenInfo): SecurityCheck[] {
+    const source = tokenInfo.source?.toLowerCase() || '';
+    
+    // Distribute target score across checks realistically
+    const checks: SecurityCheck[] = [];
+    
+    // Mint Authority Check (30 points max)
+    const mintPassed = targetScore >= 70 || Math.random() > 0.2;
+    const mintScore = mintPassed ? 30 : Math.floor(Math.random() * 15);
+    checks.push({
+      name: 'Mint Authority',
+      passed: mintPassed,
+      score: mintScore,
+      message: mintPassed ? 
+        'Mint authority properly revoked (simulated)' : 
+        'Mint authority still active - moderate risk (simulated)',
+      details: { 
+        simulation: true,
+        source: source,
+        boost: tokenInfo.metadata?.demo ? 'Educational token boost applied' : undefined
+      }
+    });
+
+    // Freeze Authority Check (20 points max)
+    const freezePassed = targetScore >= 65 || Math.random() > 0.15;
+    const freezeScore = freezePassed ? 20 : Math.floor(Math.random() * 10);
+    checks.push({
+      name: 'Freeze Authority',
+      passed: freezePassed,
+      score: freezeScore,
+      message: freezePassed ? 
+        'Freeze authority properly revoked (simulated)' : 
+        'Freeze authority still active - risk of freezing (simulated)',
+      details: { 
+        simulation: true,
+        source: source
+      }
+    });
+
+    // Supply Analysis (15 points max)
+    const supplyPassed = targetScore >= 60 || Math.random() > 0.1;
+    const supplyScore = supplyPassed ? 15 : Math.floor(Math.random() * 8);
+    checks.push({
+      name: 'Supply Analysis',
+      passed: supplyPassed,
+      score: supplyScore,
+      message: supplyPassed ? 
+        'Token supply appears reasonable (simulated)' : 
+        'Token supply appears suspicious (simulated)',
+      details: { 
+        simulation: true,
+        source: source,
+        supply: tokenInfo.supply || 'simulated'
+      }
+    });
+
+    // Liquidity Analysis (25 points max) - adjust based on remaining score needed
+    const currentScore = mintScore + freezeScore + supplyScore;
+    const remainingForTarget = Math.max(0, Math.floor((targetScore / 100) * 90) - currentScore);
+    const liquidityScore = Math.min(25, Math.max(5, remainingForTarget));
+    const liquidityPassed = liquidityScore >= 10;
+    
+    checks.push({
+      name: 'Liquidity Analysis',
+      passed: liquidityPassed,
+      score: liquidityScore,
+      message: liquidityPassed ? 
+        `Adequate liquidity detected (simulated): ${tokenInfo.liquidity?.usd || 'N/A'} USD` : 
+        `Low liquidity detected (simulated): ${tokenInfo.liquidity?.usd || 'N/A'} USD`,
+      details: { 
+        simulation: true,
+        source: source,
+        liquiditySOL: tokenInfo.liquidity?.sol || 0,
+        liquidityUSD: tokenInfo.liquidity?.usd || 0
+      }
+    });
+
+    return checks;
+  }
+
+  private compileAnalysisWithTargetScore(checks: SecurityCheck[], targetScore: number): SecurityAnalysis {
+    const totalScore = checks.reduce((sum, check) => sum + check.score, 0);
+    const maxPossibleScore = 90; // 30 + 20 + 15 + 25
+    let normalizedScore = Math.round((totalScore / maxPossibleScore) * 100);
+    
+    // Ensure we hit close to target score (within 5 points)
+    if (Math.abs(normalizedScore - targetScore) > 5) {
+      normalizedScore = targetScore;
+    }
+    
+    const failedChecks = checks.filter(check => !check.passed);
+    const warnings = failedChecks.map(check => check.message);
+    
+    // More lenient pass criteria for educational tokens
+    const overall = failedChecks.length <= 2 && normalizedScore >= 60;
+
+    console.log(`📊 Realistic security analysis: ${normalizedScore}/100 (${overall ? 'PASS' : 'FAIL'}) - Target: ${targetScore}`);
+
+    return {
+      overall,
+      score: normalizedScore,
+      checks,
+      warnings
+    };
   }
 
   private compileAnalysis(checks: SecurityCheck[]): SecurityAnalysis {
@@ -282,7 +438,7 @@ export class SecurityAnalyzer {
     // console.log(`🍯 Checking for honeypot patterns: ${tokenInfo.symbol || tokenInfo.mint}`);
     
     // Educational honeypot detection simulation
-    if (tokenInfo.mint.startsWith('SIMULATED_') || tokenInfo.mint.startsWith('EXTRACTED_')) {
+    if (tokenInfo.mint && (tokenInfo.mint.startsWith('SIMULATED_') || tokenInfo.mint.startsWith('EXTRACTED_'))) {
       const isHoneypot = Math.random() < 0.03; // 3% chance for demo
       // console.log(`🔍 Honeypot check result: ${isHoneypot ? 'SUSPICIOUS' : 'CLEAN'} (simulated)`);
       return isHoneypot;
@@ -298,5 +454,56 @@ export class SecurityAnalyzer {
       console.warn('⚠️ Honeypot check failed:', error);
       return true; // Assume suspicious if check fails
     }
+  }
+
+  // Test method to verify realistic score generation
+  testRealisticScoring(iterations: number = 100): void {
+    console.log(`\n🧪 Testing realistic security score generation (${iterations} iterations):`);
+    
+    const testSources = ['demo', 'raydium', 'orca', 'pump.fun', 'websocket-raydium', 'unknown'];
+    const results: { [key: string]: number[] } = {};
+    
+    testSources.forEach(source => {
+      results[source] = [];
+      
+      for (let i = 0; i < iterations; i++) {
+        const testToken: TokenInfo = {
+          address: `TEST_${source}_${i}`,
+          mint: `TEST_${source}_${i}`,
+          symbol: `TEST${i}`,
+          name: `Test Token ${i}`,
+          decimals: 9,
+          supply: '1000000',
+          signature: 'test',
+          timestamp: Date.now(),
+          createdAt: Date.now(),
+          source: source,
+          detected: true,
+          detectedAt: Date.now(),
+          liquidity: { sol: 10, usd: 2000 },
+          metadata: { demo: source === 'demo' }
+        };
+        
+        const analysis = this.simulateSecurityAnalysis(testToken);
+        results[source].push(analysis.score);
+      }
+    });
+    
+    // Display results
+    testSources.forEach(source => {
+      const scores = results[source];
+      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+      const min = Math.min(...scores);
+      const max = Math.max(...scores);
+      const above70 = scores.filter(s => s >= 70).length;
+      const above80 = scores.filter(s => s >= 80).length;
+      
+      console.log(`📊 ${source.toUpperCase()}:`);
+      console.log(`   Average: ${avg.toFixed(1)}, Range: ${min}-${max}`);
+      console.log(`   Above 70: ${above70}/${iterations} (${(above70/iterations*100).toFixed(1)}%)`);
+      console.log(`   Above 80: ${above80}/${iterations} (${(above80/iterations*100).toFixed(1)}%)`);
+    });
+    
+    console.log('\n✅ Security score testing completed\n');
   }
 }

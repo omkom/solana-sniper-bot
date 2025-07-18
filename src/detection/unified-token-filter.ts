@@ -195,7 +195,7 @@ export class UnifiedTokenFilter {
 
       // 3. Chain validation
       if (criteria.allowedChains && 'chainId' in token) {
-        if (!criteria.allowedChains.includes(token.chainId)) {
+        if (!criteria.allowedChains.includes(token.chainId || '')) {
           result.reasons.push(`Chain ${token.chainId} not allowed`);
           return result;
         }
@@ -310,12 +310,12 @@ export class UnifiedTokenFilter {
   }
 
   private getTokenAddress(token: TokenInfo | RealTokenInfo): string {
-    return 'mint' in token ? token.mint : token.address;
+    return 'mint' in token ? (token.mint || token.address) : token.address;
   }
 
   private getTokenTimestamp(token: TokenInfo | RealTokenInfo): number {
-    if ('timestamp' in token) return token.timestamp;
-    if ('detectedAt' in token) return token.detectedAt;
+    if ('timestamp' in token) return token.timestamp || Date.now();
+    if ('detectedAt' in token) return token.detectedAt || Date.now();
     return Date.now();
   }
 
@@ -352,6 +352,18 @@ export class UnifiedTokenFilter {
       tokenAge = now - token.createdAt;
     } else {
       tokenAge = now - this.getTokenTimestamp(token);
+    }
+
+    // Apply processing delay adjustment if available
+    const detectedAt = token.metadata?.detectedAt;
+    if (detectedAt && detectedAt > (token.createdAt || 0)) {
+      const processingDelay = detectedAt - (token.createdAt || 0);
+      tokenAge = now - detectedAt;
+      
+      // Apply freshness bonus for very new tokens
+      if ((now - detectedAt) < 30000) {
+        tokenAge = Math.max(0, tokenAge - 30000);
+      }
     }
 
     const ageHours = tokenAge / (1000 * 60 * 60);
@@ -679,7 +691,7 @@ export class UnifiedTokenFilter {
     const result: TokenFilterResult = { passed: true, score: 0, reasons: [], warnings: [] };
 
     if ('dexId' in token) {
-      const dexId = (token as RealTokenInfo).dexId;
+      const dexId = (token as RealTokenInfo).dexId || 'unknown';
 
       if (criteria.allowedDexes && !criteria.allowedDexes.includes(dexId)) {
         result.passed = false;
@@ -703,7 +715,7 @@ export class UnifiedTokenFilter {
         'serum': 8
       };
 
-      result.score += dexScores[dexId] || 5;
+      result.score += dexScores[dexId || 'unknown'] || 5;
     }
 
     return result;
@@ -770,7 +782,7 @@ export class UnifiedTokenFilter {
     // Calculate risk based on various factors
     if (token.symbol && token.symbol.length < 2) riskScore += 10;
     if (token.name && token.name.length < 3) riskScore += 10;
-    if ('liquidityUsd' in token && (token as RealTokenInfo).liquidityUsd < 1000) riskScore += 20;
+    if ('liquidityUsd' in token && ((token as RealTokenInfo).liquidityUsd || 0) < 1000) riskScore += 20;
     if ('volume24h' in token && (token as RealTokenInfo).volume24h < 1000) riskScore += 15;
 
     // Check against criteria

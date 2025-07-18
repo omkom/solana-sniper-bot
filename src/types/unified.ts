@@ -49,18 +49,11 @@ export interface UnifiedTokenInfo extends BaseToken {
   txns24h?: number;
   txns1h?: number;
   txns5m?: number;
-  pairAddress?: string;
-  dexId?: string;
-  pairCreatedAt?: number;
-  websites?: string[];
-  socials?: Array<{
-    type: string;
-    url: string;
-  }>;
   
-  // Analysis fields
-  trendingScore?: number;
-  riskScore?: number;
+  // Pair information
+  pairAddress?: string;
+  pairCreatedAt?: number;
+  dexId?: string;
   
   // Liquidity information (flexible format)
   liquidity?: {
@@ -72,7 +65,14 @@ export interface UnifiedTokenInfo extends BaseToken {
   // Metadata (flexible format)
   metadata?: {
     [key: string]: any;
+    detectionSource?: string;
+    detectedAt?: number;
+    pumpDetected?: boolean;
+    pumpScore?: number;
   };
+  
+  // Additional properties for unified engine
+  trendingScore?: number;
 }
 
 // Legacy type aliases for backward compatibility
@@ -119,24 +119,12 @@ export interface DexScreenerPair {
     h24: number;
   };
   liquidity?: {
-    usd?: number;
+    usd: number;
     base: number;
     quote: number;
   };
   fdv?: number;
-  marketCap?: number;
   pairCreatedAt?: number;
-  info?: {
-    imageUrl?: string;
-    websites?: Array<{
-      label: string;
-      url: string;
-    }>;
-    socials?: Array<{
-      type: string;
-      url: string;
-    }>;
-  };
 }
 
 export interface DexScreenerResponse {
@@ -144,231 +132,249 @@ export interface DexScreenerResponse {
   pairs: DexScreenerPair[];
 }
 
+export interface DexScreenerTokenData {
+  address: string;
+  name: string;
+  symbol: string;
+  priceUsd: number;
+  volume24h: number;
+  liquidityUsd: number;
+  priceChange24h: number;
+  pairs: DexScreenerPair[];
+}
+
 // ==============================================
-// SIMULATION INTERFACES
+// SIMULATION ENGINE INTERFACES
 // ==============================================
 
-export interface SimulationConfig {
-  mode: 'DRY_RUN' | 'SIMULATION' | 'ANALYSIS';
-  maxPositions: number;
-  baseInvestment: number;
-  startingBalance: number;
-  maxAnalysisAge: number;
-  minConfidenceScore: number;
-  stopLossPercent: number;
-  takeProfitPercent: number;
-  maxHoldTime: number;
+export interface SimulatedPosition {
+  id: string;
+  mint: string;
+  symbol: string;
+  entryPrice: number;
+  currentPrice?: number;
+  simulatedInvestment: number;
+  tokenAmount?: number;
+  entryTime: number;
+  exitTime?: number;
+  roi?: number;
+  status: 'ACTIVE' | 'CLOSED';
+  strategy: string;
+  urgency?: string;
+  confidence?: number;
+  riskLevel?: string;
+  expectedHoldTime?: number;
+  securityScore?: number;
+  exitConditions?: any;
+}
+
+export interface SimulatedTrade {
+  id: string;
+  mint: string;
+  symbol: string;
+  type: 'BUY' | 'SELL';
+  amount: number;
+  price: number;
+  timestamp: number;
+  reason: string;
+  strategy: string;
+  urgency?: string;
+  confidence?: number;
+  roi?: number;
+}
+
+export interface TradeDecision {
+  action: 'BUY' | 'SELL' | 'HOLD' | 'WATCH' | 'SKIP' | 'PRIORITY_BUY';
+  reason: string;
+  confidence: number;
+  urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA_HIGH';
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+  positionSize: number;
+  expectedHoldTime: number;
+  strategy: {
+    source: string;
+    priority: string;
+    exitConditions: any;
+  };
+}
+
+export interface EventEmittingSimulationEngine {
+  processTokenDetection(tokenInfo: UnifiedTokenInfo, securityAnalysis: SecurityAnalysis): Promise<void>;
+  getPortfolioStats(): any;
+  getActivePositions(): SimulatedPosition[];
+  getRecentTrades(limit?: number): SimulatedTrade[];
+  getPositions?(): SimulatedPosition[];
+  getStats(): any;
+  on(event: string, listener: (...args: any[]) => void): void;
+  emit(event: string, ...args: any[]): boolean;
+}
+
+// ==============================================
+// SECURITY ANALYSIS INTERFACES
+// ==============================================
+
+export interface SecurityCheck {
+  name: string;
+  passed: boolean;
+  score: number;
+  message: string;
+  details?: any;
+}
+
+export interface SecurityAnalysis {
+  overall: boolean;
+  score: number;
+  checks: SecurityCheck[];
+  warnings: string[];
+}
+
+// ==============================================
+// FILTER INTERFACES
+// ==============================================
+
+export interface TokenFilterCriteria {
+  minLiquidity?: number;
+  maxLiquidity?: number;
+  minAge?: number;
+  maxAge?: number;
+  minAgeMinutes?: number;
+  maxAgeHours?: number;
+  minSecurityScore?: number;
+  maxSecurityScore?: number;
+  requiredSources?: string[];
+  excludedSources?: string[];
+  minVolume?: number;
+  maxVolume?: number;
+  minMarketCap?: number;
+  maxMarketCap?: number;
+}
+
+export interface TokenFilterResult {
+  passed: boolean;
+  score: number;
+  reasons: string[];
+  warnings: string[];
+}
+
+// ==============================================
+// ADDITIONAL UNIFIED INTERFACES
+// ==============================================
+
+export interface DetectionResult {
+  token: UnifiedTokenInfo;
+  tokens?: UnifiedTokenInfo[];
+  confidence: number;
+  source: string;
+  timestamp: number;
+  analysis?: SecurityAnalysis;
+  processingTime?: number;
+}
+
+export interface DetectionConfig {
+  enableRaydium: boolean;
+  enablePumpFun: boolean;
+  enableDexScreener: boolean;
+  enableMultiDex: boolean;
+  enableRealTime: boolean;
+  minLiquidity: number;
+  maxAge: number;
+  minConfidence: number;
+  filterHoneypots: boolean;
+  filterRugs: boolean;
+  enabledSources?: string[];
+  scanInterval?: number;
+  processingTime?: number;
+  maxTokens?: number;
+  batchSize?: number;
+  retryAttempts?: number;
+  timeout?: number;
+  maxConcurrentRequests?: number;
+  rateLimitDelay?: number;
+  cacheTimeout?: number;
 }
 
 export interface Position {
   id: string;
-  token: UnifiedTokenInfo;
-  entryPrice: number;
+  tokenInfo: UnifiedTokenInfo;
   amount: number;
-  value: number;
-  timestamp: number;
-  source: string;
-  strategy: string;
-  status: 'ACTIVE' | 'CLOSED' | 'PENDING';
-  exitPrice?: number;
-  exitTimestamp?: number;
+  entryPrice: number;
+  currentPrice?: number;
+  entryTime: number;
+  exitTime?: number;
+  roi?: number;
+  status: 'active' | 'closed' | 'failed';
+  strategy?: string;
   exitReason?: string;
+  token?: UnifiedTokenInfo;
   pnl?: number;
   pnlPercent?: number;
+  value?: number;
   holdTime?: number;
-  maxDrawdown?: number;
-  maxProfit?: number;
+  timestamp?: number;
 }
 
 export interface Trade {
   id: string;
-  position: Position;
-  type: 'BUY' | 'SELL';
-  price: number;
+  tokenInfo: UnifiedTokenInfo;
+  type: 'buy' | 'sell';
   amount: number;
-  value: number;
+  price: number;
   timestamp: number;
-  fees: number;
-  slippage: number;
-  gasUsed?: number;
   signature?: string;
-  success: boolean;
-  error?: string;
+  position?: Position;
+  profit?: number;
+  roi?: number;
+  success?: boolean;
 }
 
 export interface Portfolio {
-  totalValue: number;
-  totalPnL: number;
-  totalPnLPercent: number;
-  activePositions: number;
-  totalPositions: number;
-  winRate: number;
-  avgHoldTime: number;
-  maxDrawdown: number;
-  sharpeRatio: number;
-  balance: {
-    sol: number;
-    usd: number;
-  };
+  totalBalance: number;
+  availableBalance: number;
   positions: Position[];
-  recentTrades: Trade[];
+  trades: Trade[];
+  totalProfit: number;
+  totalROI: number;
+  successRate: number;
+  activePositions: number;
+  totalValue?: number;
+  balance?: number;
+  totalPnL?: number;
+  totalPnLPercent?: number;
+  winRate?: number;
+  avgHoldTime?: number;
+  recentTrades?: Trade[];
 }
 
 export interface Strategy {
   name: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA_HIGH';
-  weight: number;
-  baseAllocation: number;
+  description: string;
+  entryConditions: any[];
+  exitConditions: any[];
+  riskLevel: 'low' | 'medium' | 'high';
+  maxPositionSize: number;
+  stopLoss?: number;
+  takeProfit?: number;
+}
+
+export interface SimulationConfig {
+  startingBalance: number;
   maxPositions: number;
-  enabled: boolean;
-  config: {
-    minLiquidity?: number;
-    maxAge?: number;
-    minVolume?: number;
-    riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
-    [key: string]: any;
+  positionSize: number;
+  enableStopLoss: boolean;
+  stopLossPercentage: number;
+  enableTakeProfit: boolean;
+  takeProfitPercentage: number;
+  strategy: Strategy;
+  riskManagement: {
+    maxLossPerPosition: number;
+    maxDailyLoss: number;
+    maxDrawdown: number;
   };
-}
-
-// ==============================================
-// DETECTION INTERFACES
-// ==============================================
-
-export interface DetectionConfig {
-  enabledSources: string[];
-  scanInterval: number;
-  batchSize: number;
-  maxConcurrentRequests: number;
-  rateLimitDelay: number;
-  cacheTimeout: number;
-}
-
-export interface DetectionResult {
-  tokens: UnifiedTokenInfo[];
-  source: string;
-  timestamp: number;
-  processingTime: number;
-  errors: string[];
-  metadata: {
-    [key: string]: any;
-  };
-}
-
-// ==============================================
-// MONITORING INTERFACES
-// ==============================================
-
-export interface KPIMetrics {
-  tokensDetected: number;
-  tokensAnalyzed: number;
-  successfulTrades: number;
-  totalVolume: number;
-  avgProcessingTime: number;
-  errorRate: number;
-  uptime: number;
-  lastUpdate: number;
-}
-
-export interface SystemHealth {
-  rpcConnections: {
-    primary: boolean;
-    secondary: boolean;
-    latency: number;
-  };
-  webSocketConnections: number;
-  activeSubscriptions: number;
-  queueSize: number;
-  memoryUsage: number;
-  cpuUsage: number;
-  errorCount: number;
-  lastHealthCheck: number;
-}
-
-// ==============================================
-// API INTERFACES
-// ==============================================
-
-export interface APIResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  timestamp: number;
-  processingTime?: number;
-}
-
-export interface PaginatedResponse<T = any> extends APIResponse<T[]> {
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    hasMore: boolean;
-  };
-}
-
-// ==============================================
-// WEBSOCKET INTERFACES
-// ==============================================
-
-export interface WebSocketMessage {
-  type: string;
-  data: any;
-  timestamp: number;
-  source?: string;
-}
-
-export interface WebSocketConfig {
-  url: string;
-  reconnectDelay: number;
-  maxReconnectAttempts: number;
-  heartbeatInterval: number;
-  messageQueueSize: number;
-}
-
-// ==============================================
-// UTILITY TYPES
-// ==============================================
-
-export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'verbose';
-
-export type EventType = 
-  | 'tokenDetected'
-  | 'positionOpened'
-  | 'positionClosed'
-  | 'tradeExecuted'
-  | 'priceUpdate'
-  | 'error'
-  | 'warning'
-  | 'info';
-
-export interface EventPayload {
-  type: EventType;
-  data: any;
-  timestamp: number;
-  source: string;
-  metadata?: {
-    [key: string]: any;
-  };
-}
-
-// ==============================================
-// CONFIGURATION INTERFACES
-// ==============================================
-
-export interface AppConfig {
-  mode: 'DRY_RUN' | 'SIMULATION' | 'ANALYSIS';
-  rpc: {
-    primary: string;
-    secondary: string;
-    timeout: number;
-    retries: number;
-  };
-  detection: DetectionConfig;
-  simulation: SimulationConfig;
-  monitoring: {
-    enabled: boolean;
-    port: number;
-    logLevel: LogLevel;
-    metricsInterval: number;
-  };
-  strategies: Strategy[];
+  maxHoldTime?: number;
+  stopLossPercent?: number;
+  takeProfitPercent?: number;
+  mode?: string;
+  baseInvestment?: number;
+  maxAnalysisAge?: number;
+  minConfidenceScore?: number;
 }

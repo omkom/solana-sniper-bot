@@ -12,14 +12,16 @@ export class RaydiumMonitor extends EventEmitter {
   private processedTransactions: Set<string> = new Set();
   private transactionParser: TransactionParser;
   
-  // Batching system for 429 handling
+  // Optimized batching system for 429 handling
   private transactionBatch: string[] = [];
   private batchProcessingActive = false;
   private batchTimeout: NodeJS.Timeout | null = null;
-  private batchSize = 1; // Process one at a time
-  private batchDelay = 3000; // 3 seconds between batches
-  private rateLimitBackoff = 2000; // Start with 2 second backoff
-  private maxBackoff = 30000; // Max 30 seconds backoff
+  private batchSize = 25; // Process 25 transactions per batch for better efficiency
+  private minBatchSize = 5; // Minimum batch size before processing
+  private batchDelay = 2000; // 2 seconds between batches to accumulate more transactions
+  private maxWaitTime = 5000; // Maximum wait time for accumulating transactions
+  private rateLimitBackoff = 1000; // Start with 1 second backoff (reduced from 2s)
+  private maxBackoff = 15000; // Max 15 seconds backoff (reduced from 30s)
   
   // Raydium program addresses
   private static readonly RAYDIUM_PROGRAMS = {
@@ -42,10 +44,20 @@ export class RaydiumMonitor extends EventEmitter {
     this.connection = this.connectionManager.getConnection();
     this.transactionParser = new TransactionParser(this.connection);
     
-    // Set conservative rate limiting
-    this.connectionManager.setRateLimit(1, 1500); // Max 1 concurrent, 1500ms delay
+    // Configure batch processing from environment variables
+    this.batchSize = parseInt(process.env.RAYDIUM_BATCH_SIZE || '25');
+    this.minBatchSize = parseInt(process.env.RAYDIUM_MIN_BATCH_SIZE || '5');
+    this.batchDelay = parseInt(process.env.RAYDIUM_BATCH_DELAY || '2000');
+    this.maxWaitTime = parseInt(process.env.RAYDIUM_MAX_WAIT_TIME || '5000');
     
-    console.log('🌊 Raydium Monitor initialized with enhanced token detection');
+    // Set optimized rate limiting for better batch processing
+    this.connectionManager.setRateLimit(5, 200); // Max 5 concurrent, 200ms delay
+    
+    console.log(`🌊 Raydium Monitor initialized with optimized batch processing:`);
+    console.log(`   - Batch size: ${this.batchSize}`);
+    console.log(`   - Min batch size: ${this.minBatchSize}`);
+    console.log(`   - Batch delay: ${this.batchDelay}ms`);
+    console.log(`   - Max wait time: ${this.maxWaitTime}ms`);
   }
 
   async startMonitoring(): Promise<void> {
@@ -152,9 +164,11 @@ export class RaydiumMonitor extends EventEmitter {
       this.startBatchProcessing();
     }
     
+    // Only process immediately if we have a full batch
     if (this.transactionBatch.length >= this.batchSize) {
       this.processBatch();
     }
+    // Don't process small batches immediately - let them accumulate
   }
 
   private startBatchProcessing(): void {
@@ -162,9 +176,10 @@ export class RaydiumMonitor extends EventEmitter {
     
     this.batchProcessingActive = true;
     
+    // Use longer wait time to accumulate more transactions
     this.batchTimeout = setTimeout(() => {
       this.processBatch();
-    }, this.batchDelay);
+    }, this.maxWaitTime);
   }
 
   private async processBatch(): Promise<void> {
@@ -173,42 +188,122 @@ export class RaydiumMonitor extends EventEmitter {
       return;
     }
 
-    const currentBatch = this.transactionBatch.splice(0, this.batchSize);
-    console.log(`🔄 Processing batch of ${currentBatch.length} transactions`);
+    // Check if we have enough transactions to process efficiently
+    // But process small batches if we've waited long enough (maxWaitTime passed)
+    if (this.transactionBatch.length < this.minBatchSize && this.batchTimeout) {
+      console.log(`⏳ Waiting for more transactions (${this.transactionBatch.length}/${this.minBatchSize}). Will process in ${this.batchDelay}ms...`);
+      
+      // Wait a bit more for additional transactions, but force process after maxWaitTime
+      this.batchTimeout = setTimeout(() => {
+        this.forceProcessBatch();
+      }, this.batchDelay);
+      return;
+    }
 
-    for (const signature of currentBatch) {
+    const currentBatch = this.transactionBatch.splice(0, this.batchSize);
+    console.log(`🔄 Processing optimized batch of ${currentBatch.length} transactions`);
+
+    await this.processBatchCore(currentBatch);
+
+    // Schedule next batch with optimized timing
+    if (this.transactionBatch.length > 0) {
+      // Use shorter delay if we have a good batch size, longer if we need to accumulate
+      const nextDelay = this.transactionBatch.length >= this.minBatchSize ? this.batchDelay : this.maxWaitTime;
+      
+      this.batchTimeout = setTimeout(() => {
+        this.processBatch();
+      }, nextDelay);
+    } else {
+      this.batchProcessingActive = false;
+    }
+  }
+
+  private async forceProcessBatch(): Promise<void> {
+    if (this.transactionBatch.length === 0) {
+      this.batchProcessingActive = false;
+      return;
+    }
+
+    console.log(`⚡ Force processing batch of ${this.transactionBatch.length} transactions (timeout reached)`);
+    
+    // Force process whatever we have
+    const currentBatch = this.transactionBatch.splice(0, this.batchSize);
+    await this.processBatchCore(currentBatch);
+    
+    // Schedule next batch if needed
+    if (this.transactionBatch.length > 0) {
+      const nextDelay = this.transactionBatch.length >= this.minBatchSize ? this.batchDelay : this.maxWaitTime;
+      this.batchTimeout = setTimeout(() => {
+        this.processBatch();
+      }, nextDelay);
+    } else {
+      this.batchProcessingActive = false;
+    }
+  }
+
+  private async processBatchCore(currentBatch: string[]): Promise<void> {
+    // Process transactions in parallel with controlled concurrency
+    const processingPromises = currentBatch.map(async (signature, index) => {
       try {
+        // Small stagger delay to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, index * 50));
+        
         await this.processTransaction(signature);
-        
-        // Reset backoff on successful processing
-        this.rateLimitBackoff = 2000;
-        
-        // Small delay between transactions
-        await new Promise(resolve => setTimeout(resolve, 500));
+        return { signature, success: true };
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         
         if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
-          console.log(`⚠️ Rate limit hit, backing off for ${this.rateLimitBackoff}ms`);
-          
-          this.transactionBatch.unshift(signature);
-          await new Promise(resolve => setTimeout(resolve, this.rateLimitBackoff));
-          this.rateLimitBackoff = Math.min(this.rateLimitBackoff * 1.5, this.maxBackoff);
-          break;
+          return { signature, success: false, retry: true, error: errorMessage };
         } else {
           console.error(`❌ Error processing transaction ${signature.slice(0, 8)}:`, error);
+          return { signature, success: false, retry: false, error: errorMessage };
+        }
+      }
+    });
+
+    // Wait for all transactions to complete
+    const results = await Promise.allSettled(processingPromises);
+    
+    // Handle results
+    const retryTransactions: string[] = [];
+    let successCount = 0;
+    let rateLimitHit = false;
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const { signature, success, retry } = result.value;
+        if (success) {
+          successCount++;
+        } else if (retry) {
+          retryTransactions.push(signature);
+          rateLimitHit = true;
         }
       }
     }
 
-    // Schedule next batch
-    if (this.transactionBatch.length > 0) {
-      this.batchTimeout = setTimeout(() => {
-        this.processBatch();
-      }, this.batchDelay);
-    } else {
-      this.batchProcessingActive = false;
+    // Reset backoff on successful processing
+    if (successCount > 0) {
+      this.rateLimitBackoff = 1000;
+    }
+
+    // Handle rate limit retries
+    if (rateLimitHit && retryTransactions.length > 0) {
+      console.log(`⚠️ Rate limit hit, backing off for ${this.rateLimitBackoff}ms and retrying ${retryTransactions.length} transactions`);
+      
+      // Add failed transactions back to the front of the batch
+      this.transactionBatch.unshift(...retryTransactions);
+      
+      // Increase backoff
+      this.rateLimitBackoff = Math.min(this.rateLimitBackoff * 1.5, this.maxBackoff);
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, this.rateLimitBackoff));
+    }
+    
+    if (successCount > 0) {
+      console.log(`✅ Successfully processed ${successCount}/${currentBatch.length} transactions`);
     }
   }
 
@@ -253,7 +348,7 @@ export class RaydiumMonitor extends EventEmitter {
       }
 
       if (tokenInfo) {
-        console.log(`🎯 Token detected: ${tokenInfo.symbol} (${tokenInfo.mint.slice(0, 8)}...)`);
+        console.log(`🎯 Token detected: ${tokenInfo.symbol} (${(tokenInfo.mint || tokenInfo.address).slice(0, 8)}...)`);
         console.log(`💧 Liquidity: ${tokenInfo.liquidity?.usd?.toFixed(2) || 0} USD`);
         
         this.emit('tokenDetected', tokenInfo);
@@ -325,6 +420,7 @@ export class RaydiumMonitor extends EventEmitter {
       const liquidity = this.calculateSimpleLiquidity(meta);
 
       const tokenInfo: TokenInfo = {
+        address: mint,
         mint,
         symbol: metadata.symbol || this.generateSymbol(mint),
         name: metadata.name || `Raydium Token ${mint.slice(0, 8)}`,
@@ -334,6 +430,8 @@ export class RaydiumMonitor extends EventEmitter {
         timestamp: Date.now(),
         createdAt: Date.now(),
         source: 'RAYDIUM_MONITOR',
+        detected: true,
+        detectedAt: Date.now(),
         liquidity: {
           sol: liquidity.sol,
           usd: liquidity.usd,
@@ -383,6 +481,7 @@ export class RaydiumMonitor extends EventEmitter {
       console.log(`🔧 Minimal extraction found: ${mint.slice(0, 8)}...`);
 
       return {
+        address: mint,
         mint,
         symbol: this.generateSymbol(mint),
         name: `Token ${mint.slice(0, 8)}`,
@@ -392,6 +491,8 @@ export class RaydiumMonitor extends EventEmitter {
         timestamp: Date.now(),
         createdAt: Date.now(),
         source: 'RAYDIUM_MONITOR',
+        detected: true,
+        detectedAt: Date.now(),
         liquidity: { sol: 0, usd: 0 },
         metadata: {
           raydiumPool: true,
@@ -588,7 +689,14 @@ export class RaydiumMonitor extends EventEmitter {
       monitoredPrograms: Object.keys(RaydiumMonitor.RAYDIUM_PROGRAMS).length,
       monitoredAddresses: RaydiumMonitor.MONITORED_ADDRESSES.length,
       queuedTransactions: this.transactionBatch.length,
-      processedCount: this.processedTransactions.size
+      processedCount: this.processedTransactions.size,
+      batchConfig: {
+        batchSize: this.batchSize,
+        minBatchSize: this.minBatchSize,
+        batchDelay: this.batchDelay,
+        maxWaitTime: this.maxWaitTime
+      },
+      batchProcessingActive: this.batchProcessingActive
     };
   }
 

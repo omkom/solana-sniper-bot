@@ -78,8 +78,10 @@ export class DexScreenerTokenService extends EventEmitter {
 
   // Convert DexScreener token to TokenInfo format
   convertToTokenInfo(dexToken: any): TokenInfo {
+    const address = dexToken.address;
     return {
-      mint: dexToken.address,
+      address: address,
+      mint: address,
       symbol: dexToken.symbol || 'UNKNOWN',
       name: dexToken.name || dexToken.symbol || 'Unknown Token',
       decimals: 9, // Default for most SPL tokens
@@ -87,6 +89,8 @@ export class DexScreenerTokenService extends EventEmitter {
       signature: `DEXSCREENER_${Date.now()}`,
       timestamp: Date.now(),
       createdAt: Date.now() - (dexToken.age * 1000),
+      detected: true,
+      detectedAt: Date.now(),
       liquidity: {
         sol: dexToken.liquidity / 150, // Rough SOL conversion (assuming ~$150/SOL)
         usd: dexToken.liquidity

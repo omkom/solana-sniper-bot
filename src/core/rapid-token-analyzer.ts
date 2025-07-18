@@ -131,11 +131,12 @@ export class RapidTokenAnalyzer extends EventEmitter {
 
   private handleTokenDetected(tokenInfo: TokenInfo, source: string): void {
     // Deduplication
-    if (this.processedTokens.has(tokenInfo.mint)) {
+    const tokenId = tokenInfo.mint || tokenInfo.address;
+    if (this.processedTokens.has(tokenId)) {
       return;
     }
 
-    this.processedTokens.add(tokenInfo.mint);
+    this.processedTokens.add(tokenId);
     this.processingStats.totalDetected++;
     
     // Add source information
@@ -145,10 +146,29 @@ export class RapidTokenAnalyzer extends EventEmitter {
       detectedAt: Date.now()
     };
 
-    // Add to processing queue
-    this.tokenQueue.push(tokenInfo);
-    
-    console.log(`🔍 Token queued for analysis: ${tokenInfo.symbol} from ${source}`);
+    // Calculate token age for priority processing
+    const tokenAge = Date.now() - (tokenInfo.createdAt || Date.now());
+    const isFreshToken = tokenAge < 60000; // Less than 1 minute old
+    const isUltraFreshToken = tokenAge < 30000; // Less than 30 seconds old
+
+    // Priority processing for very fresh tokens
+    if (isUltraFreshToken) {
+      // Ultra fresh tokens get immediate priority - add to front of queue
+      this.tokenQueue.unshift(tokenInfo);
+      console.log(`🚀 ULTRA FRESH TOKEN - Priority processing: ${tokenInfo.symbol} from ${source} (age: ${Math.round(tokenAge/1000)}s)`);
+    } else if (isFreshToken) {
+      // Fresh tokens get high priority - add after ultra fresh but before normal
+      const ultraFreshCount = this.tokenQueue.filter(t => {
+        const age = Date.now() - (t.createdAt || Date.now());
+        return age < 30000;
+      }).length;
+      this.tokenQueue.splice(ultraFreshCount, 0, tokenInfo);
+      console.log(`⚡ FRESH TOKEN - High priority processing: ${tokenInfo.symbol} from ${source} (age: ${Math.round(tokenAge/1000)}s)`);
+    } else {
+      // Normal tokens go to end of queue
+      this.tokenQueue.push(tokenInfo);
+      console.log(`🔍 Token queued for analysis: ${tokenInfo.symbol} from ${source} (age: ${Math.round(tokenAge/60000)}m)`);
+    }
     
     // Emit detection event
     this.emit('tokenDetected', tokenInfo);
@@ -157,8 +177,10 @@ export class RapidTokenAnalyzer extends EventEmitter {
   private handlePumpDetected(pumpInfo: any): void {
     try {
       // Convert pump info to TokenInfo format
+      const address = pumpInfo.address || pumpInfo.mint;
       const tokenInfo: TokenInfo = {
-        mint: pumpInfo.address || pumpInfo.mint,
+        address: address,
+        mint: address,
         symbol: pumpInfo.symbol,
         name: pumpInfo.name || pumpInfo.symbol,
         decimals: 9,
@@ -167,6 +189,8 @@ export class RapidTokenAnalyzer extends EventEmitter {
         timestamp: Date.now(),
         createdAt: Date.now(),
         source: 'PUMP_DETECTOR',
+        detected: true,
+        detectedAt: Date.now(),
         liquidity: {
           sol: pumpInfo.liquidityUsd / 150 || 0,
           usd: pumpInfo.liquidityUsd || 0
@@ -199,8 +223,29 @@ export class RapidTokenAnalyzer extends EventEmitter {
       return;
     }
 
-    // Process up to 5 tokens at once for performance
-    const tokensToProcess = this.tokenQueue.splice(0, 5);
+    // Prioritize ultra fresh tokens - process them first
+    const now = Date.now();
+    const ultraFreshTokens = this.tokenQueue.filter(t => (now - (t.createdAt || now)) < 30000);
+    const freshTokens = this.tokenQueue.filter(t => (now - (t.createdAt || now)) < 60000 && (now - (t.createdAt || now)) >= 30000);
+    const normalTokens = this.tokenQueue.filter(t => (now - (t.createdAt || now)) >= 60000);
+
+    let tokensToProcess: TokenInfo[] = [];
+    
+    if (ultraFreshTokens.length > 0) {
+      // Process up to 3 ultra fresh tokens immediately
+      tokensToProcess = ultraFreshTokens.splice(0, 3);
+      console.log(`🚀 Processing ${tokensToProcess.length} ultra fresh tokens with priority`);
+    } else if (freshTokens.length > 0) {
+      // Process up to 4 fresh tokens
+      tokensToProcess = freshTokens.splice(0, 4);
+      console.log(`⚡ Processing ${tokensToProcess.length} fresh tokens with high priority`);
+    } else {
+      // Process up to 5 normal tokens
+      tokensToProcess = normalTokens.splice(0, 5);
+    }
+
+    // Remove processed tokens from main queue
+    this.tokenQueue = this.tokenQueue.filter(t => !tokensToProcess.includes(t));
     
     // Process tokens in parallel
     const promises = tokensToProcess.map(tokenInfo => this.processToken(tokenInfo));
@@ -216,7 +261,7 @@ export class RapidTokenAnalyzer extends EventEmitter {
     try {
       this.processingStats.totalProcessed++;
       
-      console.log(`🔬 Analyzing token: ${tokenInfo.symbol} (${tokenInfo.mint.slice(0, 8)}...)`);
+      console.log(`🔬 Analyzing token: ${tokenInfo.symbol} (${(tokenInfo.mint || '').slice(0, 8)}...)`);
       
       // Perform security analysis
       const securityAnalysis = await this.securityAnalyzer.analyzeToken(tokenInfo);
@@ -237,7 +282,7 @@ export class RapidTokenAnalyzer extends EventEmitter {
         this.processingStats.totalViable++;
         
         console.log(`✅ Viable token found: ${tokenInfo.symbol} (Score: ${securityAnalysis.score})`);
-        console.log(`📊 Token details: Source=${tokenInfo.source}, Age=${Math.round((Date.now() - tokenInfo.createdAt) / 60000)}m, Liquidity=$${tokenInfo.liquidity?.usd || 0}`);
+        console.log(`📊 Token details: Source=${tokenInfo.source}, Age=${Math.round((Date.now() - (tokenInfo.createdAt || Date.now())) / 60000)}m, Liquidity=$${tokenInfo.liquidity?.usd || 0}`);
         console.log(`🚀 PASSING TO SIMULATION ENGINE: ${this.simulationEngine.constructor.name}`);
         
         // Process through simulation engine
@@ -248,7 +293,7 @@ export class RapidTokenAnalyzer extends EventEmitter {
         this.emit('viableTokenFound', { tokenInfo, securityAnalysis });
       } else {
         console.log(`❌ Token filtered out: ${tokenInfo.symbol} (Score: ${securityAnalysis.score})`);
-        console.log(`📊 Production filter: Security=${securityAnalysis.score}<60, Liquidity=$${tokenInfo.liquidity?.usd || 0}<5000, Age>${Math.round((Date.now() - tokenInfo.createdAt) / 60000)}>${30}min`);
+        console.log(`📊 Production filter: Security=${securityAnalysis.score}<60, Liquidity=$${tokenInfo.liquidity?.usd || 0}<5000, Age>${Math.round((Date.now() - (tokenInfo.createdAt || Date.now())) / 60000)}>${30}min`);
         this.emit('tokenFiltered', { tokenInfo, securityAnalysis });
       }
       
@@ -267,9 +312,9 @@ export class RapidTokenAnalyzer extends EventEmitter {
       return false;
     }
     
-    const ageMinutes = Math.round((Date.now() - tokenInfo.createdAt) / 60000);
+    const ageMinutes = Math.round((Date.now() - (tokenInfo.createdAt || Date.now())) / 60000);
     
-    console.log(`⚡ INSTANT SNIPE TARGET: ${tokenInfo.symbol || tokenInfo.mint.slice(0, 8)}`);
+    console.log(`⚡ INSTANT SNIPE TARGET: ${tokenInfo.symbol || (tokenInfo.mint || tokenInfo.address).slice(0, 8)}`);
     console.log(`   📊 Age: ${ageMinutes}min | Security: ${securityAnalysis.score} | Liquidity: $${tokenInfo.liquidity?.usd || 0}`);
     console.log(`   🎯 SNIPING REGARDLESS OF ALL METRICS - PURE SPEED MODE!`);
     
@@ -320,7 +365,7 @@ export class RapidTokenAnalyzer extends EventEmitter {
 
   // Get recent detections
   getRecentDetections(limit: number = 10): TokenInfo[] {
-    return this.multiDexMonitor.getRecentTokens(limit);
+    return this.multiDexMonitor.getRecentTokens();
   }
 
   // Clear processed tokens cache

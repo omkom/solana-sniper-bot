@@ -17,9 +17,9 @@ import { UnifiedTokenInfo, SimulationConfig, DetectionConfig } from './types/uni
  */
 export class TokenAnalyzerApp {
   private config: Config;
-  private detector: UnifiedDetector;
-  private simulationEngine: UnifiedSimulationEngine;
-  private dashboard: Dashboard;
+  private detector!: UnifiedDetector;
+  private simulationEngine!: UnifiedSimulationEngine;
+  private dashboard!: Dashboard;
   private isRunning = false;
   
   // App modes
@@ -47,7 +47,7 @@ export class TokenAnalyzerApp {
     this.simulationEngine = new UnifiedSimulationEngine(simulationConfig);
     
     // Initialize dashboard
-    this.dashboard = new Dashboard();
+    this.dashboard = new Dashboard(this.simulationEngine as any);
     
     // Wire up event handlers
     this.setupEventHandlers();
@@ -248,9 +248,9 @@ export class TokenAnalyzerApp {
       mode: this.mode,
       detectedTokens: detectorStatus.detectedTokensCount,
       activePositions: portfolio.activePositions,
-      totalValue: portfolio.totalValue.toFixed(4),
-      totalPnL: `${portfolio.totalPnLPercent.toFixed(2)}%`,
-      winRate: `${portfolio.winRate.toFixed(1)}%`
+      totalValue: (portfolio.totalValue || 0).toFixed(4),
+      totalPnL: `${(portfolio.totalPnLPercent || 0).toFixed(2)}%`,
+      winRate: `${(portfolio.winRate || 0).toFixed(1)}%`
     });
   }
 

@@ -1,4 +1,4 @@
-import { Logs } from '@solana/web3.js';
+import { Logs, Connection } from '@solana/web3.js';
 import { BaseEventEmitter, ConnectionProvider, DEX_CONSTANTS, ValidationUtils, TransactionUtils, ArrayUtils } from '../utils/common-patterns';
 import { UnifiedTokenInfo, DetectionResult, DetectionConfig } from '../types/unified';
 import { logger } from '../monitoring/logger';
@@ -30,12 +30,22 @@ export class UnifiedDetector extends BaseEventEmitter {
     super();
     
     this.config = {
+      enableRaydium: true,
+      enablePumpFun: true,
+      enableDexScreener: true,
+      enableMultiDex: true,
+      enableRealTime: true,
+      minLiquidity: 1000,
+      maxAge: 3600000,
+      minConfidence: 50,
+      filterHoneypots: true,
+      filterRugs: true,
       enabledSources: ['websocket', 'dexscreener', 'scanning'],
-      scanInterval: 5000,
-      batchSize: 10,
-      maxConcurrentRequests: 3,
-      rateLimitDelay: 300,
-      cacheTimeout: 30000,
+      scanInterval: 30000, // Increase to 30 seconds to reduce API calls
+      batchSize: 5, // Reduce batch size
+      maxConcurrentRequests: 2, // Reduce concurrent requests
+      rateLimitDelay: 2000, // Increase delay
+      cacheTimeout: 60000, // Increase cache timeout
       ...config
     };
     
@@ -72,7 +82,7 @@ export class UnifiedDetector extends BaseEventEmitter {
     try {
       // Start enabled detection strategies
       for (const [name, strategy] of this.strategies) {
-        if (this.config.enabledSources.includes(name)) {
+        if (this.config.enabledSources && this.config.enabledSources.includes(name)) {
           await strategy.start();
           strategy.on('tokensDetected', (result: DetectionResult) => {
             this.handleDetectionResult(result);
@@ -121,14 +131,14 @@ export class UnifiedDetector extends BaseEventEmitter {
   private async handleDetectionResult(result: DetectionResult): Promise<void> {
     try {
       logger.debug(`Processing detection result from ${result.source}`, {
-        tokenCount: result.tokens.length,
-        processingTime: result.processingTime
+        tokenCount: result.tokens?.length || 0,
+        processingTime: result.processingTime || 0
       });
 
       // Apply unified filtering
       const filteredTokens: UnifiedTokenInfo[] = [];
       
-      for (const token of result.tokens) {
+      for (const token of result.tokens || []) {
         // Skip if already detected
         if (this.detectedTokens.has(token.address)) {
           continue;
@@ -211,7 +221,7 @@ export class UnifiedDetector extends BaseEventEmitter {
       isRunning: this.isRunning,
       detectedTokensCount: this.detectedTokens.size,
       processedTransactionsCount: this.processedTransactions.size,
-      enabledStrategies: this.config.enabledSources,
+      enabledStrategies: this.config.enabledSources || [],
       strategies: Object.fromEntries(
         Array.from(this.strategies.entries()).map(([name, strategy]) => [
           name,
@@ -315,7 +325,8 @@ class WebSocketStrategy extends DetectionStrategy {
     try {
       const connection = ConnectionProvider.getConnection();
       const transaction = await connection.getTransaction(signature, {
-        maxSupportedTransactionVersion: 0
+        maxSupportedTransactionVersion: 0,
+        commitment: 'confirmed'
       });
 
       if (!transaction) {
@@ -344,8 +355,16 @@ class WebSocketStrategy extends DetectionStrategy {
           detectionMethod: 'websocket'
         }
       }));
-    } catch (error) {
-      logger.warn(`Error processing transaction ${signature}:`, error);
+    } catch (error: any) {
+      // Only log non-network errors to reduce noise
+      if (error.cause?.code !== 'UND_ERR_CONNECT_TIMEOUT' && 
+          error.message !== 'fetch failed' && 
+          error.code !== 'ECONNRESET') {
+        logger.warn(`Error processing transaction ${signature}:`, {
+          message: error.message,
+          code: error.code
+        });
+      }
       return [];
     }
   }
@@ -406,7 +425,7 @@ class DexScreenerStrategy extends DetectionStrategy {
       } catch (error) {
         logger.warn('DexScreener fetch error:', error);
       }
-    }, this.config.scanInterval);
+    }, this.config.scanInterval || 10000);
 
     this.addInterval(fetchInterval);
   }
@@ -415,7 +434,7 @@ class DexScreenerStrategy extends DetectionStrategy {
     return {
       isRunning: this.isRunning,
       lastFetch: this.lastFetch,
-      nextFetch: this.lastFetch + this.config.scanInterval
+      nextFetch: this.lastFetch + (this.config.scanInterval || 10000)
     };
   }
 }
@@ -465,14 +484,19 @@ class ScanningStrategy extends DetectionStrategy {
       } catch (error) {
         logger.warn('Scanning error:', error);
       }
-    }, this.config.scanInterval);
+    }, this.config.scanInterval || 10000);
 
     this.addInterval(scanInterval);
   }
 
   private async scanRecentActivity(): Promise<UnifiedTokenInfo[]> {
     try {
-      const signatures = await this.connection.getSignaturesForAddress(
+      // Use a connection with confirmed commitment for this specific call
+      const confirmedConnection = new Connection(
+        this.connection.rpcEndpoint,
+        { commitment: 'confirmed' }
+      );
+      const signatures = await confirmedConnection.getSignaturesForAddress(
         DEX_CONSTANTS.PROGRAMS.SPL_TOKEN,
         { limit: 20 }
       );
@@ -513,8 +537,15 @@ class ScanningStrategy extends DetectionStrategy {
       }
 
       return tokens;
-    } catch (error) {
-      logger.warn('Error scanning recent activity:', error);
+    } catch (error: any) {
+      // Only log non-commitment errors to reduce noise
+      if (!error.message?.includes('commitment') && 
+          error.cause?.code !== 'UND_ERR_CONNECT_TIMEOUT') {
+        logger.warn('Error scanning recent activity:', {
+          message: error.message,
+          code: error.code
+        });
+      }
       return [];
     }
   }
@@ -538,7 +569,7 @@ class ScanningStrategy extends DetectionStrategy {
     return {
       isRunning: this.isRunning,
       lastScan: this.lastScan,
-      nextScan: this.lastScan + this.config.scanInterval
+      nextScan: this.lastScan + (this.config.scanInterval || 10000)
     };
   }
 }
@@ -593,7 +624,7 @@ class PumpStrategy extends DetectionStrategy {
       } catch (error) {
         logger.warn('Pump scanning error:', error);
       }
-    }, this.config.scanInterval * 2); // Less frequent pump scanning
+    }, (this.config.scanInterval || 30000) * 3); // Much less frequent pump scanning (90 seconds)
 
     this.addInterval(pumpInterval);
   }
@@ -602,7 +633,7 @@ class PumpStrategy extends DetectionStrategy {
     return {
       isRunning: this.isRunning,
       lastPumpScan: this.lastPumpScan,
-      nextPumpScan: this.lastPumpScan + (this.config.scanInterval * 2)
+      nextPumpScan: this.lastPumpScan + ((this.config.scanInterval || 10000) * 2)
     };
   }
 }
