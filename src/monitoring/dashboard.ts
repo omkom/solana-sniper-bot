@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import path from 'path';
+import { EventEmitter } from 'events';
 import { Config } from '../core/config';
 import { EventEmittingSimulationEngine } from '../types/simulation-engine';
 import { getIframeRPCService } from '../core/iframe-rpc-service';
@@ -10,7 +11,7 @@ import { TokenPriceTracker } from './token-price-tracker';
 import { MigrationMonitor } from './migration-monitor';
 import { KPITracker } from './kpi-tracker';
 
-export class EducationalDashboard {
+export class EducationalDashboard extends EventEmitter {
   private app: express.Application;
   private server: any;
   private io: Server;
@@ -26,6 +27,7 @@ export class EducationalDashboard {
     private kpiTracker?: KPITracker,
     analyzer?: any
   ) {
+    super();
     this.config = Config.getInstance();
     this.analyzer = analyzer;
     this.app = express();
@@ -440,6 +442,48 @@ export class EducationalDashboard {
         action: 'SKIP',
         reason: skipInfo.reason
       });
+    });
+
+    // Listen for detector events forwarded from main app
+    this.on('newTokensDetected', (tokens: any[]) => {
+      console.log(`📡 Dashboard received ${tokens.length} new tokens from detector`);
+      this.io.emit('newTokensDetected', tokens);
+      
+      // Convert to foundTokens format for dashboard
+      const foundTokens = tokens.map((token: any) => ({
+        mint: token.mint,
+        symbol: token.symbol,
+        name: token.name,
+        price: token.metadata?.priceUsd || 0,
+        liquidity: token.liquidity?.usd || 0,
+        source: token.source,
+        detectedAt: Date.now()
+      }));
+      
+      this.io.emit('foundTokens', foundTokens);
+    });
+
+    this.on('detectionResult', (result) => {
+      // Calculate token count from available data
+      const tokenCount = result.tokens?.length || 
+                        result.filteredCount || 
+                        (result.token ? 1 : 0) || 
+                        0;
+      
+      // Only log if there's meaningful data and avoid spam
+      if (tokenCount > 0 || (result.processingTime && result.processingTime > 0)) {
+        console.log(`📊 Detection result: ${tokenCount} tokens detected from ${result.source} (${result.processingTime || 0}ms)`);
+      }
+      
+      // Enhanced result with computed values
+      const enhancedResult = {
+        ...result,
+        detectedCount: tokenCount,
+        hasTokens: tokenCount > 0,
+        timestamp: result.timestamp || Date.now()
+      };
+      
+      this.io.emit('detectionResult', enhancedResult);
     });
 
     // Listen to price tracker events

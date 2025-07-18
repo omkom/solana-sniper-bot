@@ -180,10 +180,16 @@ export class UnifiedDetector extends BaseEventEmitter {
         this.emit('tokenDetected', filteredTokens);
       }
 
-      // Update metrics
+      // Update metrics with enhanced data
       this.emit('detectionResult', {
         ...result,
-        filteredCount: filteredTokens.length
+        filteredCount: filteredTokens.length,
+        detectedCount: filteredTokens.length, // Add explicit detectedCount
+        originalCount: result.tokens?.length || 0,
+        hasTokens: filteredTokens.length > 0,
+        processingTime: result.processingTime || 0,
+        source: result.source || 'unknown',
+        timestamp: result.timestamp || Date.now()
       });
 
     } catch (error) {

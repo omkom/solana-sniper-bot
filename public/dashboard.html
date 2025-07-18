@@ -738,6 +738,8 @@
                 <p>RPC Health: <span id="rpcHealth" class="positive">HEALTHY</span></p>
                 <p>Token Tracking: <span id="trackingStatus" class="positive">ACTIVE</span></p>
                 <p>SOL Rate: <span id="solRate">€147.79/SOL</span></p>
+                <p>Tokens Detected: <span id="tokensDetected" class="positive">0</span></p>
+                <p>Detection Rate: <span id="detectionRate">0/min</span></p>
             </div>
             
             <div class="footer-section">
@@ -774,6 +776,22 @@
             detection: [],
             trading: [],
             liquidity: []
+        };
+
+        // Initialize global data structures
+        window.foundTokensData = [];
+        window.trackedTokensData = [];
+        window.migrationData = [];
+        window.kpiData = {};
+        window.lastTokenUpdate = Date.now();
+        
+        // Initialize detection stats for better logging
+        window.detectionStats = {
+            totalDetected: 0,
+            lastDetection: 0,
+            sources: {},
+            slowDetections: 0,
+            lastLogTime: 0 // Prevent log spam
         };
 
         // Connection status
@@ -877,6 +895,104 @@
                 });
                 updateFoundTokensTable(window.foundTokensData);
             }
+        });
+
+        // New token detection events from detector
+        socket.on('newTokensDetected', (tokens) => {
+            if (tokens && tokens.length > 0) {
+                console.log(`🎯 New tokens detected: ${tokens.length}`);
+                // Add to found tokens data
+                tokens.forEach(token => {
+                    if (window.foundTokensData) {
+                        const tokenData = {
+                            id: token.mint,
+                            symbol: token.symbol || 'UNK',
+                            name: token.name || 'Unknown',
+                            price: token.metadata?.priceUsd || 0,
+                            foundAt: Date.now(),
+                            createdAt: token.timestamp || Date.now(),
+                            liquidity: token.liquidity?.usd || 0,
+                            dexId: token.source,
+                            isPump: token.source?.includes('pump') || false
+                        };
+                        window.foundTokensData.unshift(tokenData);
+                        // Keep only last 50 tokens
+                        if (window.foundTokensData.length > 50) {
+                            window.foundTokensData = window.foundTokensData.slice(0, 50);
+                        }
+                    }
+                });
+                updateFoundTokensTable(window.foundTokensData);
+            }
+        });
+
+        // Found tokens events from dashboard
+        socket.on('foundTokens', (tokens) => {
+            if (tokens && tokens.length > 0) {
+                console.log(`📡 Found tokens updated: ${tokens.length}`);
+                // Update found tokens data
+                if (window.foundTokensData) {
+                    tokens.forEach(token => {
+                        // Check if token already exists
+                        const existingIndex = window.foundTokensData.findIndex(t => t.id === token.mint);
+                        if (existingIndex === -1) {
+                            window.foundTokensData.unshift(token);
+                        } else {
+                            // Update existing token
+                            window.foundTokensData[existingIndex] = { ...window.foundTokensData[existingIndex], ...token };
+                        }
+                    });
+                    // Keep only last 50 tokens
+                    if (window.foundTokensData.length > 50) {
+                        window.foundTokensData = window.foundTokensData.slice(0, 50);
+                    }
+                    updateFoundTokensTable(window.foundTokensData);
+                }
+            }
+        });
+
+        // Detection result events - optimized logging with spam prevention
+        socket.on('detectionResult', (result) => {
+            const tokenCount = result.detectedCount || 0;
+            const source = result.source || 'unknown';
+            const processingTime = result.processingTime || 0;
+            const now = Date.now();
+            
+            // Update detection stats
+            if (window.detectionStats) {
+                window.detectionStats.totalDetected += tokenCount;
+                window.detectionStats.sources[source] = (window.detectionStats.sources[source] || 0) + tokenCount;
+                
+                if (tokenCount > 0) {
+                    window.detectionStats.lastDetection = now;
+                }
+                
+                if (processingTime > 1000) {
+                    window.detectionStats.slowDetections++;
+                }
+            }
+            
+            // Throttled logging - only log every 10 seconds for zero results, always log when tokens found
+            const shouldLog = tokenCount > 0 || 
+                            processingTime > 1000 || 
+                            (now - (window.detectionStats.lastLogTime || 0)) > 10000;
+                            
+            if (shouldLog) {
+                if (tokenCount > 0) {
+                    console.log(`📊 Detection: ${tokenCount} tokens from ${source} (${processingTime}ms)`);
+                } else if (processingTime > 1000) {
+                    console.log(`⚠️ Slow detection: ${source} took ${processingTime}ms`);
+                } else {
+                    console.log(`📊 Detection scan: ${source} (${processingTime}ms) - no tokens found`);
+                }
+                
+                if (window.detectionStats) {
+                    window.detectionStats.lastLogTime = now;
+                }
+            }
+            
+            // Update detection stats display
+            updateDetectionStatsDisplay();
         });
 
         socket.on('priceUpdate', (data) => {
@@ -1851,6 +1967,34 @@
                     document.getElementById('trackedTokens').textContent = data.count || 0;
                 })
                 .catch(console.error);
+        }
+
+        function updateDetectionStatsDisplay() {
+            if (!window.detectionStats) return;
+            
+            const stats = window.detectionStats;
+            const now = Date.now();
+            
+            // Update total tokens detected
+            const tokensDetectedEl = document.getElementById('tokensDetected');
+            if (tokensDetectedEl) {
+                tokensDetectedEl.textContent = stats.totalDetected;
+                tokensDetectedEl.className = stats.totalDetected > 0 ? 'positive' : 'neutral';
+            }
+            
+            // Calculate detection rate (tokens per minute)
+            const timeSinceStart = (now - (stats.startTime || now)) / 1000 / 60; // minutes
+            const detectionRate = timeSinceStart > 0 ? (stats.totalDetected / timeSinceStart).toFixed(1) : '0.0';
+            
+            const detectionRateEl = document.getElementById('detectionRate');
+            if (detectionRateEl) {
+                detectionRateEl.textContent = `${detectionRate}/min`;
+            }
+            
+            // Initialize start time if not set
+            if (!stats.startTime) {
+                stats.startTime = now;
+            }
         }
 
         // Token stats updates
