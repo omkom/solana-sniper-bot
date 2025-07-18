@@ -4,6 +4,7 @@ import { UnifiedTokenInfo, DetectionResult, DetectionConfig } from '../types/uni
 import { logger } from '../monitoring/logger';
 import { DexScreenerClient } from './dexscreener-client';
 import { UnifiedTokenFilter, TokenFilterCriteria } from './unified-token-filter';
+import { apiCoordinator } from '../core/centralized-api-coordinator';
 
 /**
  * Unified Detection System
@@ -41,11 +42,11 @@ export class UnifiedDetector extends BaseEventEmitter {
       filterHoneypots: true,
       filterRugs: true,
       enabledSources: ['websocket', 'dexscreener', 'scanning'],
-      scanInterval: 30000, // Increase to 30 seconds to reduce API calls
-      batchSize: 5, // Reduce batch size
-      maxConcurrentRequests: 2, // Reduce concurrent requests
-      rateLimitDelay: 2000, // Increase delay
-      cacheTimeout: 60000, // Increase cache timeout
+      scanInterval: 90000, // Increase to 90 seconds to reduce API calls significantly
+      batchSize: 3, // Further reduce batch size
+      maxConcurrentRequests: 1, // Only 1 concurrent request to prevent conflicts
+      rateLimitDelay: 5000, // Increase delay significantly
+      cacheTimeout: 180000, // Increase cache timeout to 3 minutes
       ...config
     };
     
@@ -77,17 +78,28 @@ export class UnifiedDetector extends BaseEventEmitter {
     }
 
     this.isRunning = true;
-    logger.info('🚀 Starting unified token detection');
+    logger.info('🚀 Starting coordinated unified token detection');
 
     try {
-      // Start enabled detection strategies
+      // Start enabled detection strategies with coordinated timing
+      let delayOffset = 0;
+      
       for (const [name, strategy] of this.strategies) {
         if (this.config.enabledSources && this.config.enabledSources.includes(name)) {
+          // Add delay between strategy starts to prevent simultaneous API calls
+          if (delayOffset > 0) {
+            logger.info(`⏱️ Delaying ${name} strategy start by ${delayOffset}ms for coordination`);
+            await new Promise(resolve => setTimeout(resolve, delayOffset));
+          }
+          
           await strategy.start();
           strategy.on('tokensDetected', (result: DetectionResult) => {
             this.handleDetectionResult(result);
           });
-          logger.info(`✅ Started ${name} detection strategy`);
+          logger.info(`✅ Started ${name} detection strategy with ${delayOffset}ms offset`);
+          
+          // Stagger strategy start times to spread out API calls
+          delayOffset += 30000; // 30 second intervals between strategies
         }
       }
 
@@ -95,7 +107,7 @@ export class UnifiedDetector extends BaseEventEmitter {
       this.startCleanupTask();
       
       this.emit('started');
-      logger.info('🎯 Unified detector started successfully');
+      logger.info('🎯 Coordinated unified detector started successfully');
       
     } catch (error) {
       logger.error('❌ Failed to start unified detector:', error);
@@ -265,14 +277,33 @@ abstract class DetectionStrategy extends BaseEventEmitter {
  * Monitors DEX program logs for real-time token creation
  */
 class WebSocketStrategy extends DetectionStrategy {
-  private connection = ConnectionProvider.getConnection();
+  private connection: Connection | null = null;
 
   async start(): Promise<void> {
     this.isRunning = true;
     
+    // Initialize connection with proper error handling
+    try {
+      this.connection = ConnectionProvider.getConnection();
+      
+      if (!this.connection) {
+        throw new Error('Failed to get connection from ConnectionProvider');
+      }
+      
+      logger.info('🔗 WebSocket strategy connection initialized');
+    } catch (error) {
+      logger.error('❌ Failed to initialize WebSocket connection:', error);
+      throw error;
+    }
+    
     // Subscribe to all DEX programs
     for (const [name, programId] of Object.entries(DEX_CONSTANTS.PROGRAMS)) {
       try {
+        if (!this.connection) {
+          logger.warn(`⚠️ No connection available for ${name} subscription`);
+          continue;
+        }
+
         const subscriptionId = this.connection.onLogs(
           programId,
           (logs: Logs) => {
@@ -282,6 +313,7 @@ class WebSocketStrategy extends DetectionStrategy {
         );
         
         this.addSubscription(name, subscriptionId);
+        logger.debug(`✅ Subscribed to ${name} program logs`);
       } catch (error) {
         logger.error(`Failed to subscribe to ${name}:`, error);
       }
@@ -290,7 +322,9 @@ class WebSocketStrategy extends DetectionStrategy {
 
   async stop(): Promise<void> {
     this.isRunning = false;
-    await this.cleanupSubscriptions(this.connection);
+    if (this.connection) {
+      await this.cleanupSubscriptions(this.connection);
+    }
   }
 
   private async handleDexLogs(logs: Logs, dexName: string): Promise<void> {
@@ -409,19 +443,35 @@ class DexScreenerStrategy extends DetectionStrategy {
 
       try {
         const startTime = Date.now();
-        const tokens = await this.dexScreenerClient.getTrendingTokens();
-        const processingTime = Date.now() - startTime;
+        
+        // Use centralized API coordinator for all DexScreener requests
+        const response = await apiCoordinator.makeRequest(
+          '/token-profiles/latest/v1',
+          () => this.dexScreenerClient.getTrendingTokens(),
+          'DexScreenerStrategy',
+          {
+            priority: 2,
+            maxRetries: 1,
+            cacheTtl: 60000,
+            deduplicationKey: 'dexscreener-trending'
+          }
+        );
 
+        const processingTime = Date.now() - startTime;
         this.lastFetch = Date.now();
 
-        this.emit('tokensDetected', {
-          tokens,
-          source: 'dexscreener',
-          timestamp: Date.now(),
-          processingTime,
-          errors: [],
-          metadata: { endpoint: 'trending' }
-        });
+        if (response.success) {
+          this.emit('tokensDetected', {
+            tokens: response.data || [],
+            source: 'dexscreener',
+            timestamp: Date.now(),
+            processingTime,
+            errors: [],
+            metadata: { endpoint: 'trending', cached: response.cached }
+          });
+        } else {
+          logger.warn('DexScreener coordinated fetch failed:', response.error);
+        }
       } catch (error) {
         logger.warn('DexScreener fetch error:', error);
       }
@@ -444,11 +494,26 @@ class DexScreenerStrategy extends DetectionStrategy {
  * Scans blockchain for token creation activity
  */
 class ScanningStrategy extends DetectionStrategy {
-  private connection = ConnectionProvider.getConnection();
+  private connection: Connection | null = null;
   private lastScan = 0;
 
   async start(): Promise<void> {
     this.isRunning = true;
+    
+    // Initialize connection with proper error handling
+    try {
+      this.connection = ConnectionProvider.getConnection();
+      
+      if (!this.connection) {
+        throw new Error('Failed to get connection from ConnectionProvider');
+      }
+      
+      logger.info('🔍 Scanning strategy connection initialized');
+    } catch (error) {
+      logger.error('❌ Failed to initialize Scanning connection:', error);
+      throw error;
+    }
+    
     this.startPeriodicScan();
   }
 
@@ -491,9 +556,14 @@ class ScanningStrategy extends DetectionStrategy {
 
   private async scanRecentActivity(): Promise<UnifiedTokenInfo[]> {
     try {
+      if (!this.connection) {
+        logger.warn('⚠️ No connection available for scanning');
+        return [];
+      }
+
       // Use a connection with confirmed commitment for this specific call
       const confirmedConnection = new Connection(
-        this.connection.rpcEndpoint,
+        this.connection.rpcEndpoint || 'https://api.mainnet-beta.solana.com',
         { commitment: 'confirmed' }
       );
       const signatures = await confirmedConnection.getSignaturesForAddress(
@@ -505,6 +575,10 @@ class ScanningStrategy extends DetectionStrategy {
 
       for (const sig of signatures.slice(0, 5)) {
         try {
+          if (!this.connection) {
+            continue;
+          }
+
           const transaction = await this.connection.getTransaction(sig.signature, {
             maxSupportedTransactionVersion: 0
           });
@@ -606,25 +680,39 @@ class PumpStrategy extends DetectionStrategy {
 
       try {
         const startTime = Date.now();
-        const tokens = await this.dexScreenerClient.getBoostedTokens();
-        const processingTime = Date.now() - startTime;
+        
+        // Use centralized API coordinator for all boosted token requests
+        const response = await apiCoordinator.makeRequest(
+          '/token-boosts/latest/v1',
+          () => this.dexScreenerClient.getBoostedTokens(),
+          'PumpStrategy',
+          {
+            priority: 1, // High priority for pump detection
+            maxRetries: 1,
+            cacheTtl: 120000, // 2 minutes cache for pump scanning
+            deduplicationKey: 'pump-boosted-tokens'
+          }
+        );
 
+        const processingTime = Date.now() - startTime;
         this.lastPumpScan = Date.now();
 
-        if (tokens.length > 0) {
+        if (response.success && response.data && response.data.length > 0) {
           this.emit('tokensDetected', {
-            tokens,
+            tokens: response.data,
             source: 'pump',
             timestamp: Date.now(),
             processingTime,
             errors: [],
-            metadata: { method: 'boosted_tokens' }
+            metadata: { method: 'boosted_tokens', cached: response.cached }
           });
+        } else if (!response.success) {
+          logger.warn('Pump scanning coordinated request failed:', response.error);
         }
       } catch (error) {
         logger.warn('Pump scanning error:', error);
       }
-    }, (this.config.scanInterval || 30000) * 3); // Much less frequent pump scanning (90 seconds)
+    }, (this.config.scanInterval || 90000) * 2); // Much less frequent pump scanning (180 seconds)
 
     this.addInterval(pumpInterval);
   }
