@@ -1,307 +1,221 @@
+/**
+ * Unified Entry Point for Solana Token Analyzer
+ * Consolidates all previous entry points into a single, configurable system
+ */
+
 import { Config } from './core/config';
-import { TokenMonitor } from './detection/token-monitor';
-import { SecurityAnalyzer } from './analysis/security-analyzer';
-import { DryRunEngine } from './simulation/dry-run-engine';
-import { EducationalDashboard } from './monitoring/dashboard';
+import { UnifiedDetector } from './detection/unified-detector';
+import { UnifiedSimulationEngine } from './simulation/unified-engine';
+import { Dashboard } from './monitoring/dashboard';
 import { logger } from './monitoring/logger';
-import { LogCleaner } from './utils/log-cleaner';
-import { TokenInfo } from './types';
-import { TokenPriceTracker } from './monitoring/token-price-tracker';
-import { MigrationMonitor } from './monitoring/migration-monitor';
-import { KPITracker } from './monitoring/kpi-tracker';
+import { ConnectionProvider } from './utils/common-patterns';
+import { UnifiedTokenInfo, SimulationConfig, DetectionConfig } from './types/unified';
 
-class EducationalTokenAnalyzer {
+/**
+ * Main Application Class
+ * Orchestrates all components with unified configuration
+ */
+export class TokenAnalyzerApp {
   private config: Config;
-  private tokenMonitor: TokenMonitor;
-  private securityAnalyzer: SecurityAnalyzer;
-  private dryRunEngine: DryRunEngine;
-  private dashboard: EducationalDashboard;
-  private logCleaner: LogCleaner;
-  private priceTracker: TokenPriceTracker;
-  private migrationMonitor: MigrationMonitor;
-  private kpiTracker: KPITracker;
-  private isRunning: boolean = false;
+  private detector: UnifiedDetector;
+  private simulationEngine: UnifiedSimulationEngine;
+  private dashboard: Dashboard;
+  private isRunning = false;
   
-  // Token tracking for dashboard display
-  private foundTokens: Map<string, any> = new Map();
-  private analyzedTokens: Map<string, any> = new Map();
-
-  constructor() {
-    console.log('🎓 Initializing Educational Token Analyzer');
-    
+  // App modes
+  private mode: 'rapid' | 'real' | 'unified' | 'analysis';
+  
+  constructor(mode: 'rapid' | 'real' | 'unified' | 'analysis' = 'unified') {
+    this.mode = mode;
     this.config = Config.getInstance();
-    this.logCleaner = new LogCleaner();
-    this.tokenMonitor = new TokenMonitor();
-    this.securityAnalyzer = new SecurityAnalyzer();
-    this.dryRunEngine = new DryRunEngine();
-    this.priceTracker = new TokenPriceTracker();
-    this.migrationMonitor = new MigrationMonitor();
-    this.kpiTracker = new KPITracker();
-    this.dashboard = new EducationalDashboard(this.dryRunEngine, this.priceTracker, this.migrationMonitor, this.kpiTracker, this);
-
-    this.setupEventListeners();
+    
+    // Initialize components based on mode
+    this.initializeComponents();
+    
+    console.log('🎓 Educational Token Analyzer initialized in DRY_RUN mode');
+    console.log('📚 This system is for learning and analysis purposes only');
+    console.log(`🎯 Mode: ${mode.toUpperCase()}`);
   }
 
-  private setupEventListeners(): void {
-    // Handle token detection
-    this.tokenMonitor.on('tokenDetected', async (tokenInfo: TokenInfo) => {
-      try {
-        // Record token detection in KPI tracker
-        this.kpiTracker.recordTokenDetected();
-        
-        logger.log('analysis', 'Token detected for analysis', {
-          mint: tokenInfo.mint,
-          symbol: tokenInfo.symbol,
-          source: tokenInfo.source,
-          timestamp: tokenInfo.timestamp
-        });
-
-        await this.analyzeToken(tokenInfo);
-      } catch (error) {
-        logger.error('Error analyzing detected token', { error, tokenInfo });
-      }
-    });
-
-    // Handle price tracking events
-    this.priceTracker.on('priceUpdate', (data) => {
-      // Update KPI tracker with price change data
-      this.kpiTracker.updateAvgPriceChange(data.priceChange);
-    });
-
-    this.priceTracker.on('tokenAdded', (token) => {
-      // Record token being tracked
-      this.kpiTracker.recordTokenTracked();
-    });
-
-    // Handle migration events
-    this.migrationMonitor.on('migration', (migrationEvent) => {
-      logger.info('Token migration detected', {
-        symbol: migrationEvent.symbol,
-        fromDex: migrationEvent.fromDex,
-        toDex: migrationEvent.toDex
-      });
-    });
-
-    // Handle process termination
-    process.on('SIGINT', () => {
-      console.log('\n🛑 Shutting down Educational Token Analyzer...');
-      this.stop().then(() => {
-        process.exit(0);
-      });
-    });
-
-    process.on('SIGTERM', () => {
-      console.log('\n🛑 Shutting down Educational Token Analyzer...');
-      this.stop().then(() => {
-        process.exit(0);
-      });
-    });
+  private initializeComponents(): void {
+    // Configure detection based on mode
+    const detectionConfig: Partial<DetectionConfig> = this.getDetectionConfig();
+    this.detector = new UnifiedDetector(detectionConfig);
+    
+    // Configure simulation based on mode
+    const simulationConfig: Partial<SimulationConfig> = this.getSimulationConfig();
+    this.simulationEngine = new UnifiedSimulationEngine(simulationConfig);
+    
+    // Initialize dashboard
+    this.dashboard = new Dashboard();
+    
+    // Wire up event handlers
+    this.setupEventHandlers();
   }
 
-  private async analyzeToken(tokenInfo: TokenInfo): Promise<void> {
-    // console.log(`\n🔍 Analyzing token: ${tokenInfo.symbol || tokenInfo.mint.slice(0, 8)}`);
-    // console.log(`📡 Source: ${tokenInfo.source}`);
-    // console.log(`⏰ Age: ${Math.round((Date.now() - tokenInfo.createdAt) / 1000)}s`);
-
-    try {
-      // Record token analysis in KPI tracker
-      this.kpiTracker.recordTokenAnalyzed();
-      
-      // Track found token
-      this.trackFoundToken(tokenInfo);
-      
-      // Step 1: Security Analysis
-      const securityAnalysis = await this.securityAnalyzer.analyzeToken(tokenInfo);
-      
-      logger.log('analysis', 'Security analysis completed', {
-        mint: tokenInfo.mint,
-        score: securityAnalysis.score,
-        passed: securityAnalysis.overall,
-        warnings: securityAnalysis.warnings.length
-      });
-
-      // Step 2: Honeypot Check
-      const isHoneypot = await this.securityAnalyzer.checkForHoneypot(tokenInfo);
-      
-      if (isHoneypot) {
-        console.log('🍯 Honeypot detected - skipping token');
-        logger.log('analysis', 'Token identified as potential honeypot', {
-          mint: tokenInfo.mint,
-          symbol: tokenInfo.symbol
-        });
-        return;
-      }
-
-      // Track analyzed token
-      this.trackAnalyzedToken(tokenInfo, securityAnalysis);
-
-      // Step 3: Process with dry run engine
-      await this.dryRunEngine.processTokenDetection(tokenInfo, securityAnalysis);
-
-      // Step 4: Add to price tracker if viable
-      if (securityAnalysis.overall && securityAnalysis.score > 30) {
-        // Convert TokenInfo to RealTokenInfo format for price tracking with realistic data
-        const realTokenInfo = {
-          chainId: 'solana',
-          address: tokenInfo.mint,
-          name: tokenInfo.name || 'Unknown Token',
-          symbol: tokenInfo.symbol || 'UNKNOWN',
-          priceUsd: tokenInfo.metadata?.price || Math.random() * 0.001 + 0.0001,
-          priceNative: (tokenInfo.metadata?.price || 0.0001).toString(),
-          volume24h: tokenInfo.metadata?.volume24h || tokenInfo.liquidity?.usd || 0,
-          volume1h: (tokenInfo.metadata?.volume24h || 0) * 0.1, // Estimate 1h as 10% of 24h
-          volume5m: (tokenInfo.metadata?.volume24h || 0) * 0.005, // Estimate 5m as 0.5% of 24h
-          priceChange24h: tokenInfo.metadata?.priceChange24h || 0,
-          priceChange1h: tokenInfo.metadata?.priceChange1h || 0,
-          priceChange5m: tokenInfo.metadata?.priceChange5m || 0,
-          liquidityUsd: tokenInfo.liquidity?.usd || 0,
-          marketCap: tokenInfo.metadata?.marketCap || 0,
-          fdv: tokenInfo.metadata?.marketCap || 0,
-          txns24h: tokenInfo.metadata?.txns5m ? tokenInfo.metadata.txns5m * 288 : 0, // Estimate 24h
-          txns1h: tokenInfo.metadata?.txns5m ? tokenInfo.metadata.txns5m * 12 : 0, // Estimate 1h
-          txns5m: tokenInfo.metadata?.txns5m || 0,
-          pairAddress: tokenInfo.mint,
-          dexId: tokenInfo.metadata?.dexId || tokenInfo.source || 'unknown',
-          pairCreatedAt: tokenInfo.createdAt,
-          detected: true,
-          detectedAt: Date.now(),
-          trendingScore: tokenInfo.metadata?.trendingScore || 0
+  private getDetectionConfig(): Partial<DetectionConfig> {
+    switch (this.mode) {
+      case 'rapid':
+        return {
+          enabledSources: ['websocket', 'dexscreener', 'pump'],
+          scanInterval: 3000,
+          maxConcurrentRequests: 5,
+          rateLimitDelay: 200
         };
-        
-        this.priceTracker.addToken(realTokenInfo);
-      }
+      
+      case 'real':
+        return {
+          enabledSources: ['websocket', 'dexscreener'],
+          scanInterval: 15000,
+          maxConcurrentRequests: 2,
+          rateLimitDelay: 1000
+        };
+      
+      case 'analysis':
+        return {
+          enabledSources: ['dexscreener'],
+          scanInterval: 30000,
+          maxConcurrentRequests: 1,
+          rateLimitDelay: 2000
+        };
+      
+      default: // unified
+        return {
+          enabledSources: ['websocket', 'dexscreener', 'scanning', 'pump'],
+          scanInterval: 5000,
+          maxConcurrentRequests: 3,
+          rateLimitDelay: 300
+        };
+    }
+  }
 
-    } catch (error) {
-      console.error('❌ Error during token analysis:', error);
-      logger.error('Token analysis failed', {
-        mint: tokenInfo.mint,
-        error: error instanceof Error ? error.message : String(error)
+  private getSimulationConfig(): Partial<SimulationConfig> {
+    switch (this.mode) {
+      case 'rapid':
+        return {
+          mode: 'DRY_RUN',
+          maxPositions: 1000,
+          baseInvestment: 0.001,
+          startingBalance: 5,
+          maxAnalysisAge: 1800000, // 30 minutes
+          minConfidenceScore: 1,
+          takeProfitPercent: 50
+        };
+      
+      case 'real':
+        return {
+          mode: 'DRY_RUN',
+          maxPositions: 200,
+          baseInvestment: 0.005,
+          startingBalance: 20,
+          maxAnalysisAge: 1800000, // 30 minutes
+          minConfidenceScore: 10,
+          takeProfitPercent: 100
+        };
+      
+      case 'analysis':
+        return {
+          mode: 'ANALYSIS',
+          maxPositions: 50,
+          baseInvestment: 0.01,
+          startingBalance: 50,
+          maxAnalysisAge: 7200000, // 2 hours
+          minConfidenceScore: 30,
+          takeProfitPercent: 200
+        };
+      
+      default: // unified
+        return {
+          mode: 'DRY_RUN',
+          maxPositions: 500,
+          baseInvestment: 0.003,
+          startingBalance: 10,
+          maxAnalysisAge: 3600000, // 1 hour
+          minConfidenceScore: 5,
+          takeProfitPercent: 100
+        };
+    }
+  }
+
+  private setupEventHandlers(): void {
+    // Token detection events
+    this.detector.on('tokenDetected', (tokens: UnifiedTokenInfo[]) => {
+      this.handleTokensDetected(tokens);
+    });
+
+    this.detector.on('detectionResult', (result: any) => {
+      logger.debug('Detection result:', result);
+    });
+
+    // Simulation events
+    this.simulationEngine.on('positionOpened', (position: any) => {
+      logger.info(`📈 Position opened: ${position.token.symbol}`);
+    });
+
+    this.simulationEngine.on('positionClosed', (position: any) => {
+      logger.info(`📉 Position closed: ${position.token.symbol} (${position.pnlPercent?.toFixed(2)}%)`);
+    });
+
+    this.simulationEngine.on('portfolioUpdated', (portfolio: any) => {
+      logger.verbose('Portfolio updated:', {
+        totalValue: portfolio.totalValue,
+        activePositions: portfolio.activePositions,
+        totalPnL: portfolio.totalPnL
       });
+    });
+
+    // Error handling
+    this.detector.on('error', (error: Error) => {
+      logger.error('Detector error:', error);
+    });
+
+    this.simulationEngine.on('error', (error: Error) => {
+      logger.error('Simulation error:', error);
+    });
+  }
+
+  private async handleTokensDetected(tokens: UnifiedTokenInfo[]): Promise<void> {
+    logger.info(`🎯 Detected ${tokens.length} tokens`);
+    
+    // Process each token through simulation engine
+    for (const token of tokens) {
+      try {
+        await this.simulationEngine.processToken(token);
+      } catch (error) {
+        logger.error(`Error processing token ${token.symbol}:`, error);
+      }
     }
   }
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('⚠️ Analyzer is already running');
+      logger.warn('Application already running');
       return;
     }
 
     try {
-      console.log('🚀 Starting Educational Token Analyzer...');
+      logger.info(`🚀 Starting Token Analyzer in ${this.mode.toUpperCase()} mode`);
       
-      // Clean logs on startup with more aggressive cleanup
-      await this.logCleaner.cleanLogs(true);
-      
-      // Start dashboard first
+      // Start core components
+      await this.detector.start();
+      await this.simulationEngine.start();
       await this.dashboard.start();
       
-      // Start token monitoring
-      await this.tokenMonitor.start();
-      
-      // Start price update simulation
-      this.startPriceUpdateSimulation();
-      
       this.isRunning = true;
+      logger.info('✅ Token Analyzer started successfully');
       
-      logger.info('Educational Token Analyzer started successfully', {
-        mode: 'DRY_RUN',
-        educational: true
-      });
+      // Log initial status
+      this.logStatus();
       
-      console.log('✅ Educational Token Analyzer is running');
-      console.log('📊 Dashboard: http://localhost:3000');
-      console.log('🎓 This is an educational simulation - no real trading occurs');
-      
-      // Generate some demo activity
-      this.startDemoMode();
+      // Set up periodic status logging
+      setInterval(() => {
+        this.logStatus();
+      }, 60000); // Every minute
       
     } catch (error) {
-      console.error('❌ Failed to start analyzer:', error);
-      this.isRunning = false;
+      logger.error('❌ Failed to start Token Analyzer:', error);
       throw error;
     }
-  }
-
-  private startPriceUpdateSimulation(): void {
-    // Simulate realistic price updates for tracked tokens
-    setInterval(() => {
-      if (!this.isRunning) return;
-      
-      const trackedTokens = this.priceTracker.getTrackedTokens();
-      trackedTokens.forEach(token => {
-        // Simulate price change (±0.1% to ±5% per update)
-        const changePercent = (Math.random() - 0.5) * 10; // -5% to +5%
-        const newPrice = token.currentPrice * (1 + changePercent / 100);
-        
-        // Update price with realistic bounds
-        const minPrice = token.initialPrice * 0.1; // Don't go below 10% of initial
-        const maxPrice = token.initialPrice * 50; // Don't go above 5000% of initial
-        const boundedPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
-        
-        // Emit price update event
-        this.priceTracker.emit('priceUpdate', {
-          address: token.address,
-          symbol: token.symbol,
-          oldPrice: token.currentPrice,
-          newPrice: boundedPrice,
-          change: changePercent,
-          timestamp: Date.now()
-        });
-      });
-    }, 5000); // Update every 5 seconds
-  }
-
-  private startDemoMode(): void {
-    // Generate demo token detections for educational purposes with realistic price data
-    console.log('🎮 Starting demo mode - generating simulated token detections with realistic prices');
-    
-    let demoCounter = 1;
-    const demoInterval = setInterval(() => {
-      if (!this.isRunning) {
-        clearInterval(demoInterval);
-        return;
-      }
-
-      // Create demo token with realistic pricing
-      const basePrice = Math.random() * 0.001 + 0.0001; // $0.0001 to $0.0011
-      const priceChange24h = (Math.random() - 0.5) * 200; // -100% to +100%
-      const priceChange1h = (Math.random() - 0.5) * 50; // -25% to +25%
-      const priceChange5m = (Math.random() - 0.5) * 20; // -10% to +10%
-      
-      const demoToken: TokenInfo = {
-        mint: `DEMO_${Date.now()}_${demoCounter}`,
-        symbol: `DEMO${demoCounter}`,
-        name: `Demo Token ${demoCounter}`,
-        decimals: 9,
-        supply: '1000000000',
-        signature: `demo_sig_${demoCounter}`,
-        timestamp: Date.now(),
-        source: 'demo',
-        createdAt: Date.now() - Math.random() * 1800000, // 0-30 minutes ago
-        metadata: {
-          demo: true,
-          educational: true,
-          price: basePrice,
-          priceChange24h: priceChange24h,
-          priceChange1h: priceChange1h,
-          priceChange5m: priceChange5m,
-          volume24h: Math.random() * 50000 + 1000, // $1k-$51k
-          marketCap: Math.random() * 1000000 + 10000, // $10k-$1M
-          txns5m: Math.floor(Math.random() * 20) + 1, // 1-20 txns
-          trendingScore: Math.floor(Math.random() * 100),
-          dexId: ['raydium', 'orca', 'pumpfun', 'jupiter'][Math.floor(Math.random() * 4)]
-        },
-        liquidity: {
-          sol: Math.random() * 20 + 5, // 5-25 SOL
-          usd: Math.random() * 5000 + 1000  // $1k-$6k
-        }
-      };
-
-      console.log(`🎯 Demo token detected: ${demoToken.symbol} ($${basePrice.toFixed(8)})`);
-      this.tokenMonitor.emit('tokenDetected', demoToken);
-      
-      demoCounter++;
-    }, 8000); // New demo token every 8 seconds for more activity
   }
 
   async stop(): Promise<void> {
@@ -309,124 +223,112 @@ class EducationalTokenAnalyzer {
       return;
     }
 
-    this.isRunning = false;
+    logger.info('🛑 Stopping Token Analyzer...');
     
     try {
-      console.log('🛑 Stopping token monitor...');
-      await this.tokenMonitor.stop();
-      
-      console.log('🛑 Stopping tracking services...');
-      this.priceTracker.stop();
-      this.migrationMonitor.stop();
-      this.kpiTracker.stop();
-      
-      console.log('🛑 Stopping dashboard...');
+      await this.detector.stop();
+      await this.simulationEngine.stop();
       await this.dashboard.stop();
       
-      logger.info('Educational Token Analyzer stopped');
-      console.log('✅ Educational Token Analyzer stopped successfully');
+      this.isRunning = false;
+      logger.info('🛑 Token Analyzer stopped successfully');
       
     } catch (error) {
-      console.error('❌ Error during shutdown:', error);
+      logger.error('❌ Error stopping Token Analyzer:', error);
       throw error;
     }
   }
 
-  private trackFoundToken(tokenInfo: TokenInfo): void {
-    const foundToken = {
-      id: tokenInfo.mint,
-      name: tokenInfo.name || `Token ${tokenInfo.mint.slice(0, 8)}`,
-      symbol: tokenInfo.symbol || 'UNK',
-      price: tokenInfo.metadata?.price || 0,
-      age: Math.floor((Date.now() - tokenInfo.createdAt) / 1000),
-      liquidity: tokenInfo.liquidity?.usd || 0,
-      volume24h: tokenInfo.metadata?.volume24h || 0,
-      priceChange5m: tokenInfo.metadata?.priceChange5m || 0,
-      trendingScore: tokenInfo.metadata?.trendingScore || 0,
-      dexId: tokenInfo.metadata?.dexId || tokenInfo.source || 'unknown',
-      foundAt: Date.now(),
-      isPump: tokenInfo.source === 'pump_detector',
-      source: tokenInfo.source
-    };
+  private logStatus(): void {
+    const detectorStatus = this.detector.getStatus();
+    const simulationStatus = this.simulationEngine.getStatus();
+    const portfolio = this.simulationEngine.getPortfolio();
     
-    this.foundTokens.set(tokenInfo.mint, foundToken);
-    
-    // Keep only last 50 found tokens
-    if (this.foundTokens.size > 50) {
-      const oldestKey = Array.from(this.foundTokens.keys())[0];
-      this.foundTokens.delete(oldestKey);
-    }
+    logger.info('📊 System Status:', {
+      mode: this.mode,
+      detectedTokens: detectorStatus.detectedTokensCount,
+      activePositions: portfolio.activePositions,
+      totalValue: portfolio.totalValue.toFixed(4),
+      totalPnL: `${portfolio.totalPnLPercent.toFixed(2)}%`,
+      winRate: `${portfolio.winRate.toFixed(1)}%`
+    });
   }
 
-  private trackAnalyzedToken(tokenInfo: TokenInfo, securityAnalysis: any): void {
-    const analyzedToken = {
-      id: tokenInfo.mint,
-      name: tokenInfo.name || `Token ${tokenInfo.mint.slice(0, 8)}`,
-      symbol: tokenInfo.symbol || 'UNK',
-      price: tokenInfo.metadata?.price || 0,
-      age: Math.floor((Date.now() - tokenInfo.createdAt) / 1000),
-      liquidity: tokenInfo.liquidity?.usd || 0,
-      volume24h: tokenInfo.metadata?.volume24h || 0,
-      priceChange5m: tokenInfo.metadata?.priceChange5m || 0,
-      trendingScore: tokenInfo.metadata?.trendingScore || 0,
-      dexId: tokenInfo.metadata?.dexId || tokenInfo.source || 'unknown',
-      securityScore: securityAnalysis.score,
-      action: securityAnalysis.overall ? 'BUY' : 'SKIP',
-      analyzedAt: Date.now(),
-      source: tokenInfo.source
-    };
-    
-    this.analyzedTokens.set(tokenInfo.mint, analyzedToken);
-    
-    // Keep only last 50 analyzed tokens
-    if (this.analyzedTokens.size > 50) {
-      const oldestKey = Array.from(this.analyzedTokens.keys())[0];
-      this.analyzedTokens.delete(oldestKey);
-    }
-  }
-
-  getFoundTokens(): any[] {
-    return Array.from(this.foundTokens.values()).sort((a, b) => b.foundAt - a.foundAt);
-  }
-
-  getAnalyzedTokens(): any[] {
-    return Array.from(this.analyzedTokens.values()).sort((a, b) => b.analyzedAt - a.analyzedAt);
-  }
-
-  getStats() {
+  getStatus(): any {
     return {
       isRunning: this.isRunning,
-      portfolio: this.dryRunEngine.getPortfolioStats(),
-      activePositions: this.dryRunEngine.getActivePositions().length,
-      totalTrades: this.dryRunEngine.getRecentTrades(1000).length,
-      tokens: {
-        found: this.foundTokens.size,
-        analyzed: this.analyzedTokens.size
-      }
+      mode: this.mode,
+      detector: this.detector.getStatus(),
+      simulation: this.simulationEngine.getStatus(),
+      portfolio: this.simulationEngine.getPortfolio()
     };
   }
 }
 
-// Main execution
-async function main() {
+/**
+ * Application factory function
+ * Creates the appropriate app instance based on command line arguments or environment
+ */
+export function createApp(): TokenAnalyzerApp {
+  // Determine mode from command line args or environment
+  const args = process.argv.slice(2);
+  const modeArg = args.find(arg => arg.startsWith('--mode='));
+  const mode = modeArg ? modeArg.split('=')[1] as any : 'unified';
+  
+  return new TokenAnalyzerApp(mode);
+}
+
+/**
+ * Main execution function
+ * Handles graceful shutdown and error recovery
+ */
+export async function main(): Promise<void> {
+  const app = createApp();
+  
+  // Graceful shutdown handling
+  const shutdown = async (signal: string) => {
+    logger.info(`🛑 Received ${signal}, shutting down gracefully...`);
+    
+    try {
+      await app.stop();
+      process.exit(0);
+    } catch (error) {
+      logger.error('❌ Error during shutdown:', error);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGQUIT', () => shutdown('SIGQUIT'));
+
+  // Handle uncaught errors
+  process.on('uncaughtException', (error) => {
+    logger.error('💥 Uncaught Exception:', error);
+    shutdown('UNCAUGHT_EXCEPTION');
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+    shutdown('UNHANDLED_REJECTION');
+  });
+
   try {
-    const analyzer = new EducationalTokenAnalyzer();
-    await analyzer.start();
+    await app.start();
     
     // Keep the process running
-    process.on('SIGINT', () => {
-      analyzer.stop().then(() => process.exit(0));
-    });
+    process.stdin.resume();
     
   } catch (error) {
-    console.error('❌ Failed to start Educational Token Analyzer:', error);
+    logger.error('💥 Failed to start application:', error);
     process.exit(1);
   }
 }
 
-// Only run if this file is executed directly
+// Auto-start if this file is executed directly
 if (require.main === module) {
-  main();
+  main().catch(error => {
+    console.error('💥 Fatal error:', error);
+    process.exit(1);
+  });
 }
-
-export { EducationalTokenAnalyzer };

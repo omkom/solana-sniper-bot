@@ -1,4 +1,11 @@
-export interface TokenInfo {
+// Legacy type definitions - use unified.ts for new code
+// This file maintained for backward compatibility only
+
+// Re-export from unified types
+export * from './unified';
+
+// Legacy TokenInfo interface for backward compatibility
+export interface LegacyTokenInfo {
   mint: string;
   symbol?: string;
   name?: string;
@@ -17,6 +24,9 @@ export interface TokenInfo {
     poolAddress?: string;
   };
 }
+
+// Alias for backward compatibility
+export type TokenInfo = import('./unified').UnifiedTokenInfo;
 
 export interface SecurityCheck {
   name: string;
