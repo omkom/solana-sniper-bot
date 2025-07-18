@@ -190,7 +190,7 @@ export class ApiGateway extends EventEmitter {
     return this.queueRequest(async () => {
       const primaryResult = await this.attemptRequest<T>(endpointName, path, options);
       
-      if (primaryResult.success) {
+      if (primaryResult.success && primaryResult.data !== undefined) {
         return primaryResult.data;
       }
 
@@ -201,7 +201,7 @@ export class ApiGateway extends EventEmitter {
           
           const fallbackResult = await this.attemptRequest<T>(fallbackName, path, options);
           
-          if (fallbackResult.success) {
+          if (fallbackResult.success && fallbackResult.data !== undefined) {
             return fallbackResult.data;
           }
           
@@ -210,6 +210,13 @@ export class ApiGateway extends EventEmitter {
         }
       }
 
+      // Log detailed error information for debugging
+      logger.debug('All endpoints failed for request', {
+        path,
+        attemptedEndpoints: fallbackEndpoints.length + 1,
+        lastError: 'Multiple endpoint failures'
+      });
+      
       throw new Error(`All endpoints failed for ${path}`);
     });
   }

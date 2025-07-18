@@ -1101,7 +1101,7 @@
                 const ageText = formatDuration(Math.floor(ageMs / 1000));
                 
                 const pumpBadge = token.isPump ? ' 🚨' : '';
-                const priceText = token.price > 0 ? '$' + token.price.toFixed(8) : '-';
+                const priceText = formatPrice(token.price);
                 
                 // Format liquidity
                 const liquidityText = token.liquidity > 0 ? formatCurrency(token.liquidity) : '-';
@@ -1150,7 +1150,7 @@
                 const ageText = formatDuration(Math.floor(ageMs / 1000));
                 
                 const pumpBadge = token.isPump ? ' 🚨' : '';
-                const priceText = token.price > 0 ? '$' + token.price.toFixed(8) : '-';
+                const priceText = formatPrice(token.price);
                 const scoreColor = token.securityScore >= 70 ? '#00ff88' : token.securityScore >= 50 ? '#ffaa00' : '#ff0066';
                 const actionColor = getActionColor(token.action);
                 
@@ -1199,6 +1199,27 @@
             if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1) + 'M';
             if (amount >= 1000) return '$' + (amount / 1000).toFixed(1) + 'K';
             return '$' + (amount || 0).toFixed(0);
+        }
+
+        function formatPrice(price) {
+            if (!price || price <= 0) return '-';
+            
+            // For very small prices (less than 0.001), use scientific notation
+            if (price < 0.000001) {
+                return '$' + price.toExponential(2);
+            }
+            // For small prices (less than 0.01), show 6 decimal places
+            else if (price < 0.01) {
+                return '$' + price.toFixed(6);
+            }
+            // For medium prices (less than 1), show 4 decimal places
+            else if (price < 1) {
+                return '$' + price.toFixed(4);
+            }
+            // For larger prices, show 2 decimal places
+            else {
+                return '$' + price.toFixed(2);
+            }
         }
 
         function getActionColor(action) {
@@ -1546,11 +1567,7 @@
                     const row = document.createElement('tr');
                     
                     // Format liquidity
-                    const formatCurrency = (amount) => {
-                        if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1) + 'M';
-                        if (amount >= 1000) return '$' + (amount / 1000).toFixed(1) + 'K';
-                        return '$' + (amount || 0).toFixed(0);
-                    };
+                    // Using global formatCurrency function
                     
                     // Mock security score (would come from analysis)
                     const securityScore = Math.floor(Math.random() * 50) + 50; // 50-100
@@ -1558,7 +1575,7 @@
                     
                     row.innerHTML = `
                         <td style="padding: 0.5rem; font-weight: bold;">${token.symbol}</td>
-                        <td style="padding: 0.5rem; text-align: right;">$${token.price ? token.price.toFixed(6) : '0.000000'}</td>
+                        <td style="padding: 0.5rem; text-align: right;">${formatPrice(token.price)}</td>
                         <td style="padding: 0.5rem; text-align: right; color: ${securityColor};">${securityScore}/100</td>
                         <td style="padding: 0.5rem; text-align: right;">${formatCurrency(token.liquidity)}</td>
                         <td style="padding: 0.5rem; text-align: right;">${token.age}s</td>
@@ -1782,11 +1799,7 @@
                 const ageText = age < 60 ? age + 'm' : Math.floor(age / 60) + 'h';
                 
                 // Format volume and liquidity
-                const formatCurrency = (amount) => {
-                    if (amount >= 1000000) return '$' + (amount / 1000000).toFixed(1) + 'M';
-                    if (amount >= 1000) return '$' + (amount / 1000).toFixed(1) + 'K';
-                    return '$' + amount.toFixed(0);
-                };
+                // Using global formatCurrency function
                 
                 const volume = formatCurrency(token.volume24h || 0);
                 const liquidity = formatCurrency(token.liquidityUsd || 0);
@@ -1813,7 +1826,7 @@
                 
                 row.innerHTML = `
                     <td><strong>${token.symbol}</strong><br><small style="color: #666;">${token.address ? token.address.slice(0, 6) + '...' + token.address.slice(-4) : 'N/A'}</small></td>
-                    <td style="color: #fff;">$${(token.currentPrice || 0).toFixed(6)}</td>
+                    <td style="color: #fff;">${formatPrice(token.currentPrice)}</td>
                     <td class="${changeClass}">${changeText}</td>
                     <td>${volume}</td>
                     <td>${liquidity}</td>

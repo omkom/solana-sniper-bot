@@ -132,9 +132,9 @@ export class EnhancedPriceTracker extends EventEmitter {
   private connectionManager: ConnectionManager;
   private connection: Connection;
   
-  private updateInterval: NodeJS.Timer | null = null;
-  private swapCheckInterval: NodeJS.Timer | null = null;
-  private alertCheckInterval: NodeJS.Timer | null = null;
+  private updateInterval: NodeJS.Timeout | null = null;
+  private swapCheckInterval: NodeJS.Timeout | null = null;
+  private alertCheckInterval: NodeJS.Timeout | null = null;
   
   private isUpdateLoopRunning = false;
   private isSwapCheckRunning = false;

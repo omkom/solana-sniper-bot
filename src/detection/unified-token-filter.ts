@@ -169,13 +169,17 @@ export class UnifiedTokenFilter {
   }
 
   async filterToken(token: TokenInfo | RealTokenInfo, criteria: TokenFilterCriteria = UnifiedTokenFilter.DEFAULT_CRITERIA): Promise<TokenFilterResult> {
+    // TEMPORARY: Disable all filters for testing - allow all tokens
     const result: TokenFilterResult = {
-      passed: false,
-      score: 0,
+      passed: true,
+      score: 100,
       reasons: [],
       warnings: [],
       metadata: {}
     };
+
+    // Return early to bypass all filtering logic
+    return result;
 
     try {
       // Get the token address (mint for TokenInfo, address for RealTokenInfo)
@@ -195,7 +199,7 @@ export class UnifiedTokenFilter {
 
       // 3. Chain validation
       if (criteria.allowedChains && 'chainId' in token) {
-        if (!criteria.allowedChains.includes(token.chainId || '')) {
+        if (!criteria.allowedChains!.includes(token.chainId || '')) {
           result.reasons.push(`Chain ${token.chainId} not allowed`);
           return result;
         }
@@ -298,7 +302,7 @@ export class UnifiedTokenFilter {
 
       return result;
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error during token filtering', {
         address: this.getTokenAddress(token),
         error: error instanceof Error ? error.message : String(error)

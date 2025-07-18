@@ -247,7 +247,7 @@ export class EnhancedDashboard {
 
     // KPI Tracking API
     this.app.get('/api/kpi/metrics', (req, res) => {
-      const metrics = this.kpiTracker?.getMetrics() || {};
+      const metrics = this.kpiTracker?.getAllMetrics() || {};
       res.json(metrics);
     });
 
@@ -463,13 +463,13 @@ export class EnhancedDashboard {
         detected: this.enhancedTokenDetection?.getRecentTokens(10) || [],
         tracking: this.enhancedPriceTracker?.getTrackedTokens().slice(0, 10) || [],
         alerts: this.getAllActiveAlerts().slice(0, 10)
-      },
+      } as any,
       portfolio: this.getPortfolioData(),
       system: {
         status: 'healthy',
         uptime: process.uptime(),
         connections: this.connectedClients.size,
-        performance: this.getPerformanceMetrics()
+        performance: this.getPerformanceAnalytics()
       },
       analytics: this.getAnalyticsData()
     };
@@ -582,10 +582,10 @@ export class EnhancedDashboard {
         tokenDetection: this.enhancedTokenDetection?.getStats(),
         blockchainAnalyzer: this.blockchainAnalyzer?.getStats(),
         migrationMonitor: this.migrationMonitor?.getStats(),
-        kpiTracker: this.kpiTracker?.getMetrics(),
+        kpiTracker: this.kpiTracker?.getAllMetrics(),
         apiGateway: getApiGateway().getStats()
       },
-      performance: this.getPerformanceMetrics()
+      performance: this.getPerformanceAnalytics()
     };
   }
 
@@ -627,7 +627,7 @@ export class EnhancedDashboard {
     
     return {
       totalTrades: trades.length,
-      successfulTrades: trades.filter(t => t.type === 'SELL' && t.roi > 0).length,
+      successfulTrades: trades.filter(t => t.type === 'SELL' && (t.roi || 0) > 0).length,
       avgHoldTime: this.calculateAverageHoldTime(trades),
       avgROI: this.calculateAverageROI(trades),
       volumeByHour: this.calculateVolumeByHour(trades),
@@ -702,7 +702,7 @@ export class EnhancedDashboard {
     for (const position of positions) {
       const token = this.enhancedPriceTracker?.getTrackedToken(position.mint);
       if (token) {
-        totalRisk += token.riskMetrics.overallRisk * position.amount;
+        totalRisk += token.riskMetrics.overallRisk * position.simulatedInvestment;
       }
     }
     
@@ -781,7 +781,8 @@ export class EnhancedDashboard {
     
     for (const token of tokens) {
       if (token.riskMetrics) {
-        distribution[token.riskMetrics.riskLevel]++;
+        const level = token.riskMetrics.riskLevel as keyof typeof distribution;
+        distribution[level]++;
       }
     }
     
@@ -811,8 +812,8 @@ export class EnhancedDashboard {
       for (const token2 of tokens) {
         if (token1.mint !== token2.mint) {
           const correlation = this.calculatePearsonCorrelation(
-            token1.priceHistory.map(p => p.price),
-            token2.priceHistory.map(p => p.price)
+            token1.priceHistory.map((p: any) => p.price),
+            token2.priceHistory.map((p: any) => p.price)
           );
           token1Correlations.set(token2.mint, correlation);
         }
@@ -859,7 +860,7 @@ export class EnhancedDashboard {
     const sellTrades = trades.filter(t => t.type === 'SELL');
     if (sellTrades.length === 0) return 0;
     
-    const winners = sellTrades.filter(t => t.roi > 0).length;
+    const winners = sellTrades.filter(t => (t.roi || 0) > 0).length;
     return (winners / sellTrades.length) * 100;
   }
 
@@ -867,8 +868,8 @@ export class EnhancedDashboard {
     const trades = this.simulationEngine.getRecentTrades(1000);
     const sellTrades = trades.filter(t => t.type === 'SELL');
     
-    const grossProfit = sellTrades.filter(t => t.roi > 0).reduce((sum, t) => sum + t.roi, 0);
-    const grossLoss = Math.abs(sellTrades.filter(t => t.roi < 0).reduce((sum, t) => sum + t.roi, 0));
+    const grossProfit = sellTrades.filter(t => (t.roi || 0) > 0).reduce((sum, t) => sum + (t.roi || 0), 0);
+    const grossLoss = Math.abs(sellTrades.filter(t => (t.roi || 0) < 0).reduce((sum, t) => sum + (t.roi || 0), 0));
     
     return grossLoss === 0 ? grossProfit : grossProfit / grossLoss;
   }
@@ -912,7 +913,7 @@ export class EnhancedDashboard {
       return;
     }
 
-    const port = this.config.dashboardPort || 3000;
+    const port = this.config.getDashboardPort() || 3000;
     
     return new Promise((resolve, reject) => {
       try {

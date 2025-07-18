@@ -306,9 +306,12 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
 
       const validatedTokens = [];
       for (const token of tokens) {
-        const marketData = await this.dexScreenerClient.getTokenByAddress(token.mint);
-        if (marketData) {
-          validatedTokens.push({ token, marketData });
+        const tokenAddress = token.mint || token.address;
+        if (tokenAddress) {
+          const marketData = await this.dexScreenerClient.getTokenByAddress(tokenAddress);
+          if (marketData) {
+            validatedTokens.push({ token, marketData });
+          }
         }
       }
 
@@ -370,13 +373,13 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
 
       case 'enhanced_extractor':
         if (Array.isArray(result.data)) {
-          tokens.push(...result.data.map(t => this.convertTokenInfoToUnified(t)));
+          tokens.push(...result.data.map((t: TokenInfo) => this.convertTokenInfoToUnified(t)));
         }
         break;
 
       case 'solscan':
         if (result.data?.newTokens) {
-          tokens.push(...result.data.newTokens.map(t => this.convertSolscanTokenToUnified(t)));
+          tokens.push(...result.data.newTokens.map((t: any) => this.convertSolscanTokenToUnified(t)));
         }
         break;
 
@@ -405,7 +408,11 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
       detectedAt: Date.now(),
       timestamp: Date.now(),
       source: 'rpc_parser',
-      liquidity: parsed.liquidity?.usd || 0,
+      liquidity: {
+        usd: parsed.liquidity?.usd || 0,
+        sol: parsed.liquidity?.sol,
+        poolAddress: parsed.liquidity?.poolAddress
+      },
       metadata: {
         ...parsed.metadata,
         detectionMethod: 'rpc_parser'
@@ -415,7 +422,7 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
 
   private convertTokenInfoToUnified(token: TokenInfo): UnifiedTokenInfo {
     return {
-      address: token.mint,
+      address: token.mint || token.address,
       mint: token.mint,
       name: token.name || 'Unknown Token',
       symbol: token.symbol || 'UNKNOWN',
@@ -425,7 +432,11 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
       detectedAt: Date.now(),
       timestamp: Date.now(),
       source: 'enhanced_extractor',
-      liquidity: token.liquidity?.usd || 0,
+      liquidity: {
+        usd: token.liquidity?.usd || 0,
+        sol: token.liquidity?.sol,
+        poolAddress: token.liquidity?.poolAddress
+      },
       metadata: {
         ...token.metadata,
         detectionMethod: 'enhanced_extractor'
@@ -445,7 +456,11 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
       detectedAt: Date.now(),
       timestamp: Date.now(),
       source: 'solscan',
-      liquidity: 0,
+      liquidity: {
+        usd: 0,
+        sol: undefined,
+        poolAddress: undefined
+      },
       metadata: {
         balanceChange: solscanToken.balance_change,
         preBalance: solscanToken.pre_balance,
@@ -468,7 +483,11 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
       detectedAt: Date.now(),
       timestamp: Date.now(),
       source: 'dexscreener',
-      liquidity: marketData.liquidityUsd || 0,
+      liquidity: {
+        usd: marketData.liquidityUsd || 0,
+        sol: marketData.liquiditySol,
+        poolAddress: marketData.pairAddress
+      },
       metadata: {
         priceUsd: marketData.priceUsd,
         volume24h: marketData.volume24h,
@@ -491,7 +510,13 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
     };
 
     // Update liquidity if new source has better data
-    if (newToken.liquidity > existing.liquidity) {
+    if (newToken.liquidity && existing.liquidity) {
+      const newLiquidityUsd = newToken.liquidity.usd || 0;
+      const existingLiquidityUsd = existing.liquidity.usd || 0;
+      if (newLiquidityUsd > existingLiquidityUsd) {
+        existing.liquidity = newToken.liquidity;
+      }
+    } else if (newToken.liquidity && !existing.liquidity) {
       existing.liquidity = newToken.liquidity;
     }
 
@@ -529,8 +554,21 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
           };
           
           // Update liquidity with latest data
-          if (marketData.liquidityUsd > token.liquidity) {
-            token.liquidity = marketData.liquidityUsd;
+          if (marketData.liquidityUsd && token.liquidity) {
+            const currentLiquidityUsd = token.liquidity.usd || 0;
+            if (marketData.liquidityUsd > currentLiquidityUsd) {
+              token.liquidity = {
+                usd: marketData.liquidityUsd,
+                sol: marketData.liquidity,
+                poolAddress: marketData.pairAddress
+              };
+            }
+          } else if (marketData.liquidityUsd && !token.liquidity) {
+            token.liquidity = {
+              usd: marketData.liquidityUsd,
+              sol: marketData.liquidity,
+              poolAddress: marketData.pairAddress
+            };
           }
         }
 
@@ -574,7 +612,7 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
       if (result.success && result.data) {
         // Extract programs from different sources
         if (result.source === 'solscan' && result.data.programsInvolved) {
-          result.data.programsInvolved.forEach(p => programsInvolved.add(p));
+          result.data.programsInvolved.forEach((p: string) => programsInvolved.add(p));
           solMovement = Math.max(solMovement, result.data.liquidityInfo?.totalSolMovement || 0);
           tokenChanges = Math.max(tokenChanges, result.data.newTokens?.length || 0);
           liquidityEstimate = Math.max(liquidityEstimate, result.data.liquidityInfo?.estimatedLiquidityUsd || 0);

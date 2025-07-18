@@ -413,10 +413,11 @@ export class EnhancedTokenDetection extends EventEmitter {
     }
 
     // Liquidity-based confidence
-    if (token.liquidity >= 50000) {
+    const liquidityUsd = token.liquidity?.usd || 0;
+    if (liquidityUsd >= 50000) {
       confidence += 10;
       signals.push('high_liquidity');
-    } else if (token.liquidity >= 10000) {
+    } else if (liquidityUsd >= 10000) {
       confidence += 5;
       signals.push('medium_liquidity');
     }
@@ -483,9 +484,10 @@ export class EnhancedTokenDetection extends EventEmitter {
     let risk = 50; // Base risk
 
     // Liquidity risk
-    if (token.liquidity < 5000) risk += 20;
-    else if (token.liquidity < 20000) risk += 10;
-    else if (token.liquidity > 100000) risk -= 10;
+    const liquidityUsd = token.liquidity?.usd || 0;
+    if (liquidityUsd < 5000) risk += 20;
+    else if (liquidityUsd < 20000) risk += 10;
+    else if (liquidityUsd > 100000) risk -= 10;
 
     // Age risk
     const age = Date.now() - token.detectedAt;
@@ -519,7 +521,8 @@ export class EnhancedTokenDetection extends EventEmitter {
     else if (token.metadata?.volume24h > 50000) opportunity += 10;
 
     // Liquidity opportunity
-    if (token.liquidity > 50000 && token.liquidity < 500000) opportunity += 10;
+    const liquidityUsd = token.liquidity?.usd || 0;
+    if (liquidityUsd > 50000 && liquidityUsd < 500000) opportunity += 10;
 
     // Age opportunity (sweet spot)
     const age = Date.now() - token.detectedAt;
@@ -558,8 +561,9 @@ export class EnhancedTokenDetection extends EventEmitter {
     if (token.metadata?.pairAddress) market += 5;
 
     // Liquidity distribution
-    if (token.liquidity > 100000) market += 15;
-    else if (token.liquidity > 50000) market += 10;
+    const liquidityUsd = token.liquidity?.usd || 0;
+    if (liquidityUsd > 100000) market += 15;
+    else if (liquidityUsd > 50000) market += 10;
 
     // Trading activity
     if (token.metadata?.txns24h > 100) market += 10;
@@ -636,7 +640,7 @@ export class EnhancedTokenDetection extends EventEmitter {
       return a.timestamp - b.timestamp;
     });
 
-    const batchSize = Math.min(this.config.batchSize, this.detectionQueue.length);
+    const batchSize = Math.min(this.config.batchSize || 50, this.detectionQueue.length);
     const batch = this.detectionQueue.splice(0, batchSize);
 
     for (const item of batch) {
