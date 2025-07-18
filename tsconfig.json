@@ -12,7 +12,9 @@
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "declaration": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "downlevelIteration": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests"]

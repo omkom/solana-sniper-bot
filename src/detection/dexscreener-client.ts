@@ -1,35 +1,23 @@
-import axios from 'axios';
 import { logger } from '../monitoring/logger';
 import { DexScreenerResponse, DexScreenerPair, RealTokenInfo } from '../types/dexscreener';
 import { UnifiedTokenFilter, TokenFilterCriteria } from './unified-token-filter';
 import { ConnectionManager } from '../core/connection';
+import { getApiGateway } from '../core/api-gateway';
 
 export class DexScreenerClient {
-  private baseUrl = 'https://api.dexscreener.com';
-  private lastRequestTime = 0;
-  private rateLimitDelay = 2000; // 2 seconds between requests to avoid rate limits
   private cache = new Map<string, { data: any; timestamp: number }>();
   private cacheTimeout = 60000; // 60 seconds cache to reduce API calls
   private tokenFilter: UnifiedTokenFilter;
   private connectionManager: ConnectionManager;
+  private apiGateway = getApiGateway();
 
   constructor() {
     this.connectionManager = new ConnectionManager();
     this.tokenFilter = new UnifiedTokenFilter(this.connectionManager.getConnection());
-    console.log('🔗 DexScreener API client initialized with unified token filter');
+    console.log('🔗 DexScreener API client initialized with optimized API gateway');
   }
 
-  private async throttleRequest(): Promise<void> {
-    const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
-    
-    if (timeSinceLastRequest < this.rateLimitDelay) {
-      const delay = this.rateLimitDelay - timeSinceLastRequest;
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-    
-    this.lastRequestTime = Date.now();
-  }
+  // Throttling is now handled by the API gateway
 
   private getCachedData(cacheKey: string): any | null {
     const cached = this.cache.get(cacheKey);
@@ -57,25 +45,20 @@ export class DexScreenerClient {
       return cached;
     }
 
-    await this.throttleRequest();
-
     try {
-      // Use the pairs endpoint for solana chain specifically
-      const url = `${this.baseUrl}/token-profiles/latest/v1`;
+      // Use the optimized API gateway for DexScreener requests
+      const url = '/token-profiles/latest/v1';
       
-      logger.info('Fetching latest Solana trading pairs', { criteria: filterCriteria });
+      logger.info('Fetching latest Solana trading pairs via API gateway', { criteria: filterCriteria });
       
-      const response = await axios.get(url, {
-        timeout: 30000, // Increase timeout to 30 seconds
-        headers: {
-          'User-Agent': 'Educational-Token-Analyzer/1.0'
-        }
+      const response = await this.apiGateway.requestDexScreener(url, {
+        method: 'GET'
       });
 
       let allTokens: RealTokenInfo[] = [];
-      if (response.data && response.data.pairs) {
+      if (response && response.pairs) {
         // Handle DexScreener trading pairs response format
-        const pairs = response.data.pairs;
+        const pairs = response.pairs;
         logger.info(`Trading pairs returned ${pairs.length} pairs`);
         
         if (pairs.length > 0) {
@@ -89,14 +72,6 @@ export class DexScreenerClient {
                liquidity: pair.liquidity?.usd
              }))
            });
-          
-          // Debug: Show all unique chainIds and dexIds - commented out to reduce logs
-          // const uniqueChainIds = [...new Set(pairs.map((p: any) => p.chainId))];
-          // const uniqueDexIds = [...new Set(pairs.map((p: any) => p.dexId))];
-          // logger.info('DexScreener chain and dex IDs found', {
-          //   chainIds: uniqueChainIds,
-          //   dexIds: uniqueDexIds
-          // });
           
           // Convert all pairs to token info first
           const rawTokens = pairs
@@ -112,7 +87,7 @@ export class DexScreenerClient {
           
           allTokens = filteredTokens;
         } else {
-          logger.warn('No pairs found in response', { keys: Object.keys(response.data) });
+          logger.warn('No pairs found in response', { keys: Object.keys(response) });
         }
       }
       
@@ -132,24 +107,12 @@ export class DexScreenerClient {
       return limitedTokens;
 
     } catch (error: any) {
-      // Check if it's a rate limit error (429) and wait longer
-      if (error.response?.status === 429) {
-        logger.warn('Rate limited by DexScreener API, increasing delay');
-        this.rateLimitDelay = Math.min(this.rateLimitDelay * 2, 10000); // Max 10 seconds
-        await new Promise(resolve => setTimeout(resolve, this.rateLimitDelay));
-      } else {
-        // Only log non-timeout errors to reduce noise
-        if (!error.message?.includes('timeout') && 
-            !error.message?.includes('ECONNRESET') && 
-            !error.message?.includes('ENOTFOUND')) {
-          logger.warn('Failed to fetch trending tokens', {
-            error: error instanceof Error ? error.message : String(error),
-            status: error.response?.status
-          });
-        }
-      }
+      // API Gateway handles rate limiting and retries automatically
+      logger.warn('Failed to fetch trending tokens via API gateway', {
+        error: error instanceof Error ? error.message : String(error)
+      });
       
-      // Return empty array if API fails - no demo tokens
+      // Return empty array if API fails
       return [];
     }
   }
@@ -161,26 +124,19 @@ export class DexScreenerClient {
       return cached;
     }
 
-    await this.throttleRequest();
-
     try {
-      const url = `${this.baseUrl}/latest/dex/tokens/${address}`;
+      const url = `/latest/dex/tokens/${address}`;
       
-      logger.verbose('Fetching token details', { address });
+      logger.verbose('Fetching token details via API gateway', { address });
       
-      const response = await axios.get<DexScreenerResponse>(url, {
-        timeout: 30000, // Increase timeout to 30 seconds
-        headers: {
-          'User-Agent': 'Educational-Token-Analyzer/1.0'
-        }
-      });
+      const response = await this.apiGateway.requestDexScreener<DexScreenerResponse>(url);
 
-      if (!response.data || !response.data.pairs || response.data.pairs.length === 0) {
+      if (!response || !response.pairs || response.pairs.length === 0) {
         return null;
       }
 
       // Use the first pair (usually the most liquid)
-      const pair = response.data.pairs[0];
+      const pair = response.pairs[0];
       const tokenInfo = this.convertPairToTokenInfo(pair);
       if (!tokenInfo) {
         logger.warn(`Invalid token address for ${pair.baseToken.symbol}, skipping`);
@@ -395,24 +351,15 @@ export class DexScreenerClient {
       return cached;
     }
 
-    await this.throttleRequest();
-
     try {
-      // Use pairs endpoint for solana chain specifically
-      const url = `${this.baseUrl}/token-boosts/latest/v1`;
+      // Use optimized API gateway for boost requests
+      const url = '/token-boosts/latest/v1';
       
-      // logger.info('Fetching latest Solana trading pairs for boost analysis');
-      
-      const response = await axios.get(url, {
-        timeout: 30000, // Increase timeout to 30 seconds
-        headers: {
-          'User-Agent': 'Educational-Token-Analyzer/1.0'
-        }
-      });
+      const response = await this.apiGateway.requestDexScreener(url);
 
       let boostedTokens: RealTokenInfo[] = [];
-      if (response.data && response.data.length) {
-        const pairs = response.data;
+      if (response && response.length) {
+        const pairs = response;
         logger.info(`Trading pairs returned ${pairs.length} pairs for boost analysis`);
         
         // Convert boost data to tokens (different format than pairs)
@@ -451,10 +398,9 @@ export class DexScreenerClient {
       return boostedTokens;
 
     } catch (error) {
-      // Comment out excessive error logging for API failures
-       logger.error('Failed to fetch latest boosted tokens', {
-         error: error instanceof Error ? error.message : String(error)
-       });
+      logger.warn('Failed to fetch latest boosted tokens via API gateway', {
+        error: error instanceof Error ? error.message : String(error)
+      });
       return [];
     }
   }
@@ -468,25 +414,18 @@ export class DexScreenerClient {
       return cached;
     }
 
-    await this.throttleRequest();
-
     try {
-      // Use pairs endpoint for solana chain specifically
-      const url = `${this.baseUrl}/token-boosts/top/v1`;
+      // Use optimized API gateway for top boost requests
+      const url = '/token-boosts/top/v1';
       
        logger.info('Fetching Solana trading pairs for top activity analysis');
       
-      const response = await axios.get(url, {
-        timeout: 30000, // Increase timeout to 30 seconds
-        headers: {
-          'User-Agent': 'Educational-Token-Analyzer/1.0'
-        }
-      });
+      const response = await this.apiGateway.requestDexScreener(url);
 
       let topBoostedTokens: RealTokenInfo[] = [];
 
-      if (response.data && response.data.pairs) {
-        const pairs = response.data.pairs;
+      if (response && response.pairs) {
+        const pairs = response.pairs;
         logger.info(`Trading pairs returned ${pairs.length} pairs for top activity analysis`);
         
         // Convert and filter for top performing tokens
@@ -528,10 +467,9 @@ export class DexScreenerClient {
       return topBoostedTokens;
 
     } catch (error) {
-      // Comment out excessive error logging for API failures
-       logger.error('Failed to fetch top boosted tokens', {
-         error: error instanceof Error ? error.message : String(error)
-       });
+      logger.warn('Failed to fetch top boosted tokens via API gateway', {
+        error: error instanceof Error ? error.message : String(error)
+      });
       return [];
     }
   }
@@ -568,5 +506,20 @@ export class DexScreenerClient {
   clearCache(): void {
     this.cache.clear();
     logger.info('DexScreener cache cleared');
+  }
+
+  // Get API gateway statistics
+  getApiStats(): any {
+    return this.apiGateway.getStats();
+  }
+
+  // Get client statistics including cache and filter stats
+  getClientStats(): any {
+    return {
+      cacheSize: this.cache.size,
+      cacheTimeout: this.cacheTimeout,
+      apiGatewayStats: this.apiGateway.getStats(),
+      filterStats: this.tokenFilter.getStats()
+    };
   }
 }
