@@ -120,7 +120,7 @@ export class EnhancedUnifiedSystem extends EventEmitter {
     // Analysis components
     if (this.config.enableBlockchainAnalysis) {
       this.blockchainAnalyzer = new BlockchainTransactionAnalyzer({
-        enableSolscanIntegration: true,
+        enableSolscanIntegration: false,
         enableDexScreenerEnhancement: true,
         enableMultiSourceValidation: this.config.enableMultiSourceValidation,
         maxConcurrentAnalysis: this.config.maxConcurrentAnalysis

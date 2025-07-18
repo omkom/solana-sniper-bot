@@ -36,7 +36,22 @@ export const logger = winston.createLogger({
         winston.format.colorize(),
         winston.format.printf(({ timestamp, level, message, ...meta }) => {
           const ts = new Date(timestamp as string).toLocaleTimeString();
-          const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+          let metaStr = '';
+          if (Object.keys(meta).length) {
+            try {
+              metaStr = ` ${JSON.stringify(meta, (key, value) => {
+                if (typeof value === 'object' && value !== null) {
+                  if (value.constructor === Object || Array.isArray(value)) {
+                    return value;
+                  }
+                  return '[Object]';
+                }
+                return value;
+              })}`;
+            } catch (error) {
+              metaStr = ` ${Object.keys(meta).map(key => `${key}=[Object]`).join(', ')}`;
+            }
+          }
           return `[${ts}] ${level}: ${message}${metaStr}`;
         })
       ),

@@ -69,12 +69,12 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
     super();
     
     this.config = {
-      enableSolscanIntegration: true,
+      enableSolscanIntegration: false,
       enableDexScreenerEnhancement: true,
       enableRealTimeMonitoring: true,
       enableMultiSourceValidation: true,
       maxConcurrentAnalysis: 10,
-      analysisTimeout: 30000,
+      analysisTimeout: 10000,
       retryAttempts: 3,
       minLiquidityThreshold: 1000,
       maxTokenAge: 3600000, // 1 hour

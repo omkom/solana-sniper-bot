@@ -279,7 +279,7 @@ export class EnhancedDashboard {
 
     // Default route
     this.app.get('/', (req, res) => {
-      res.sendFile(path.join(__dirname, '../../public/index.html'));
+      res.sendFile(path.join(__dirname, '../../public/dashboard.html'));
     });
   }
 

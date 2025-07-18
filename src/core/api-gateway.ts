@@ -60,8 +60,8 @@ export class ApiGateway extends EventEmitter {
       enableMetrics: true,
       enableHealthChecks: true,
       healthCheckInterval: 60000,
-      maxConcurrentRequests: 10,
-      fallbackDelay: 1000,
+      maxConcurrentRequests: 3,
+      fallbackDelay: 2000,
       ...config
     };
 
@@ -83,7 +83,7 @@ export class ApiGateway extends EventEmitter {
     this.addEndpoint({
       name: 'dexscreener_main',
       baseUrl: 'https://api.dexscreener.com',
-      rateLimit: 300, // 5 requests per second
+      rateLimit: 60, // 1 request per second
       timeout: 30000,
       retryAttempts: 3,
       priority: 5,
@@ -126,7 +126,7 @@ export class ApiGateway extends EventEmitter {
     this.addEndpoint({
       name: 'dexscreener_backup',
       baseUrl: 'https://api.dexscreener.com',
-      rateLimit: 150, // Lower rate limit for backup
+      rateLimit: 30, // Lower rate limit for backup
       timeout: 45000,
       retryAttempts: 2,
       priority: 2,
