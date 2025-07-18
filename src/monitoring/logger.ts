@@ -41,6 +41,19 @@ export const logger = winston.createLogger({
             try {
               metaStr = ` ${JSON.stringify(meta, (key, value) => {
                 if (typeof value === 'object' && value !== null) {
+                  // Skip TCP, Socket, and other network objects
+                  if (value.constructor && (
+                    value.constructor.name === 'TCP' ||
+                    value.constructor.name === 'Socket' ||
+                    value.constructor.name === 'TLSSocket' ||
+                    value.constructor.name === 'ClientRequest' ||
+                    value.constructor.name === 'IncomingMessage' ||
+                    value.constructor.name === 'Agent' ||
+                    value.constructor.name === 'HTTPParser'
+                  )) {
+                    return '[NetworkObject]';
+                  }
+                  // Only allow plain objects and arrays
                   if (value.constructor === Object || Array.isArray(value)) {
                     return value;
                   }
