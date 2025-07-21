@@ -1,7 +1,7 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import { logger } from '../monitoring/logger';
-import { TokenInfo } from '../types';
-import { RealTokenInfo } from '../types/dexscreener';
+import { TokenInfo } from '../types/unified';
+import { RealTokenInfo } from '../types/unified';
 
 export interface TokenFilterCriteria {
   // Security filters
@@ -787,7 +787,7 @@ export class UnifiedTokenFilter {
     if (token.symbol && token.symbol.length < 2) riskScore += 10;
     if (token.name && token.name.length < 3) riskScore += 10;
     if ('liquidityUsd' in token && ((token as RealTokenInfo).liquidityUsd || 0) < 1000) riskScore += 20;
-    if ('volume24h' in token && (token as RealTokenInfo).volume24h < 1000) riskScore += 15;
+    if ('volume24h' in token && (token as RealTokenInfo).volume24h && (token as RealTokenInfo).volume24h! < 1000) riskScore += 15;
 
     // Check against criteria
     if (criteria.maxRiskScore && riskScore > criteria.maxRiskScore) {

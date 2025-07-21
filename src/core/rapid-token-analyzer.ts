@@ -1,16 +1,16 @@
 import { EventEmitter } from 'events';
-import { TokenInfo, SecurityAnalysis } from '../types';
-import { MultiDexMonitor } from '../detection/multi-dex-monitor';
-import { PumpDetector } from '../detection/pump-detector';
-import { RealTokenMonitor } from '../detection/real-token-monitor';
+import { TokenInfo, SecurityAnalysis } from '../types/unified';
+// import { MultiDexMonitor } from '../detection/multi-dex-monitor'; // Removed - file deleted
+// import { PumpDetector } from '../detection/pump-detector'; // Removed - file deleted
+// import { RealTokenMonitor } from '../detection/real-token-monitor'; // Removed - file deleted
 import { SecurityAnalyzer } from '../analysis/security-analyzer';
 import { getDexScreenerTokenService } from './dexscreener-token-service';
-import { EventEmittingSimulationEngine } from '../types/simulation-engine';
+import { EventEmittingSimulationEngine } from '../types/unified';
 
 export class RapidTokenAnalyzer extends EventEmitter {
-  private multiDexMonitor: MultiDexMonitor;
-  private pumpDetector: PumpDetector;
-  private realTokenMonitor: RealTokenMonitor;
+  // private multiDexMonitor: MultiDexMonitor; // Removed - file deleted
+  // private pumpDetector: PumpDetector; // Removed - file deleted
+  // private realTokenMonitor: RealTokenMonitor; // Removed - file deleted
   private securityAnalyzer: SecurityAnalyzer;
   private simulationEngine: EventEmittingSimulationEngine;
   
@@ -30,10 +30,10 @@ export class RapidTokenAnalyzer extends EventEmitter {
     super();
     this.simulationEngine = simulationEngine;
     
-    // Initialize detection systems
-    this.multiDexMonitor = new MultiDexMonitor();
-    this.pumpDetector = new PumpDetector();
-    this.realTokenMonitor = new RealTokenMonitor();
+    // Initialize detection systems - disabled (files deleted)
+    // this.multiDexMonitor = new MultiDexMonitor();
+    // this.pumpDetector = new PumpDetector();
+    // this.realTokenMonitor = new RealTokenMonitor();
     this.securityAnalyzer = new SecurityAnalyzer();
     
     this.setupEventHandlers();
@@ -41,35 +41,35 @@ export class RapidTokenAnalyzer extends EventEmitter {
   }
 
   private setupEventHandlers(): void {
-    // Multi-DEX Monitor events
-    this.multiDexMonitor.on('tokenDetected', (tokenInfo: TokenInfo) => {
-      this.handleTokenDetected(tokenInfo, 'MULTI_DEX');
-    });
+    // Multi-DEX Monitor events - disabled (file deleted)
+    // this.multiDexMonitor.on('tokenDetected', (tokenInfo: TokenInfo) => {
+    //   this.handleTokenDetected(tokenInfo, 'MULTI_DEX');
+    // });
 
-    this.multiDexMonitor.on('error', (error: any) => {
-      this.processingStats.errors++;
-      // console.error('❌ Multi-DEX Monitor error:', error);
-    });
+    // this.multiDexMonitor.on('error', (error: any) => {
+    //   this.processingStats.errors++;
+    //   // console.error('❌ Multi-DEX Monitor error:', error);
+    // });
 
-    // Pump Detector events
-    this.pumpDetector.on('pumpDetected', (pumpInfo: any) => {
-      this.handlePumpDetected(pumpInfo);
-    });
+    // Pump Detector events - disabled (file deleted)
+    // this.pumpDetector.on('pumpDetected', (pumpInfo: any) => {
+    //   this.handlePumpDetected(pumpInfo);
+    // });
 
-    this.pumpDetector.on('error', (error: any) => {
-      this.processingStats.errors++;
-      // console.error('❌ Pump Detector error:', error);
-    });
+    // this.pumpDetector.on('error', (error: any) => {
+    //   this.processingStats.errors++;
+    //   // console.error('❌ Pump Detector error:', error);
+    // });
 
-    // Real Token Monitor events
-    this.realTokenMonitor.on('tokenFound', (tokenInfo: TokenInfo) => {
-      this.handleTokenDetected(tokenInfo, 'REAL_MONITOR');
-    });
+    // Real Token Monitor events - disabled (file deleted)
+    // this.realTokenMonitor.on('tokenFound', (tokenInfo: TokenInfo) => {
+    //   this.handleTokenDetected(tokenInfo, 'REAL_MONITOR');
+    // });
 
-    this.realTokenMonitor.on('error', (error: any) => {
-      this.processingStats.errors++;
-      // console.error('❌ Real Token Monitor error:', error);
-    });
+    // this.realTokenMonitor.on('error', (error: any) => {
+    //   this.processingStats.errors++;
+    //   // console.error('❌ Real Token Monitor error:', error);
+    // });
 
     // DexScreener service events
     const dexScreenerService = getDexScreenerTokenService();
@@ -91,18 +91,11 @@ export class RapidTokenAnalyzer extends EventEmitter {
       console.log('🚀 Starting rapid token analysis...');
       console.log('📊 DEBUGGING: Starting detection systems...');
       
-      // Start all detection systems
-      console.log('🔄 Starting MultiDexMonitor...');
-      await this.multiDexMonitor.startMonitoring();
-      console.log('✅ MultiDexMonitor started');
-      
-      console.log('🔄 Starting PumpDetector...');
-      await this.pumpDetector.start();
-      console.log('✅ PumpDetector started');
-      
-      console.log('🔄 Starting RealTokenMonitor...');
-      await this.realTokenMonitor.start();
-      console.log('✅ RealTokenMonitor started');
+      // Start all detection systems - disabled (files deleted)
+      console.log('🔄 Detection systems disabled (files removed)');
+      // await this.multiDexMonitor.startMonitoring();
+      // await this.pumpDetector.start();
+      // await this.realTokenMonitor.start();
       
       // Start token processing loop
       console.log('🔄 Starting token processing queue...');
@@ -118,8 +111,8 @@ export class RapidTokenAnalyzer extends EventEmitter {
       this.processingStats.startTime = Date.now();
       
       console.log('✅ Rapid token analysis started successfully');
-      const status = this.multiDexMonitor.getStatus();
-      console.log(`📊 MultiDex Status:`, status);
+      // const status = this.multiDexMonitor.getStatus();
+      console.log(`📊 Detection systems status: DISABLED (files removed)`);
       this.emit('analysisStarted');
       
     } catch (error) {
@@ -329,10 +322,10 @@ export class RapidTokenAnalyzer extends EventEmitter {
     try {
       console.log('⏹️ Stopping rapid token analysis...');
       
-      // Stop all detection systems
-      await this.multiDexMonitor.stopMonitoring();
-      await this.pumpDetector.stop();
-      await this.realTokenMonitor.stop();
+      // Stop all detection systems - disabled (files deleted)
+      // await this.multiDexMonitor.stopMonitoring();
+      // await this.pumpDetector.stop();
+      // await this.realTokenMonitor.stop();
       
       this.isRunning = false;
       
@@ -358,21 +351,22 @@ export class RapidTokenAnalyzer extends EventEmitter {
         (this.processingStats.totalViable / this.processingStats.totalProcessed) * 100 : 0,
       queueSize: this.tokenQueue.length,
       isRunning: this.isRunning,
-      multiDexStatus: this.multiDexMonitor.getStatus(),
+      // multiDexStatus: this.multiDexMonitor.getStatus(), // Disabled
       processedTokensCount: this.processedTokens.size
     };
   }
 
   // Get recent detections
   getRecentDetections(limit: number = 10): TokenInfo[] {
-    return this.multiDexMonitor.getRecentTokens();
+    // return this.multiDexMonitor.getRecentTokens(); // Disabled
+    return [];
   }
 
   // Clear processed tokens cache
   clearCache(): void {
     this.processedTokens.clear();
     this.tokenQueue.length = 0;
-    this.multiDexMonitor.clearTokenCache();
+    // this.multiDexMonitor.clearTokenCache(); // Disabled
     
     console.log('🧹 Rapid analyzer cache cleared');
   }
@@ -380,8 +374,8 @@ export class RapidTokenAnalyzer extends EventEmitter {
   // Health check
   async healthCheck(): Promise<boolean> {
     try {
-      const multiDexHealth = await this.multiDexMonitor.healthCheck();
-      return this.isRunning && multiDexHealth;
+      // const multiDexHealth = await this.multiDexMonitor.healthCheck(); // Disabled
+      return this.isRunning; // && multiDexHealth;
     } catch (error) {
       console.error('❌ Health check failed:', error);
       return false;

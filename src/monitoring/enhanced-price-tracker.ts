@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { logger } from './logger';
 import { DexScreenerClient } from '../detection/dexscreener-client';
-import { getApiGateway } from '../core/api-gateway';
+// import { getApiGateway } from '../core/api-gateway'; // Removed - file deleted
 import { ConnectionManager } from '../core/connection';
 import { Connection, PublicKey } from '@solana/web3.js';
 
@@ -128,7 +128,7 @@ export class EnhancedPriceTracker extends EventEmitter {
   private trackedTokens: Map<string, EnhancedTrackedToken> = new Map();
   private priceAlerts: Map<string, PriceAlert> = new Map();
   private dexScreenerClient: DexScreenerClient;
-  private apiGateway = getApiGateway();
+  // private apiGateway = getApiGateway(); // Removed - file deleted
   private connectionManager: ConnectionManager;
   private connection: Connection;
   
@@ -514,26 +514,28 @@ export class EnhancedPriceTracker extends EventEmitter {
    */
   private async checkRaydiumAvailability(mint: string): Promise<SwapAvailability | null> {
     try {
-      // Implementation for Raydium API check
-      const response = await this.apiGateway.request('raydium', '/v2/main/pairs', {
-        params: { mint }
-      });
+      // Implementation for Raydium API check - disabled (api-gateway removed)
+      // const response = await this.apiGateway.request('raydium', '/v2/main/pairs', {
+      //   params: { mint }
+      // });
+      const response = null; // Disabled
       
-      if (response && response.data) {
-        return {
-          dexId: 'raydium',
-          dexName: 'Raydium',
-          available: true,
-          liquidity: response.data.liquidity || 0,
-          priceImpact: response.data.priceImpact || 0,
-          minTradeSize: 0.001,
-          maxTradeSize: response.data.liquidity * 0.1,
-          fees: 0.0025,
-          slippage: 0.5,
-          lastChecked: Date.now(),
-          pairAddress: response.data.pairAddress
-        };
-      }
+      // API Gateway disabled - returning null
+      // if (response && response.data) {
+      //   return {
+      //     dexId: 'raydium',
+      //     dexName: 'Raydium',
+      //     available: true,
+      //     liquidity: response.data.liquidity || 0,
+      //     priceImpact: response.data.priceImpact || 0,
+      //     minTradeSize: 0.001,
+      //     maxTradeSize: response.data.liquidity * 0.1,
+      //     fees: 0.0025,
+      //     slippage: 0.5,
+      //     lastChecked: Date.now(),
+      //     pairAddress: response.data.pairAddress
+      //   };
+      // }
     } catch (error) {
       logger.debug(`No Raydium availability for ${mint}:`, error);
     }
@@ -545,26 +547,28 @@ export class EnhancedPriceTracker extends EventEmitter {
    */
   private async checkOrcaAvailability(mint: string): Promise<SwapAvailability | null> {
     try {
-      // Implementation for Orca API check
-      const response = await this.apiGateway.request('orca', '/v1/whirlpools', {
-        params: { tokenMint: mint }
-      });
+      // Implementation for Orca API check - disabled (api-gateway removed)
+      // const response = await this.apiGateway.request('orca', '/v1/whirlpools', {
+      //   params: { tokenMint: mint }
+      // });
+      const response = null; // Disabled
       
-      if (response && response.data) {
-        return {
-          dexId: 'orca',
-          dexName: 'Orca',
-          available: true,
-          liquidity: response.data.tvl || 0,
-          priceImpact: 0,
-          minTradeSize: 0.001,
-          maxTradeSize: response.data.tvl * 0.05,
-          fees: 0.003,
-          slippage: 0.5,
-          lastChecked: Date.now(),
-          pairAddress: response.data.address
-        };
-      }
+      // API Gateway disabled - returning null
+      // if (response && response.data) {
+      //   return {
+      //     dexId: 'orca',
+      //     dexName: 'Orca',
+      //     available: true,
+      //     liquidity: response.data.tvl || 0,
+      //     priceImpact: 0,
+      //     minTradeSize: 0.001,
+      //     maxTradeSize: response.data.tvl * 0.05,
+      //     fees: 0.003,
+      //     slippage: 0.5,
+      //     lastChecked: Date.now(),
+      //     pairAddress: response.data.address
+      //   };
+      // }
     } catch (error) {
       logger.debug(`No Orca availability for ${mint}:`, error);
     }
@@ -576,30 +580,32 @@ export class EnhancedPriceTracker extends EventEmitter {
    */
   private async checkJupiterAvailability(mint: string): Promise<SwapAvailability | null> {
     try {
-      // Jupiter is an aggregator - check if token is supported
-      const response = await this.apiGateway.requestJupiter('/v6/quote', {
-        params: {
-          inputMint: mint,
-          outputMint: 'So11111111111111111111111111111111111111112', // SOL
-          amount: 1000000, // 1 token (assuming 6 decimals)
-          slippageBps: 50
-        }
-      });
+      // Jupiter is an aggregator - check if token is supported - disabled (api-gateway removed)
+      // const response = await this.apiGateway.requestJupiter('/v6/quote', {
+      //   params: {
+      //     inputMint: mint,
+      //     outputMint: 'So11111111111111111111111111111111111111112', // SOL
+      //     amount: 1000000, // 1 token (assuming 6 decimals)
+      //     slippageBps: 50
+      //   }
+      // });
+      const response = null; // Disabled
       
-      if (response && response.data) {
-        return {
-          dexId: 'jupiter',
-          dexName: 'Jupiter',
-          available: true,
-          liquidity: 0, // Jupiter doesn't provide direct liquidity info
-          priceImpact: response.data.priceImpactPct || 0,
-          minTradeSize: 0.0001,
-          maxTradeSize: 1000000,
-          fees: 0.001,
-          slippage: 0.5,
-          lastChecked: Date.now()
-        };
-      }
+      // API Gateway disabled - returning null
+      // if (response && response.data) {
+      //   return {
+      //     dexId: 'jupiter',
+      //     dexName: 'Jupiter',
+      //     available: true,
+      //     liquidity: 0, // Jupiter doesn't provide direct liquidity info
+      //     priceImpact: response.data.priceImpactPct || 0,
+      //     minTradeSize: 0.0001,
+      //     maxTradeSize: 1000000,
+      //     fees: 0.001,
+      //     slippage: 0.5,
+      //     lastChecked: Date.now()
+      //   };
+      // }
     } catch (error) {
       logger.debug(`No Jupiter availability for ${mint}:`, error);
     }

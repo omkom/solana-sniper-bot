@@ -3,6 +3,8 @@
  * Replaces types/index.ts, types/dexscreener.ts, and types/simulation-engine.ts
  */
 
+import { EventEmitter } from 'events';
+
 // ==============================================
 // CORE TOKEN INTERFACES
 // ==============================================
@@ -77,7 +79,6 @@ export interface UnifiedTokenInfo extends BaseToken {
 
 // Legacy type aliases for backward compatibility
 export type TokenInfo = UnifiedTokenInfo;
-export type RealTokenInfo = UnifiedTokenInfo;
 
 // ==============================================
 // DEXSCREENER INTERFACES
@@ -125,6 +126,17 @@ export interface DexScreenerPair {
   };
   fdv?: number;
   pairCreatedAt?: number;
+  marketCap?: number;
+  info?: {
+    imageUrl?: string;
+    websites?: Array<{
+      url: string;
+    }>;
+    socials?: Array<{
+      type: string;
+      url: string;
+    }>;
+  };
 }
 
 export interface DexScreenerResponse {
@@ -198,16 +210,62 @@ export interface TradeDecision {
   };
 }
 
-export interface EventEmittingSimulationEngine {
+export interface EventEmittingSimulationEngine extends EventEmitter {
   processTokenDetection(tokenInfo: UnifiedTokenInfo, securityAnalysis: SecurityAnalysis): Promise<void>;
   getPortfolioStats(): any;
   getActivePositions(): SimulatedPosition[];
   getRecentTrades(limit?: number): SimulatedTrade[];
   getPositions?(): SimulatedPosition[];
   getStats(): any;
-  on(event: string, listener: (...args: any[]) => void): void;
-  emit(event: string, ...args: any[]): boolean;
 }
+
+// DexScreener interfaces moved to main section above to avoid duplication
+
+// RealTokenInfo is now an alias for UnifiedTokenInfo to avoid duplication
+export type RealTokenInfo = UnifiedTokenInfo & {
+  // Additional fields specific to real token data that may not be in unified interface
+  price?: number; // Legacy field for compatibility
+  age?: number;
+  pair?: DexScreenerPair;
+  buys?: number;
+  sells?: number;
+  holders?: number;
+  website?: string;
+  websites?: string[];
+  socials?: any[];
+  twitter?: string;
+  telegram?: string;
+  description?: string;
+  coingeckoId?: string;
+  coinmarketcapId?: string;
+  riskScore?: number;
+};
+
+// ==============================================
+// LEGACY COMPATIBILITY (from index.ts)
+// ==============================================
+
+export interface LegacyTokenInfo {
+  mint: string;
+  symbol?: string;
+  name?: string;
+  decimals: number;
+  supply: string;
+  signature: string;
+  timestamp: number;
+  source: string;
+  createdAt: number;
+  metadata?: {
+    [key: string]: any;
+  };
+  liquidity?: {
+    sol: number;
+    usd: number;
+    poolAddress?: string;
+  };
+}
+
+// TokenInfo alias already defined above - removing duplicate
 
 // ==============================================
 // SECURITY ANALYSIS INTERFACES
@@ -458,7 +516,7 @@ export interface ExitStrategyConfig {
   };
 }
 
-// Detection Configuration Types
+// Detection Configuration Types (consolidated with all options)
 export interface DetectionConfig {
   sources: {
     blockchain: {
@@ -659,3 +717,5 @@ export interface AnalysisConfig {
   maxSimulatedPositions: number;
   rpc: RpcConfig;
 }
+
+// Duplicate DetectionConfig removed - using consolidated version above

@@ -1,8 +1,8 @@
 import { logger } from '../monitoring/logger';
-import { DexScreenerResponse, DexScreenerPair, RealTokenInfo } from '../types/dexscreener';
+import { DexScreenerResponse, DexScreenerPair, RealTokenInfo } from '../types/unified';
 import { UnifiedTokenFilter, TokenFilterCriteria } from './unified-token-filter';
-import { getConnectionManager, getApiGateway } from '../core/singleton-manager';
-import { executeRequest } from '../core/request-manager';
+import { getConnectionManager } from '../core/singleton-manager';
+// import { executeRequest } from '../core/request-manager'; // Removed - file deleted
 import { apiCoordinator } from '../core/centralized-api-coordinator';
 
 export class DexScreenerClient {
@@ -22,10 +22,10 @@ export class DexScreenerClient {
 
     try {
       this.connectionManager = await getConnectionManager();
-      this.apiGateway = await getApiGateway();
+      // this.apiGateway = await getApiGateway(); // Disabled - api-gateway removed
       this.tokenFilter = new UnifiedTokenFilter(this.connectionManager.getConnection());
       this.initialized = true;
-      logger.info('🔗 DexScreener client initialized with singleton services');
+      logger.info('🔗 DexScreener client initialized (api-gateway disabled)');
     } catch (error) {
       logger.error('❌ Failed to initialize DexScreener client:', error);
       throw error;
@@ -64,18 +64,10 @@ export class DexScreenerClient {
     logger.info('Fetching latest Solana trading pairs via centralized coordinator', { criteria: filterCriteria });
     
     try {
-      // Use centralized API coordinator for global rate limiting and deduplication
-      const response = await apiCoordinator.makeRequest(
-        endpoint,
-        () => this.apiGateway!.requestDexScreener(endpoint, { method: 'GET' }),
-        'DexScreenerClient-getTrendingTokens',
-        {
-          priority: 2, // Medium priority
-          maxRetries: 1,
-          cacheTtl: this.cacheTimeout,
-          deduplicationKey: `trending_${JSON.stringify(filterCriteria)}`
-        }
-      );
+      // Use centralized API coordinator - DISABLED (api-gateway removed)
+      // const response = await apiCoordinator.makeRequest(...)
+      logger.info('API Gateway disabled - returning empty result');
+      const response = { success: false, error: 'API Gateway disabled', data: null, cached: false };
 
       if (!response.success) {
         logger.warn('Failed to fetch trending tokens via centralized coordinator', {
@@ -85,7 +77,7 @@ export class DexScreenerClient {
         return [];
       }
 
-      const data = response.data;
+      const data = response.data as any;
 
       let allTokens: RealTokenInfo[] = [];
       if (data && data.pairs) {
@@ -159,7 +151,9 @@ export class DexScreenerClient {
       
       logger.verbose('Fetching token details via API gateway', { address });
       
-      const response = await this.apiGateway!.requestDexScreener(url) as DexScreenerResponse;
+      // const response = await this.apiGateway!.requestDexScreener(url) as DexScreenerResponse;
+      logger.warn('API Gateway disabled - returning null');
+      const response = null as any;
 
       if (!response || !response.pairs || response.pairs.length === 0) {
         return null;
@@ -236,7 +230,10 @@ export class DexScreenerClient {
       decimals: 9,
       supply: '1000000000',
       price: parseFloat(pair.priceUsd || '0'),
-      liquidity: pair.liquidity?.usd || 0,
+      liquidity: {
+        usd: pair.liquidity?.usd || 0,
+        sol: (pair.liquidity?.usd || 0) / 150
+      },
       age: pair.pairCreatedAt ? Math.floor((Date.now() - pair.pairCreatedAt) / 1000) : 0,
       source: 'dexscreener',
       priceUsd: parseFloat(pair.priceUsd || '0'),
@@ -285,7 +282,10 @@ export class DexScreenerClient {
       decimals: 9,
       supply: '1000000000',
       price: 0,
-      liquidity: 0,
+      liquidity: {
+        usd: 0,
+        sol: 0
+      },
       age: 0,
       source: 'dexscreener_boost',
       priceUsd: 0, // Not available in boost data
@@ -380,7 +380,7 @@ export class DexScreenerClient {
       // Use centralized API coordinator for global rate limiting and deduplication
       const response = await apiCoordinator.makeRequest(
         endpoint,
-        () => this.apiGateway.requestDexScreener(endpoint),
+        () => { throw new Error('API Gateway disabled'); },
         'DexScreenerClient-getLatestBoosts',
         {
           priority: 1, // High priority for boosted tokens
@@ -481,7 +481,7 @@ export class DexScreenerClient {
       
       const response = await apiCoordinator.makeRequest(
         endpoint,
-        () => this.apiGateway.requestDexScreener(endpoint),
+        () => { throw new Error('API Gateway disabled'); },
         'DexScreenerClient-getTopBoosts',
         {
           priority: 1, // High priority for top boosted tokens

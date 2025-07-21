@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import { getMint } from '@solana/spl-token';
-import { TokenInfo, SecurityCheck, SecurityAnalysis } from '../types';
+import { TokenInfo, SecurityCheckBase as SecurityCheck, SecurityAnalysis } from '../types/unified';
 import { ConnectionManager } from '../core/connection';
 import { getIframeRPCService } from '../core/iframe-rpc-service';
 

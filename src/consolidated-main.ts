@@ -5,7 +5,7 @@
 
 import { EventEmitter } from 'events';
 import { logger } from './monitoring/logger';
-import { ConsolidatedTokenDetector } from './detection/consolidated-token-detector';
+// import { ConsolidatedTokenDetector } from './detection/consolidated-token-detector'; // Removed - file deleted
 import { ConsolidatedSimulationEngine } from './simulation/consolidated-simulation-engine';
 import { ConsolidatedDashboard } from './monitoring/consolidated-dashboard';
 import { ConsolidatedApiService } from './services/consolidated-api-service';
@@ -29,7 +29,7 @@ export interface AppConfig {
 
 export class ConsolidatedTokenAnalyzer extends EventEmitter {
   private config: AppConfig;
-  private detector!: ConsolidatedTokenDetector;
+  // private detector!: ConsolidatedTokenDetector; // Removed - file deleted
   private simulationEngine!: ConsolidatedSimulationEngine;
   private dashboard!: ConsolidatedDashboard;
   private apiService!: ConsolidatedApiService;
@@ -77,8 +77,8 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       // Initialize API service first
       this.apiService = new ConsolidatedApiService(this.getApiServiceConfig());
       
-      // Initialize detector with consolidated configuration
-      this.detector = new ConsolidatedTokenDetector(this.getDetectorConfig());
+      // Initialize detector with consolidated configuration - DISABLED
+      // this.detector = new ConsolidatedTokenDetector(this.getDetectorConfig());
       
       // Initialize simulation engine
       this.simulationEngine = new ConsolidatedSimulationEngine(this.getSimulationConfig());
@@ -233,17 +233,17 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   }
 
   private setupEventHandlers(): void {
-    // Token detection events
-    this.detector.on('tokensDetected', (tokens: UnifiedTokenInfo[]) => {
-      this.handleTokensDetected(tokens);
-      
-      // Forward to dashboard
-      this.dashboard.emit('tokenDetected', tokens);
-    });
+    // Token detection events - DISABLED (detector removed)
+    // this.detector.on('tokensDetected', (tokens: UnifiedTokenInfo[]) => {
+    //   this.handleTokensDetected(tokens);
+    //   
+    //   // Forward to dashboard
+    //   this.dashboard.emit('tokenDetected', tokens);
+    // });
 
-    this.detector.on('detectionResult', (result: any) => {
-      this.dashboard.emit('detectionResult', result);
-    });
+    // this.detector.on('detectionResult', (result: any) => {
+    //   this.dashboard.emit('detectionResult', result);
+    // });
 
     // Simulation events
     this.simulationEngine.on('positionOpened', (position: any) => {
@@ -261,11 +261,11 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       this.dashboard.emit('portfolioUpdated', portfolio);
     });
 
-    // Error handling
-    this.detector.on('error', (error: Error) => {
-      logger.error('Detector error:', error);
-      this.dashboard.addError(`Detector error: ${error.message}`);
-    });
+    // Error handling - detector disabled
+    // this.detector.on('error', (error: Error) => {
+    //   logger.error('Detector error:', error);
+    //   this.dashboard.addError(`Detector error: ${error.message}`);
+    // });
 
     this.simulationEngine.on('error', (error: Error) => {
       logger.error('Simulation error:', error);
@@ -313,7 +313,8 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   }
 
   private logStatus(): void {
-    const detectorStatus = this.detector.getStatus();
+    // const detectorStatus = this.detector.getStatus(); // Disabled
+    const detectorStatus = { status: 'disabled' };
     const simulationStatus = this.simulationEngine.getStatus();
     const portfolio = this.simulationEngine.getPortfolio();
     const uptime = Date.now() - this.startTime;
@@ -322,7 +323,7 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
     logger.info('📊 System Status:', {
       mode: this.config.mode,
       uptime: `${uptimeMinutes}m`,
-      detectedTokens: detectorStatus.detectedTokensCount,
+      detectedTokens: 0, // detectorStatus.detectedTokensCount, // Disabled
       activePositions: simulationStatus.activePositions,
       balance: `${portfolio.balance.toFixed(4)} SOL`,
       totalValue: `${portfolio.totalValue.toFixed(4)} SOL`,
@@ -351,7 +352,8 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       }
 
       if (this.config.enabledFeatures.detection) {
-        await this.detector.start();
+        // await this.detector.start(); // Disabled - detector removed
+        logger.info('Token detection disabled (detector removed)');
       }
 
       if (this.config.enabledFeatures.dashboard) {
@@ -390,7 +392,7 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       }
 
       if (this.config.enabledFeatures.detection) {
-        shutdownPromises.push(this.detector.stop());
+        // shutdownPromises.push(this.detector.stop()); // Disabled
       }
 
       if (this.config.enabledFeatures.simulation) {
@@ -416,7 +418,7 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       mode: this.config.mode,
       uptime: Date.now() - this.startTime,
       config: this.config,
-      detector: this.detector.getStatus(),
+      detector: { status: 'disabled', reason: 'ConsolidatedTokenDetector removed' },
       simulation: this.simulationEngine.getStatus(),
       portfolio: this.simulationEngine.getPortfolio(),
       dashboard: {
@@ -430,7 +432,8 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   // Health check for monitoring
   async healthCheck(): Promise<boolean> {
     try {
-      const detectorHealth = await this.detector.healthCheck();
+      // const detectorHealth = await this.detector.healthCheck(); // Disabled
+      const detectorHealth = true; // Always healthy when disabled
       const simulationHealth = this.simulationEngine.isEngineRunning();
       const dashboardHealth = this.dashboard.isRunning();
       

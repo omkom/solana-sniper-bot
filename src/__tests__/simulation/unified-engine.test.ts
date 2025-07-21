@@ -2,15 +2,15 @@
  * Unified simulation engine tests
  */
 
-import { UnifiedSimulationEngine } from '../../simulation/unified-engine';
+import { ConsolidatedSimulationEngine } from '../../simulation/consolidated-simulation-engine';
 import { UnifiedTokenInfo } from '../../types/unified';
 
-describe('UnifiedSimulationEngine', () => {
-  let engine: UnifiedSimulationEngine;
+describe('ConsolidatedSimulationEngine', () => {
+  let engine: ConsolidatedSimulationEngine;
   let mockToken: UnifiedTokenInfo;
 
   beforeEach(() => {
-    engine = new UnifiedSimulationEngine({
+    engine = new ConsolidatedSimulationEngine({
       startingBalance: 10,
       simulatedInvestment: 0.003,
       maxPositions: 100,

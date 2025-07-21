@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { Config } from './config';
 import { ConnectionManager } from './connection';
-import { ApiGateway } from './api-gateway';
+// import { ApiGateway } from './api-gateway'; // Removed - file deleted
 import { logger } from '../monitoring/logger';
 
 /**
@@ -40,7 +40,7 @@ export class SingletonManager extends EventEmitter {
       // Initialize in dependency order
       await this.getConfig();
       await this.getConnectionManager();
-      await this.getApiGateway();
+      // await this.getApiGateway(); // Disabled - file deleted
       
       this.initialized = true;
       logger.info('✅ Singleton services initialized successfully');
@@ -101,27 +101,11 @@ export class SingletonManager extends EventEmitter {
   }
 
   /**
-   * Get or create ApiGateway instance
+   * Get or create ApiGateway instance - DISABLED
    */
-  async getApiGateway(): Promise<ApiGateway> {
-    const key = 'apiGateway';
-    
-    if (this.services.has(key)) {
-      return this.services.get(key);
-    }
-
-    if (this.initializationPromises.has(key)) {
-      return this.initializationPromises.get(key);
-    }
-
-    const initPromise = this.initializeApiGateway();
-    this.initializationPromises.set(key, initPromise);
-    
-    const apiGateway = await initPromise;
-    this.services.set(key, apiGateway);
-    this.initializationPromises.delete(key);
-    
-    return apiGateway;
+  async getApiGateway(): Promise<any> {
+    // Disabled - file deleted
+    throw new Error('ApiGateway has been removed from the codebase');
   }
 
   /**
@@ -147,25 +131,11 @@ export class SingletonManager extends EventEmitter {
   }
 
   /**
-   * Initialize ApiGateway service
+   * Initialize ApiGateway service - DISABLED
    */
-  private async initializeApiGateway(): Promise<ApiGateway> {
-    logger.info('🌐 Initializing ApiGateway service...');
-    
-    // Create API Gateway with optimized settings for rate limiting
-    const apiGateway = new ApiGateway({
-      defaultTimeout: 30000,
-      defaultRetryAttempts: 2,
-      rateLimitBuffer: 30,
-      enableMetrics: true,
-      enableHealthChecks: false, // Disable health checks to prevent API abuse
-      healthCheckInterval: 600000, // 10 minutes if enabled
-      maxConcurrentRequests: 2, // Reduced from 3
-      fallbackDelay: 3000 // Increased delay
-    });
-
-    logger.info('✅ ApiGateway service initialized');
-    return apiGateway;
+  private async initializeApiGateway(): Promise<any> {
+    logger.info('🌐 ApiGateway service disabled (file removed)');
+    throw new Error('ApiGateway has been removed from the codebase');
   }
 
   /**
@@ -219,8 +189,8 @@ export async function getConnectionManager(): Promise<ConnectionManager> {
   return singletonManager.getConnectionManager();
 }
 
-export async function getApiGateway(): Promise<ApiGateway> {
-  return singletonManager.getApiGateway();
+export async function getApiGateway(): Promise<any> {
+  throw new Error('ApiGateway has been removed from the codebase');
 }
 
 export async function initializeSingletons(): Promise<void> {

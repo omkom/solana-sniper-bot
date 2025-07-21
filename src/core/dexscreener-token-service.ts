@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { TokenInfo } from '../types';
+import { TokenInfo } from '../types/unified';
 
 export class DexScreenerTokenService extends EventEmitter {
   private tokens: Map<string, any> = new Map();

@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { Connection, PublicKey } from '@solana/web3.js';
-import { TokenInfo } from '../types';
+import { TokenInfo } from '../types/unified';
 import { ConnectionManager } from '../core/connection';
 import { DexScreenerClient } from '../detection/dexscreener-client';
 

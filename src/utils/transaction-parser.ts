@@ -1,5 +1,5 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { TokenInfo } from '../types';
+import { TokenInfo } from '../types/unified';
 
 export interface TransferLog {
   signature: string;

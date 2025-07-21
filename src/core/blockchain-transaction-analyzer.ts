@@ -1,5 +1,5 @@
 import { Connection, PublicKey, TransactionSignature, Logs, GetTransactionConfig } from '@solana/web3.js';
-import { TokenInfo } from '../types';
+import { TokenInfo } from '../types/unified';
 import { UnifiedTokenInfo } from '../types/unified';
 import { logger } from '../monitoring/logger';
 import { TransactionParser, ParsedTokenInfo } from '../utils/transaction-parser';
@@ -559,14 +559,14 @@ export class BlockchainTransactionAnalyzer extends EventEmitter {
             if (marketData.liquidityUsd > currentLiquidityUsd) {
               token.liquidity = {
                 usd: marketData.liquidityUsd,
-                sol: marketData.liquidity,
+                sol: typeof marketData.liquidity === 'number' ? marketData.liquidity : 0,
                 poolAddress: marketData.pairAddress
               };
             }
           } else if (marketData.liquidityUsd && !token.liquidity) {
             token.liquidity = {
               usd: marketData.liquidityUsd,
-              sol: marketData.liquidity,
+              sol: typeof marketData.liquidity === 'number' ? marketData.liquidity : 0,
               poolAddress: marketData.pairAddress
             };
           }
