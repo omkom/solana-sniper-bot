@@ -67,7 +67,7 @@ export interface TokenFilterResult {
 }
 
 export class UnifiedTokenFilter {
-  private connection: Connection;
+  private connection: Connection | null;
   private knownTokens: Set<string> = new Set();
   private trustedTokens: Set<string> = new Set();
   private blockedTokens: Set<string> = new Set();
@@ -151,7 +151,7 @@ export class UnifiedTokenFilter {
     minConfidenceScore: 1
   };
 
-  constructor(connection: Connection) {
+  constructor(connection: Connection | null) {
     this.connection = connection;
     this.initializeKnownTokens();
   }
@@ -420,6 +420,12 @@ export class UnifiedTokenFilter {
       }
 
       // Get mint account info for security checks
+      if (!this.connection) {
+        result.warnings.push('No connection available for blockchain verification');
+        result.score -= 5;
+        return result;
+      }
+      
       const mintInfo = await this.connection.getAccountInfo(new PublicKey(tokenAddress));
       if (!mintInfo) {
         result.warnings.push('Could not fetch mint account info');

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { Config } from './config';
 import { ConnectionManager } from './connection';
-// import { ApiGateway } from './api-gateway'; // Removed - file deleted
+import { ApiGateway } from './api-gateway';
 import { logger } from '../monitoring/logger';
 
 /**
@@ -40,7 +40,7 @@ export class SingletonManager extends EventEmitter {
       // Initialize in dependency order
       await this.getConfig();
       await this.getConnectionManager();
-      // await this.getApiGateway(); // Disabled - file deleted
+      await this.getApiGateway();
       
       this.initialized = true;
       logger.info('✅ Singleton services initialized successfully');
@@ -101,11 +101,27 @@ export class SingletonManager extends EventEmitter {
   }
 
   /**
-   * Get or create ApiGateway instance - DISABLED
+   * Get or create ApiGateway instance
    */
-  async getApiGateway(): Promise<any> {
-    // Disabled - file deleted
-    throw new Error('ApiGateway has been removed from the codebase');
+  async getApiGateway(): Promise<ApiGateway> {
+    const key = 'apiGateway';
+    
+    if (this.services.has(key)) {
+      return this.services.get(key);
+    }
+
+    if (this.initializationPromises.has(key)) {
+      return this.initializationPromises.get(key);
+    }
+
+    const initPromise = this.initializeApiGateway();
+    this.initializationPromises.set(key, initPromise);
+    
+    const apiGateway = await initPromise;
+    this.services.set(key, apiGateway);
+    this.initializationPromises.delete(key);
+    
+    return apiGateway;
   }
 
   /**
@@ -131,11 +147,13 @@ export class SingletonManager extends EventEmitter {
   }
 
   /**
-   * Initialize ApiGateway service - DISABLED
+   * Initialize ApiGateway service
    */
-  private async initializeApiGateway(): Promise<any> {
-    logger.info('🌐 ApiGateway service disabled (file removed)');
-    throw new Error('ApiGateway has been removed from the codebase');
+  private async initializeApiGateway(): Promise<ApiGateway> {
+    logger.info('🌐 Initializing ApiGateway service...');
+    const apiGateway = new ApiGateway();
+    logger.info('✅ ApiGateway service initialized');
+    return apiGateway;
   }
 
   /**
@@ -168,6 +186,12 @@ export class SingletonManager extends EventEmitter {
       await connectionManager.cleanup();
     }
 
+    // Cleanup ApiGateway
+    const apiGateway = this.services.get('apiGateway');
+    if (apiGateway && apiGateway.shutdown) {
+      await apiGateway.shutdown();
+    }
+
     // Clear all services
     this.services.clear();
     this.initializationPromises.clear();
@@ -189,8 +213,8 @@ export async function getConnectionManager(): Promise<ConnectionManager> {
   return singletonManager.getConnectionManager();
 }
 
-export async function getApiGateway(): Promise<any> {
-  throw new Error('ApiGateway has been removed from the codebase');
+export async function getApiGateway(): Promise<ApiGateway> {
+  return singletonManager.getApiGateway();
 }
 
 export async function initializeSingletons(): Promise<void> {

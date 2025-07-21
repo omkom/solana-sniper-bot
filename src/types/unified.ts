@@ -75,6 +75,9 @@ export interface UnifiedTokenInfo extends BaseToken {
   
   // Additional properties for unified engine
   trendingScore?: number;
+  confidence?: number;
+  securityScore?: number;
+  rugRisk?: number;
 }
 
 // Legacy type aliases for backward compatibility
@@ -326,6 +329,11 @@ export interface DetectionResult {
   timestamp: number;
   analysis?: SecurityAnalysis;
   processingTime?: number;
+  metadata?: {
+    filtersPassed: string[];
+    detectionMethod: string;
+    [key: string]: any;
+  };
 }
 
 export interface DetectionConfig {

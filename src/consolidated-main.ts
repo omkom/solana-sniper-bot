@@ -5,11 +5,12 @@
 
 import { EventEmitter } from 'events';
 import { logger } from './monitoring/logger';
-// import { ConsolidatedTokenDetector } from './detection/consolidated-token-detector'; // Removed - file deleted
+import { ConsolidatedTokenDetector } from './detection/consolidated-token-detector';
 import { ConsolidatedSimulationEngine } from './simulation/consolidated-simulation-engine';
 import { ConsolidatedDashboard } from './monitoring/consolidated-dashboard';
 import { ConsolidatedApiService } from './services/consolidated-api-service';
 import { UnifiedTokenInfo } from './types/unified';
+import { UnifiedEngine } from './simulation/unified-engine';
 
 export interface AppConfig {
   mode: 'rapid' | 'real' | 'analysis' | 'unified';
@@ -29,8 +30,9 @@ export interface AppConfig {
 
 export class ConsolidatedTokenAnalyzer extends EventEmitter {
   private config: AppConfig;
-  // private detector!: ConsolidatedTokenDetector; // Removed - file deleted
+  private detector!: ConsolidatedTokenDetector;
   private simulationEngine!: ConsolidatedSimulationEngine;
+  private unifiedEngine!: UnifiedEngine;
   private dashboard!: ConsolidatedDashboard;
   private apiService!: ConsolidatedApiService;
   private isRunning = false;
@@ -62,6 +64,25 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
     this.initializeComponents();
   }
 
+  private getUnifiedEngineConfig(): any {
+    return {
+      mode: 'DRY_RUN',
+      startingBalance: this.config.startingBalance,
+      baseInvestment: this.config.baseInvestment,
+      maxPositions: Math.min(this.config.maxPositions, 5), // Limit for unified engine
+      positionSizePercent: 5, // Conservative 5% per position
+      maxRiskPercent: 2,
+      updateInterval: 3000, // 3 second updates for more responsive trading
+      strategies: ['momentum', 'breakout'], // Enable specific strategies
+      exitStrategies: {
+        targetROI: 50,
+        stopLossPercent: -15,
+        trailingStopPercent: -8,
+        maxHoldTime: 1800000 // 30 minutes max hold
+      }
+    };
+  }
+
   private logWelcome(): void {
     console.log('\n🎓 ===== EDUCATIONAL SOLANA TOKEN ANALYZER =====');
     console.log('📚 This system is for educational purposes only');
@@ -77,11 +98,14 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       // Initialize API service first
       this.apiService = new ConsolidatedApiService(this.getApiServiceConfig());
       
-      // Initialize detector with consolidated configuration - DISABLED
-      // this.detector = new ConsolidatedTokenDetector(this.getDetectorConfig());
+      // Initialize detector with consolidated configuration
+      this.detector = new ConsolidatedTokenDetector(this.getDetectorConfig());
       
       // Initialize simulation engine
       this.simulationEngine = new ConsolidatedSimulationEngine(this.getSimulationConfig());
+      
+      // Initialize unified engine for advanced trading
+      this.unifiedEngine = new UnifiedEngine(this.getUnifiedEngineConfig());
       
       // Initialize dashboard
       this.dashboard = new ConsolidatedDashboard(this.getDashboardConfig());
@@ -233,17 +257,32 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   }
 
   private setupEventHandlers(): void {
-    // Token detection events - DISABLED (detector removed)
-    // this.detector.on('tokensDetected', (tokens: UnifiedTokenInfo[]) => {
-    //   this.handleTokensDetected(tokens);
-    //   
-    //   // Forward to dashboard
-    //   this.dashboard.emit('tokenDetected', tokens);
-    // });
+    // Token detection events
+    this.detector.on('tokensDetected', (tokens: UnifiedTokenInfo[]) => {
+      this.handleTokensDetected(tokens);
+      
+      // Forward to dashboard
+      this.dashboard.emit('tokenDetected', tokens);
+    });
 
-    // this.detector.on('detectionResult', (result: any) => {
-    //   this.dashboard.emit('detectionResult', result);
-    // });
+    this.detector.on('detectionResult', (result: any) => {
+      this.dashboard.emit('detectionResult', result);
+    });
+
+    this.detector.on('enhancedAnalysis', (analysis: any) => {
+      logger.info(`🤖 Enhanced analysis: ${analysis.token.symbol} - ${analysis.recommendation}`);
+      this.dashboard.emit('enhancedAnalysis', analysis);
+    });
+
+    this.detector.on('poolDetected', (data: any) => {
+      logger.info(`🏊 Pool detected: ${data.poolInfo.baseSymbol} on ${data.poolInfo.dexName}`);
+      this.dashboard.emit('poolDetected', data);
+    });
+
+    this.detector.on('arbitrageOpportunity', (opportunity: any) => {
+      logger.info(`⚡ Arbitrage: ${opportunity.profitPotential}% between DEXes`);
+      this.dashboard.emit('arbitrageOpportunity', opportunity);
+    });
 
     // Simulation events
     this.simulationEngine.on('positionOpened', (position: any) => {
@@ -261,11 +300,27 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       this.dashboard.emit('portfolioUpdated', portfolio);
     });
 
-    // Error handling - detector disabled
-    // this.detector.on('error', (error: Error) => {
-    //   logger.error('Detector error:', error);
-    //   this.dashboard.addError(`Detector error: ${error.message}`);
-    // });
+    // Unified Engine events (advanced trading)
+    this.unifiedEngine.on('positionOpened', (position: any) => {
+      logger.info(`🎯 Advanced position opened: ${position.token.symbol} - ${position.solAmount.toFixed(4)} SOL`);
+      this.dashboard.emit('unifiedPositionOpened', position);
+    });
+
+    this.unifiedEngine.on('positionClosed', (data: any) => {
+      const { position, realizedPnL, reason } = data;
+      logger.info(`🎯 Advanced position closed: ${position.token.symbol} - ${reason} - PnL: ${realizedPnL.toFixed(4)} SOL`);
+      this.dashboard.emit('unifiedPositionClosed', data);
+    });
+
+    this.unifiedEngine.on('portfolioUpdated', (portfolio: any) => {
+      this.dashboard.emit('unifiedPortfolioUpdated', portfolio);
+    });
+
+    // Error handling
+    this.detector.on('error', (error: Error) => {
+      logger.error('Detector error:', error);
+      this.dashboard.addError(`Detector error: ${error.message}`);
+    });
 
     this.simulationEngine.on('error', (error: Error) => {
       logger.error('Simulation error:', error);
@@ -289,10 +344,14 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   private async handleTokensDetected(tokens: UnifiedTokenInfo[]): Promise<void> {
     logger.info(`🎯 Processing ${tokens.length} detected tokens`);
     
-    // Process each token through simulation engine
+    // Process each token through both simulation engines
     for (const token of tokens) {
       try {
+        // Analyze with basic simulation engine
         await this.simulationEngine.analyzeToken(token);
+        
+        // Also analyze with advanced unified engine
+        await this.unifiedEngine.analyzeToken(token);
       } catch (error) {
         logger.error(`Error analyzing token ${token.symbol}:`, error);
       }
@@ -313,22 +372,35 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   }
 
   private logStatus(): void {
-    // const detectorStatus = this.detector.getStatus(); // Disabled
-    const detectorStatus = { status: 'disabled' };
+    const detectorStatus = this.detector.getStatus();
     const simulationStatus = this.simulationEngine.getStatus();
     const portfolio = this.simulationEngine.getPortfolio();
+    const unifiedStatus = this.unifiedEngine.getStatus();
+    const unifiedPortfolio = this.unifiedEngine.getPortfolio();
     const uptime = Date.now() - this.startTime;
     const uptimeMinutes = Math.floor(uptime / 60000);
 
     logger.info('📊 System Status:', {
       mode: this.config.mode,
       uptime: `${uptimeMinutes}m`,
-      detectedTokens: 0, // detectorStatus.detectedTokensCount, // Disabled
-      activePositions: simulationStatus.activePositions,
-      balance: `${portfolio.balance.toFixed(4)} SOL`,
-      totalValue: `${portfolio.totalValue.toFixed(4)} SOL`,
-      netPnL: `${portfolio.netPnL.toFixed(4)} SOL`,
-      totalTrades: simulationStatus.totalTrades,
+      detectedTokens: detectorStatus.detectedTokensCount,
+      // Basic simulation engine
+      basicEngine: {
+        activePositions: simulationStatus.activePositions,
+        balance: `${portfolio.balance.toFixed(4)} SOL`,
+        totalValue: `${portfolio.totalValue.toFixed(4)} SOL`,
+        netPnL: `${portfolio.netPnL.toFixed(4)} SOL`,
+        totalTrades: simulationStatus.totalTrades
+      },
+      // Advanced unified engine
+      advancedEngine: {
+        activePositions: unifiedStatus.activePositions,
+        balance: `${unifiedPortfolio.balance.toFixed(4)} SOL`,
+        totalValue: `${unifiedPortfolio.totalValue.toFixed(4)} SOL`,
+        netPnL: `${unifiedPortfolio.netPnL.toFixed(4)} SOL`,
+        totalTrades: unifiedStatus.totalTrades,
+        winRate: `${unifiedPortfolio.winRate.toFixed(1)}%`
+      },
       isRunning: this.isRunning
     });
   }
@@ -351,9 +423,13 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
         await this.simulationEngine.start();
       }
 
+      // Start unified engine for advanced trading
+      await this.unifiedEngine.start();
+      logger.info('✅ Unified Engine started (advanced trading)');
+
       if (this.config.enabledFeatures.detection) {
-        // await this.detector.start(); // Disabled - detector removed
-        logger.info('Token detection disabled (detector removed)');
+        await this.detector.start();
+        logger.info('✅ Token detection enabled and started');
       }
 
       if (this.config.enabledFeatures.dashboard) {
@@ -392,8 +468,11 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       }
 
       if (this.config.enabledFeatures.detection) {
-        // shutdownPromises.push(this.detector.stop()); // Disabled
+        shutdownPromises.push(this.detector.stop());
       }
+
+      // Stop unified engine
+      shutdownPromises.push(this.unifiedEngine.stop());
 
       if (this.config.enabledFeatures.simulation) {
         shutdownPromises.push(this.simulationEngine.stop());
@@ -418,7 +497,7 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       mode: this.config.mode,
       uptime: Date.now() - this.startTime,
       config: this.config,
-      detector: { status: 'disabled', reason: 'ConsolidatedTokenDetector removed' },
+      detector: this.detector.getStatus(),
       simulation: this.simulationEngine.getStatus(),
       portfolio: this.simulationEngine.getPortfolio(),
       dashboard: {
@@ -432,8 +511,7 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   // Health check for monitoring
   async healthCheck(): Promise<boolean> {
     try {
-      // const detectorHealth = await this.detector.healthCheck(); // Disabled
-      const detectorHealth = true; // Always healthy when disabled
+      const detectorHealth = await this.detector.healthCheck();
       const simulationHealth = this.simulationEngine.isEngineRunning();
       const dashboardHealth = this.dashboard.isRunning();
       

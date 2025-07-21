@@ -12,9 +12,9 @@ export class BlockchainAnalyzer extends EventEmitter implements BlockchainAnalyz
   private connectionPool: ConnectionPool;
   private isRunning = false;
 
-  constructor(connectionPool: ConnectionPool) {
+  constructor(connectionPool?: ConnectionPool) {
     super();
-    this.connectionPool = connectionPool;
+    this.connectionPool = connectionPool || new ConnectionPool();
   }
 
   async start(): Promise<void> {
