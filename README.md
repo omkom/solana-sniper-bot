@@ -383,21 +383,37 @@ This high-performance educational tool welcomes contributions in:
 
 This software is provided for educational purposes only. Users are responsible for compliance with applicable laws and regulations. The authors assume no responsibility for any use of this software. All trading simulations are educational and do not constitute financial advice.
 
-## 📞 Support & Documentation
+## 📚 Comprehensive Documentation
 
-For educational inquiries or technical issues:
-- **FEATURES.md**: Comprehensive feature documentation with creator intelligence
-- **SOURCES.md**: All data sources and API integrations
-- **CLAUDE.md**: AI assistant development guidance
+### 📖 Core Documentation
+- **[FEATURES.md](FEATURES.md)**: Complete feature documentation with creator intelligence
+- **[IMPLEMENTATION.md](IMPLEMENTATION.md)**: Step-by-step implementation guide
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Technical architecture and system design
+- **[STRATEGIES.md](STRATEGIES.md)**: Multi-strategy trading system documentation
+- **[SECURITY.md](SECURITY.md)**: Comprehensive security and safety framework
+- **[MONITORING.md](MONITORING.md)**: Performance monitoring and analytics
+
+### 🔧 Technical References  
+- **[SIMULATION.md](SIMULATION.md)**: Trading simulation engine details
+- **[SOURCES.md](SOURCES.md)**: Data sources and API integrations
+- **[FIXES-SUMMARY.md](FIXES-SUMMARY.md)**: Implementation fixes and enhancements
+- **[CLAUDE.md](CLAUDE.md)**: AI assistant development guidance
+- **[README-REAL.md](README-REAL.md)**: Real market data integration guide
+- **[RECREATE_PROMPT.md](RECREATE_PROMPT.md)**: System recreation guidelines
+
+### 🎯 Live System Access
 - **Dashboard**: Real-time system status at http://localhost:3000
-- **Logs**: Detailed system information in logs/ directory
-- **Repository Issues**: Technical support and feature requests
+- **Logs Directory**: Detailed system information in `logs/` directory
+- **API Endpoints**: RESTful API at `http://localhost:3000/api/`
+- **WebSocket**: Real-time updates for dashboard integration
 
-### Quick Troubleshooting
-- **Memory Issues**: Check position limits and auto-scaling
-- **Detection Delays**: Verify RPC connections and API rate limits
-- **Dashboard Problems**: Check port 3000 availability
-- **Creator Data**: Ensure database permissions for wallet tracking
+### 🔍 Quick Troubleshooting
+- **Memory Issues**: Check position limits and auto-scaling in [MONITORING.md](MONITORING.md)
+- **Detection Delays**: Verify RPC connections and API rate limits in [SOURCES.md](SOURCES.md)
+- **Dashboard Problems**: Check port 3000 availability and [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Creator Intelligence**: Database permissions and tracking in [SECURITY.md](SECURITY.md)
+- **Strategy Performance**: Multi-strategy analysis in [STRATEGIES.md](STRATEGIES.md)
+- **System Security**: Safety boundaries and DRY_RUN mode in [SECURITY.md](SECURITY.md)
 
 ---
 
@@ -405,8 +421,24 @@ For educational inquiries or technical issues:
 
 *This system demonstrates professional-grade token sniping techniques using REAL market data in a completely safe simulation environment. All creator intelligence and trading activities are educational demonstrations with virtual assets only.*
 
-### 🔒 Safety Guarantee
-- **Triple-Locked DRY_RUN**: Hardcoded safety that cannot be disabled
-- **Creator Database**: Educational analysis only, no real targeting
-- **Virtual Assets**: Simulated SOL balance with zero real fund risk
-- **Educational Focus**: 70% learning / 30% technical demonstration
+### 🔒 Educational Safety Guarantee
+
+#### Triple-Locked Safety System
+- **DRY_RUN Enforcement**: Hardcoded and cannot be disabled (see [SECURITY.md](SECURITY.md))
+- **Creator Intelligence**: Educational wallet analysis only, no real targeting
+- **Virtual Portfolio**: Simulated SOL balance with zero real fund risk
+- **Educational Boundaries**: 70% educational focus / 30% technical demonstration
+
+#### Comprehensive Safety Documentation
+- **[SECURITY.md](SECURITY.md)**: Complete security framework and safety measures
+- **[IMPLEMENTATION.md](IMPLEMENTATION.md)**: Safe development and deployment practices
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: System design with built-in safety constraints
+
+#### Performance & Learning Targets
+- **Win Rate**: >60% educational simulation success rate
+- **Average ROI**: >25% per simulated trade for learning excellence
+- **Detection Speed**: <5 second target latency for educational responsiveness
+- **Memory Efficiency**: <1.5GB usage for accessibility on standard systems
+- **Creator Intelligence**: Real-time wallet tracking database for educational analysis
+
+All features operate within strict educational simulation boundaries while using REAL market data for maximum learning value. See our comprehensive documentation for detailed safety measures and educational objectives.
