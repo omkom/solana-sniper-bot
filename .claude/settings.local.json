@@ -41,7 +41,11 @@
       "WebFetch(domain:api.dexscreener.com)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(git lfs:*)",
+      "Bash(apt:*)",
+      "Bash(apt install:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
