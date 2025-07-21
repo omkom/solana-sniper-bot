@@ -156,6 +156,28 @@ DASHBOARD_PORT=3000                   # Web interface port
 LOG_LEVEL=info                        # Logging verbosity
 ```
 
+## 🌐 Real Data Integration Features
+
+### Live Market Data Sources
+- **DexScreener API**: `https://api.dexscreener.com` - Primary real-time data
+  - **Search Endpoint**: `/latest/dex/search` (300 req/min) for token discovery
+  - **Token Data**: `/tokens/v1/solana/{addresses}` (300 req/min) for batch analysis
+  - **Token Pairs**: `/token-pairs/v1/solana/{address}` (300 req/min) for liquidity
+  - **Token Profiles**: `/token-profiles/latest/v1` (60 req/min) for metadata
+  - **Token Boosts**: `/token-boosts/latest/v1` (60 req/min) for trending
+- **Fallback Sources**: CoinGecko, RaydiumAPI, direct blockchain monitoring
+- **Creator Intelligence**: Wallet tracking database with rugpull history
+- **Social Integration**: Twitter/Telegram verification and monitoring
+
+### Data Quality & Performance
+- **Update Frequencies**: 15s prices, 30s discovery, 10s UI refresh
+- **Optimized Rate Limiting**: 
+  - DexScreener Search/Tokens/Pairs: 300 req/min
+  - DexScreener Profiles/Boosts: 60 req/min
+  - Intelligent queuing and batch processing (up to 30 tokens per request)
+- **Health Checks**: Automatic failover to backup data sources
+- **Data Validation**: Comprehensive market data verification with API response validation
+
 ## 📁 Enhanced Project Structure
 
 ```
@@ -252,29 +274,44 @@ The system evaluates tokens across multiple dimensions:
 - **Source Prioritization**: Higher allocation for pump.fun and high-quality sources
 - **Urgency Classification**: HIGH/MEDIUM/LOW priority processing
 
-### Position Management
-- **Smart Sizing Algorithm**: 
-  - Base size: 0.003 SOL
-  - Age multiplier: 3x for <5min, 2x for <15min, 1.5x for <30min
-  - Security multiplier: 2.5x for 95+, 2x for 90+, 1.5x for 80+
-  - Liquidity multiplier: 2.5x for $100K+, 2x for $50K+, 1.5x for $25K+
-  - Source multiplier: 1.8x for pump.fun, 1.5x for Raydium
+### Advanced Position Management with Creator Intelligence
+- **UI-Configurable Smart Sizing**: 
+  - Base size: 0.003 SOL (UI adjustable: 0.001-0.01 SOL)
+  - Source priority: 2.0x (Pump.fun), 1.8x (Raydium), 1.5x (Orca), 1.2x (Jupiter)
+  - Age multiplier: 3x (<5min), 2x (<15min), 1.5x (<30min), 1x (<60min)
+  - Security multiplier: 2.5x (95+), 2x (90+), 1.5x (80+), 1.2x (70+), 0.8x (<50)
+  - Liquidity multiplier: 2.5x ($100K+), 2x ($50K+), 1.5x ($25K+), 1.2x ($10K+)
+  - **Creator History Multiplier**: 1.3x (verified), 1x (unknown), 0.7x (flagged)
+- **Auto-Scaling Positions**: Dynamic limits based on available system memory
 
-### Exit Strategies
-- **Profit Maximization**: Multi-tier partial exits based on performance
-- **Momentum Detection**: AI-powered pump/dump identification
-- **Time-based Management**: Progressive exit strategies over time
-- **Stop-loss Protection**: -30% maximum loss threshold
+### Multi-Strategy Exit System
+- **Ultra-Aggressive (1% Hold)**: Moon-or-bust approach, 0% selling at 1000%
+- **Balanced (10% Hold)**: Default strategy with rugpull detection
+- **Conservative (5% Hold)**: Lower risk approach with early exits
+- **Creator-Aware Exits**: Adjust strategy based on creator wallet history
+- **Dynamic Hold Times**: 6h (high quality), 2h (standard), 30min (risky)
+- **Enhanced Stop-Loss**: -20% (improved from -30%) with trailing stops
 
-## 🎮 Demo Mode Features
+## 🎮 Advanced Educational Features
 
-The system includes comprehensive demo functionality:
+### Creator Intelligence System
+- **Wallet Creator Database**: Track all token creator wallets in dedicated database
+- **Historical Creator Behavior**: 
+  - Tokens created per wallet
+  - Market maker buy/sell activity patterns
+  - Rugpull history with price at dump moments
+  - Success/failure rate tracking per creator
+- **Rugpull Early Warning**: 
+  - Creator sell pressure monitoring
+  - Large holder dump detection
+  - Social sentiment crash alerts
+  - Liquidity removal detection
 
-- **Realistic Token Generation**: Creates tokens with varying characteristics
-- **Market Simulation**: Simulates realistic price movements and volumes
-- **Success Scenarios**: Demonstrates profitable trading outcomes
-- **Loss Scenarios**: Shows risk management in action
-- **Educational Narratives**: Explains decision-making processes
+### Enhanced Demo Functionality
+- **Multi-Strategy Testing**: Compare Conservative/Balanced/Aggressive/Ultra approaches
+- **Creator-Based Scenarios**: Verified vs flagged creator simulations
+- **Market Condition Simulations**: Bull/bear market with dynamic hold times
+- **Real vs Simulated Mode**: Switch between live data and educational scenarios
 
 ## 📝 Comprehensive Logging
 
@@ -289,44 +326,87 @@ The system includes comprehensive demo functionality:
 - Configurable retention periods
 - Performance-optimized logging to prevent disk space issues
 
-## 🚀 Performance Characteristics
+## 🚀 Enhanced Performance Characteristics
+
+### Target Performance Benchmarks
+- **Win Rate**: >60% successful trades
+- **Average ROI**: >25% per successful trade
+- **Detection Latency**: <5 seconds (target), <10s fallback
+- **System Uptime**: >99% availability
+- **Memory Efficiency**: <1.5GB (optimized from 2GB)
 
 ### System Throughput
-- **Token Processing**: 500+ tokens per minute
-- **Position Monitoring**: 500 concurrent positions
-- **Price Updates**: 30-second intervals for all tracked tokens
-- **Exit Checking**: 5-second intervals for active positions
+- **Token Processing**: 500+ tokens/min (targeting 1000+/min)
+- **Position Monitoring**: 500+ concurrent with auto-scaling
+- **Price Updates**: 15-second intervals (improved from 30s)
+- **Exit Checking**: 5-second intervals for optimal responsiveness
+- **UI Refresh**: 10-second dashboard updates
 
-### Resource Usage
-- **Memory**: ~2GB for full operation
-- **CPU**: Optimized for multi-core processing
-- **Network**: WebSocket connections to multiple DEXes
-- **Storage**: Rotating logs with automatic cleanup
+### Optimized Resource Usage
+- **Memory**: <1.5GB target with garbage collection
+- **CPU**: Multi-core optimized with priority queuing
+- **Network**: WebSocket + API with intelligent rate limiting
+- **Storage**: 30-day retention with automatic cleanup
+
+## 💻 System Requirements
+
+### Minimum Requirements
+- **RAM**: 4GB (basic operation)
+- **CPU**: 2 cores (reduced performance)
+- **Storage**: 10GB (logs and data)
+- **Network**: Stable internet for API access
+
+### Recommended Requirements (Full 500 Positions)
+- **RAM**: 8GB (optimal performance)
+- **CPU**: 4 cores (full throughput)
+- **Storage**: 50GB SSD (faster I/O)
+- **Network**: High-speed internet (low latency)
+
+### Optimal Requirements (1000+ Tokens/Min Target)
+- **RAM**: 16GB (maximum throughput)
+- **CPU**: 8 cores (peak performance)
+- **Storage**: 100GB NVMe (fastest access)
+- **Display**: 1920x1080 (optimized UI layout)
 
 ## 🤝 Contributing
 
-This educational tool welcomes contributions in:
+This high-performance educational tool welcomes contributions in:
 
-- **Enhanced Analysis Algorithms**: Better security detection methods
-- **Improved Visualization**: Advanced dashboard features
-- **Educational Content**: Better explanations and tutorials
-- **Performance Optimization**: Faster processing and lower resource usage
-- **Additional Safety Measures**: Enhanced simulation boundaries
+- **Creator Intelligence**: Enhanced wallet tracking and rugpull detection
+- **Performance Optimization**: Achieving 1000+ tokens/min throughput
+- **Advanced Algorithms**: Better security scoring and momentum detection
+- **UI/UX Improvements**: Enhanced dashboard features and visualizations
+- **Educational Content**: Creator behavior analysis and strategy explanations
+- **Safety Enhancements**: Additional DRY_RUN enforcement mechanisms
 
 ## ⚖️ Legal Notice
 
 This software is provided for educational purposes only. Users are responsible for compliance with applicable laws and regulations. The authors assume no responsibility for any use of this software. All trading simulations are educational and do not constitute financial advice.
 
-## 📞 Support
+## 📞 Support & Documentation
 
 For educational inquiries or technical issues:
-- Review the comprehensive documentation
-- Check the logs for detailed system information
-- Examine the dashboard for real-time system status
-- Create an issue in the project repository for technical support
+- **FEATURES.md**: Comprehensive feature documentation with creator intelligence
+- **SOURCES.md**: All data sources and API integrations
+- **CLAUDE.md**: AI assistant development guidance
+- **Dashboard**: Real-time system status at http://localhost:3000
+- **Logs**: Detailed system information in logs/ directory
+- **Repository Issues**: Technical support and feature requests
+
+### Quick Troubleshooting
+- **Memory Issues**: Check position limits and auto-scaling
+- **Detection Delays**: Verify RPC connections and API rate limits
+- **Dashboard Problems**: Check port 3000 availability
+- **Creator Data**: Ensure database permissions for wallet tracking
 
 ---
 
-**🎓 Educational Tool Only - No Real Trading Occurs!**
+**🎓 Educational High-Performance Tool - No Real Trading!**
 
-*This system is designed to teach blockchain analysis and trading concepts through realistic simulation. All activities are educational demonstrations using virtual assets.*
+*This system demonstrates professional-grade token sniping techniques using REAL market data in a completely safe simulation environment. All creator intelligence and trading activities are educational demonstrations with virtual assets only.*
+
+### 🔒 Safety Guarantee
+- **Triple-Locked DRY_RUN**: Hardcoded safety that cannot be disabled
+- **Creator Database**: Educational analysis only, no real targeting
+- **Virtual Assets**: Simulated SOL balance with zero real fund risk
+- **Educational Focus**: 70% learning / 30% technical demonstration

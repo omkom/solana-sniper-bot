@@ -45,7 +45,8 @@
       "Bash(git lfs:*)",
       "Bash(apt:*)",
       "Bash(apt install:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebFetch(domain:198140802-files.gitbook.io)"
     ],
     "deny": []
   }

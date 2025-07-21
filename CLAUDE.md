@@ -4,18 +4,27 @@ This file provides comprehensive guidance to Claude Code (claude.ai/code) when w
 
 ## Important Security Notice
 
-This codebase is an **educational Solana token analysis and trading simulation system**. Claude Code will:
-- Analyze existing code for educational purposes
-- Explain how the simulation system works
-- Help with security analysis and vulnerability detection
-- Assist with performance optimization and feature enhancements
-- **NOT modify the DRY_RUN mode** - all trading remains simulated
+This codebase is a **high-performance educational Solana token sniping tool** with creator intelligence and rugpull detection. Claude Code will:
+- Analyze existing code for educational purposes with 70% educational / 30% technical focus
+- Explain high-performance token detection and creator intelligence systems
+- Help with security analysis, rugpull detection, and vulnerability identification
+- Assist with performance optimization targeting >60% win rate and >25% ROI
+- Enhance creator wallet tracking and historical database features
+- **NOT modify the TRIPLE-LOCKED DRY_RUN mode** - all trading remains simulated
 - **NOT create real trading functionality** - educational simulation only
 - **NOT bypass safety constraints** - simulation boundaries must remain intact
+- **NOT enable real targeting** - creator intelligence for educational analysis only
 
 ## Core Objective
 
-Build a hyper-efficient token sniping tool that detects tokens within seconds of launch, performs instant analysis, and executes profitable trades with intelligent exit strategies.
+Build a hyper-efficient educational token sniping tool that:
+- Detects tokens within <5 seconds of launch (target), <10s fallback
+- Shows ALL tokens with risk information (no filtering by security score)
+- Performs instant analysis with creator wallet intelligence
+- Executes profitable simulated trades with multi-strategy exit options
+- Tracks creator wallets and rugpull patterns for educational purposes
+- Maintains >60% win rate and >25% ROI educational benchmarks
+- Uses REAL market data while remaining 100% educational simulation
 
 ## Technical Stack & Standards
 
@@ -52,21 +61,37 @@ src/
 
 ## Key Implementation Requirements
 
-### 1. Ultra-Fast Token Detection
+### 1. Ultra-Fast Priority-Based Token Detection
 ```typescript
 interface DetectionConfig {
   sources: {
+    // Priority 1: Primary memecoin source
+    pumpfun: { enabled: true; priority: 1; multiplier: 2.0 };
+    // Priority 2: High volume source  
+    raydium: { enabled: true; priority: 2; multiplier: 1.8 };
+    // Priority 3: Stable liquidity
+    orca: { enabled: true; priority: 3; multiplier: 1.5 };
+    // Priority 4+: Supplementary
+    jupiter: { enabled: true; priority: 4; multiplier: 1.2 };
+    meteora: { enabled: true; priority: 5; multiplier: 1.0 };
+    serum: { enabled: true; priority: 6; multiplier: 1.0 };
+    
+    dexScreener: { 
+      enabled: true; 
+      primary: true;
+      rateLimit: 100; // requests per minute
+      updateFreq: 30000; // 30s discovery, 15s prices
+    };
     blockchain: {
       rpcEndpoints: string[];      // Multiple for failover
-      blockAnalysisDepth: 3;       // Analyze last 3 blocks
-      mempoolScanning: true;       // Pre-launch detection
+      healthChecks: true;          // Automatic failover
+      creatorTracking: true;       // Track wallet creators
     };
-    dexScreener: { enabled: true; websocket: true };
-    jupiter: { enabled: true; polling: false };
-    raydium: { directPoolMonitoring: true };
   };
-  maxLatency: 50;                  // 50ms max detection time
+  maxLatency: 5000;                // <5s target, <10s fallback
+  showAllTokens: true;             // Display ALL tokens with risk info
   parallelProcessing: true;
+  creatorIntelligence: true;       // Enable creator database
 }
 ```
 
@@ -90,189 +115,511 @@ class BlockchainAnalyzer {
 }
 ```
 
-### 3. Security Analysis (Information Only)
+### 3. Enhanced Security Analysis with Creator Intelligence (Information Only)
 ```typescript
 interface SecurityInfo {
-  score: number;              // 0-100
-  flags: string[];           // Issues found
-  details: {
-    contractVerified: boolean;
-    liquidityLocked: boolean;
-    ownershipRenounced: boolean;
-    honeypotRisk: number;
-    rugPullIndicators: string[];
+  score: number;              // 0-100 (show ALL tokens >= 1)
+  visualDisplay: {
+    badge: '🔴' | '🟠' | '🟢';   // <3, 3-6, >6
+    radarChart: boolean;       // Detailed breakdown
+    tokenIcon: string;         // Display token image
   };
-  // NO FILTERING - pass all tokens with security info attached
+  priorityMetrics: {
+    honeypotRisk: number;      // CRITICAL - highest priority
+    liquidityLocked: boolean;  // High priority
+    ownershipRenounced: boolean; // High priority
+    topHolderConcentration: number; // Medium priority
+    contractVerified: boolean; // Medium priority
+  };
+  creatorIntelligence: {
+    walletAddress: string;     // Creator wallet tracking
+    historicalTokens: number;  // Tokens created by this wallet
+    rugpullHistory: {
+      count: number;
+      priceAtDump: number[];   // Historical dump prices
+    };
+    marketMakerActivity: {
+      buyCount: number;
+      sellCount: number;
+      avgHoldTime: number;
+    };
+    successRate: number;       // % of successful tokens
+    riskMultiplier: number;    // 1.3x verified, 1x unknown, 0.7x flagged
+  };
+  socialMedia: {
+    twitterVerified: boolean;
+    telegramActive: boolean;
+    websiteValid: boolean;
+    socialScore: number;
+  };
+  // NO FILTERING - show ALL tokens with color-coded warnings
   recommendation: 'PROCEED' | 'CAUTION' | 'HIGH_RISK';
+  displayAllTokens: true;      // Never filter, always show with warnings
 }
 ```
 
-### 4. Intelligent Simulation & Execution
+### 4. Multi-Strategy Intelligent Simulation with Creator Intelligence
 ```typescript
 interface TradingStrategy {
   simulation: {
-    enabledFor: 'TOKENS_UNDER_10_MINUTES';
-    amount: 0.003;           // SOL
-    parallelSimulations: 5;  // Test multiple scenarios
+    enabledFor: 'TOKENS_UNDER_10_MINUTES'; // Optimal entry window
+    baseAmount: 0.003;       // SOL (UI configurable 0.001-0.01)
+    uiConfigurable: true;    // Allow user adjustment
+    maxPositions: 500;       // Auto-scaling based on memory
+    autoScaling: true;       // Dynamic based on system resources
   };
   
   analysis: {
-    timeWindow: 10800000;    // 3 hours in ms
-    metricsTracked: ['volume', 'holders', 'priceAction', 'socialSignals'];
+    buyWindow: 600000;       // 10 minutes (optimal)
+    analysisWindow: 3600000; // 1 hour (improved from 3h)
+    metricsTracked: [
+      'volume', 'holders', 'priceAction', 
+      'socialSignals', 'creatorActivity', 'rugpullRisk'
+    ];
+    creatorIntelligence: true;
+  };
+  
+  multiStrategy: {
+    conservative: { holdPercent: 5, stopLoss: -15 };    // Lower risk
+    balanced: { holdPercent: 10, stopLoss: -20 };       // Default
+    aggressive: { holdPercent: 15, stopLoss: -20 };     // Higher risk
+    ultraAggressive: { holdPercent: 1, stopLoss: -20 }; // Moon-or-bust
+    
+    dynamicHoldTimes: {
+      highQuality: 21600000;  // 6 hours (score >8)
+      standard: 7200000;      // 2 hours 
+      risky: 1800000;        // 30 minutes (score <5)
+    };
   };
   
   execution: {
-    mode: 'AGGRESSIVE';      // Fast entry on positive signals
-    slippage: 30;           // Accept high slippage for speed
-    gasMultiplier: 1.5;     // Ensure transaction priority
+    mode: 'CREATOR_AWARE';   // Adjust based on creator history
+    creatorMultipliers: {
+      verified: 1.3;         // Boost verified creators
+      unknown: 1.0;          // Neutral
+      flagged: 0.7;          // Reduce flagged creators
+    };
+    improvedStopLoss: -20;   // Enhanced from -30%
+    granularProfitLevels: [25, 50, 100, 200, 300, 500, 1000];
+  };
+  
+  performanceBenchmarks: {
+    targetWinRate: 60;       // >60% target
+    targetAvgROI: 25;        // >25% per trade
+    maxDetectionLatency: 5000; // <5s target
+    memoryTarget: 1572864;   // <1.5GB
   };
 }
 ```
 
-### 5. Advanced Exit Strategy
+### 5. Advanced Multi-Strategy Exit System with Rugpull Protection
 ```typescript
 interface ExitStrategy {
-  targetROI: {
-    primary: 100;            // 100% profit target
-    trailing: true;          // Continue if momentum positive
+  multiStrategyOptions: {
+    ultraAggressive: {
+      holdPattern: {
+        1000: { sell: 100, hold: 0 };   // Sell all at 1000%
+        500: { sell: 90, hold: 10 };
+        300: { sell: 85, hold: 15 };
+        200: { sell: 80, hold: 20 };
+        100: { sell: 70, hold: 30 };
+        50: { sell: 50, hold: 50 };
+      };
+      stopLoss: -20;           // Improved from -30%
+    };
+    
+    balanced: {               // Default strategy
+      holdPattern: {
+        500: { sell: 90, hold: 10, exitCondition: 'UNTIL_RUGPULL' };
+        200: { sell: 75, hold: 25 };
+        100: { sell: 0, hold: 100, condition: 'MOMENTUM_BASED' };
+        50: { sell: 0, hold: 100, condition: 'IF_PUMPING' };
+      };
+      stopLoss: -20;
+    };
+    
+    conservative: {
+      holdPattern: {
+        300: { sell: 95, hold: 5 };
+        100: { sell: 85, hold: 15 };
+        50: { sell: 70, hold: 30 };
+      };
+      stopLoss: -15;           // Earlier stop-loss
+    };
   };
   
-  bagManagement: {
-    initialSell: 90;         // Sell 90% at target
-    holdPercentage: 10;      // Keep 10% for moon potential
-    microSells: true;        // Gradual exits on way up
+  creatorAwareExits: {
+    verifiedCreators: 'EXTENDED_HOLD';   // Longer hold times
+    unknownCreators: 'STANDARD_HOLD';    
+    flaggedCreators: 'QUICK_EXIT';       // Faster exits
+    
+    rugpullEarlyWarning: {
+      creatorSellPressure: 'MONITOR';     // Track creator sales
+      liquidityRemoval: 'ALERT';          // Pool liquidity monitoring
+      largeHolderDumps: 'IMMEDIATE_EXIT'; // Top holder activity
+      socialSentimentCrash: 'WARNING';    // Social media monitoring
+    };
+  };
+  
+  dynamicHoldTimes: {
+    highQuality: 21600000;    // 6 hours for score >8
+    standard: 7200000;        // 2 hours default
+    risky: 1800000;          // 30 minutes for score <5
+    emergencyExit: 120000;   // 2 minutes for rugpull alerts
   };
   
   rugPullProtection: {
-    liquidityMonitoring: 'REAL_TIME';
-    ownerActivityTracking: true;
-    exitTriggers: [
-      'LIQUIDITY_REMOVAL_DETECTED',
-      'LARGE_HOLDER_DUMP',
-      'SOCIAL_SENTIMENT_CRASH'
+    realTimeMonitoring: [
+      'CREATOR_WALLET_ACTIVITY',
+      'LIQUIDITY_REMOVAL_DETECTION',
+      'LARGE_HOLDER_DUMPS',
+      'SOCIAL_SENTIMENT_CRASH',
+      'VOLUME_ANOMALIES'
     ];
     maxExitTime: 100;        // 100ms emergency exit
+    creatorDatabaseIntegration: true;
   };
 }
 ```
 
-### 6. Frontend-Backend Integration
+### 6. Enhanced Frontend-Backend Integration with Creator Intelligence
 ```typescript
-// WebSocket Events
+// Enhanced WebSocket Events (10-second UI refresh)
 interface RealtimeEvents {
-  'token:detected': UnifiedTokenInfo & { detectionLatency: number };
-  'token:analyzed': TokenAnalysis & { securityInfo: SecurityInfo };
-  'trade:simulated': SimulationResult;
-  'trade:executed': ExecutionResult;
-  'position:update': PositionUpdate & { roi: number; exitRecommendation: string };
-  'alert:rugpull': { tokenAddress: string; action: 'EMERGENCY_EXIT' };
+  // Token Intelligence
+  'token:detected': UnifiedTokenInfo & { 
+    detectionLatency: number; 
+    creatorWallet: string;
+    securityBadge: '🔴' | '🟠' | '🟢';
+    tokenIcon: string;
+  };
+  'token:analyzed': TokenAnalysis & { 
+    securityInfo: SecurityInfo;
+    creatorHistory: CreatorIntelligence;
+    socialMediaVerified: boolean;
+  };
+  
+  // Trading Events  
+  'trade:simulated': SimulationResult & {
+    strategy: 'CONSERVATIVE' | 'BALANCED' | 'AGGRESSIVE' | 'ULTRA';
+    creatorMultiplier: number;
+    expectedHoldTime: number;
+  };
+  'position:update': PositionUpdate & { 
+    roi: number; 
+    exitRecommendation: string;
+    timeRemaining: number;
+    rugpullRisk: 'LOW' | 'MEDIUM' | 'HIGH';
+  };
+  
+  // Creator Intelligence Events
+  'creator:activity': {
+    walletAddress: string;
+    activity: 'BUY' | 'SELL' | 'LARGE_TRANSACTION';
+    tokenAddress: string;
+    amount: number;
+    rugpullRisk: number;
+  };
+  'creator:rugpull': {
+    creatorWallet: string;
+    tokenAddress: string;
+    priceAtDump: number;
+    action: 'DATABASE_UPDATE';
+  };
+  
+  // System Performance
+  'performance:benchmark': {
+    winRate: number;          // Target >60%
+    avgROI: number;          // Target >25%
+    detectionLatency: number; // Target <5s
+    memoryUsage: number;     // Target <1.5GB
+    tokensPerMinute: number; // Target 1000+
+  };
+  
+  // Alerts and Warnings
+  'alert:rugpull': { 
+    tokenAddress: string; 
+    creatorWallet: string;
+    action: 'EMERGENCY_EXIT';
+    priceAtAlert: number;
+  };
+  'alert:creator': {
+    walletAddress: string;
+    riskLevel: 'FLAGGED' | 'SUSPICIOUS';
+    reason: string;
+  };
 }
 
-// REST API Endpoints
+// Enhanced REST API Endpoints
 interface APIEndpoints {
-  'GET /metrics/performance': { detection: number; execution: number; profit: number };
-  'POST /simulation/run': { token: string; amount: number };
-  'GET /positions/active': Position[];
-  'POST /trade/execute': TradeRequest;
-  'GET /analysis/historical': TokenAnalysis[];
+  // Core Trading Simulation
+  'GET /api/portfolio': PortfolioStats & { benchmark: PerformanceBenchmark };
+  'GET /api/positions': Position[] & { creatorInfo: CreatorIntelligence[] };
+  'GET /api/trades': TradeHistory[] & { strategyBreakdown: StrategyStats };
+  'GET /api/system': SystemHealth & { performanceBenchmarks: Benchmarks };
+  
+  // Token Intelligence
+  'GET /api/tracked-tokens': TokenInfo[] & { 
+    showAllTokens: true;
+    securityBadges: SecurityBadge[];
+    creatorWallets: string[];
+  };
+  'GET /api/tracked-tokens/stats': TokenStats & { 
+    creatorBreakdown: CreatorStats[];
+    rugpullHistory: RugpullEvent[];
+  };
+  
+  // Creator Intelligence System
+  'GET /api/creator-wallets': CreatorDatabase[];
+  'GET /api/creator-wallets/:address': CreatorProfile & {
+    tokensCreated: TokenInfo[];
+    rugpullHistory: RugpullEvent[];
+    successRate: number;
+    riskScore: number;
+  };
+  'GET /api/rugpull-history': RugpullEvent[] & { priceAtDump: number };
+  'POST /api/creator-wallets/flag': { wallet: string; reason: string };
+  
+  // Performance & Strategy
+  'GET /api/kpi/benchmarks': {
+    winRate: { current: number; target: 60 };
+    avgROI: { current: number; target: 25 };
+    detectionLatency: { current: number; target: 5000 };
+    memoryUsage: { current: number; target: 1572864 };
+  };
+  'POST /api/strategy/configure': {
+    strategy: 'CONSERVATIVE' | 'BALANCED' | 'AGGRESSIVE' | 'ULTRA';
+    customHoldPercent?: number;
+    customStopLoss?: number;
+  };
+  
+  // Security Analysis
+  'GET /api/security-scores': SecurityAnalysis[] & { 
+    showAll: true;
+    colorCoded: boolean;
+    radarCharts: boolean;
+  };
+  'GET /api/security-alerts': SecurityAlert[] & {
+    rugpullWarnings: RugpullAlert[];
+    creatorAlerts: CreatorAlert[];
+  };
 }
 ```
 
-### 7. Performance Optimizations
+### 7. High-Performance Optimizations with Benchmarking
 ```typescript
 const optimizations = {
+  performanceBenchmarks: {
+    targetWinRate: 60,        // >60% successful trades
+    targetAvgROI: 25,         // >25% per trade
+    maxDetectionLatency: 5000, // <5s detection
+    maxMemoryUsage: 1572864,  // <1.5GB memory
+    minTokensPerMinute: 1000, // Target throughput
+    maxSystemUptime: 99,      // >99% availability
+  },
+  
   caching: {
-    tokenMetadata: 3600000,   // 1 hour
-    securityScores: 300000,   // 5 minutes
-    priceData: 1000,          // 1 second
+    tokenMetadata: 1800000,   // 30 minutes (optimized)
+    securityScores: 300000,   // 5 minutes  
+    priceData: 15000,         // 15 seconds (improved)
+    creatorIntelligence: 3600000, // 1 hour creator data
+    rugpullDatabase: 86400000, // 24 hours rugpull history
   },
   
   concurrency: {
-    maxParallelDetections: 50,
-    maxSimultaneousSimulations: 10,
-    connectionPoolSize: 20,
+    maxParallelDetections: 100, // Increased for higher throughput
+    maxSimultaneousPositions: 500, // Auto-scaling based on memory
+    connectionPoolSize: 20,    
+    creatorTrackingThreads: 5, // Dedicated creator monitoring
   },
   
   dataStructures: {
-    useIndexedDB: true,       // Client-side caching
-    useRedis: true,           // Server-side caching
-    compressionEnabled: true,  // Reduce network overhead
+    creatorDatabase: 'MEMORY_OPTIMIZED', // Fast creator lookups
+    rugpullHistory: 'INDEXED',  // Quick historical searches
+    compressionEnabled: true,   // Network overhead reduction
+    garbageCollection: 'AGGRESSIVE', // Memory management
+  },
+  
+  apiOptimizations: {
+    dexScreenerConfig: {
+      baseUrl: 'https://api.dexscreener.com',
+      searchTokensRateLimit: 300,    // Search/Tokens/Pairs endpoints
+      profilesRateLimit: 60,         // Profiles/Boosts endpoints  
+      batchSize: 30,                 // Max tokens per request
+      timeout: 10000,                // 10 second timeout
+      endpoints: {
+        search: '/latest/dex/search',
+        tokens: '/tokens/v1/solana',
+        pairs: '/token-pairs/v1/solana',
+        profiles: '/token-profiles/latest/v1',
+        boosts: '/token-boosts/latest/v1'
+      }
+    },
+    jupiterRateLimit: 50,
+    solanaRPCRateLimit: 1000,
+    batchProcessing: 30,              // Optimized for DexScreener batch size
+    intelligentRetry: 'EXPONENTIAL_BACKOFF',
   }
 };
 ```
 
-### 8. Risk Management
+### 8. Enhanced Risk Management with Creator Intelligence
 ```typescript
 interface RiskManagement {
-  maxPositions: 10;
-  maxPositionSize: 0.01;      // 1% of portfolio
-  dailyLossLimit: 0.1;        // 10% daily loss limit
+  positionManagement: {
+    maxConcurrentPositions: 500;  // Auto-scaling based on memory
+    basePositionSize: 0.003;      // SOL (UI configurable 0.001-0.01)
+    uiConfigurable: true;         // User can adjust via dashboard
+    maxPositionPercent: 0.2;      // 20% max of virtual portfolio
+    creatorMultipliers: {
+      verified: 1.3;              // Boost for verified creators
+      unknown: 1.0;               // Neutral for unknown
+      flagged: 0.7;               // Reduce for flagged creators
+    };
+  };
   
-  tokenFilters: {
-    minLiquidity: 5000;       // $5000 USD
-    maxSlippage: 50;          // 50% max acceptable
-    minHolders: 10;           // Initial holder count
+  tokenCriteria: {
+    showAllTokens: true;          // Display ALL tokens (no filtering)
+    minSecurityScore: 1;          // Show everything with warnings
+    ageFilters: {
+      buyWindow: 600000;          // 10 minutes optimal
+      analysisWindow: 3600000;    // 1 hour (improved from 3h)
+      dynamicAdjustment: true;    // Based on volatility
+    };
+    priorityOrder: [
+      'PUMP_FUN',                 // Priority 1
+      'RAYDIUM',                  // Priority 2  
+      'ORCA',                     // Priority 3
+      'JUPITER'                   // Priority 4
+    ];
+  };
+  
+  creatorRiskManagement: {
+    rugpullEarlyWarning: {
+      creatorSellPressure: 'MONITOR';
+      liquidityRemoval: 'ALERT';
+      largeHolderDumps: 'EMERGENCY_EXIT';
+      socialSentimentCrash: 'WARNING';
+    };
+    
+    creatorDatabase: {
+      trackAllCreators: true;
+      flagSuspiciousActivity: true;
+      historicalSuccessRate: true;
+      priceAtDumpTracking: true;
+    };
   };
   
   autoStopConditions: [
-    'DAILY_LOSS_EXCEEDED',
-    'UNUSUAL_NETWORK_ACTIVITY',
-    'RPC_DEGRADATION'
+    'MEMORY_USAGE_EXCEEDED_1_5GB',
+    'DETECTION_LATENCY_OVER_10S',
+    'WIN_RATE_BELOW_40_PERCENT',
+    'RUGPULL_DETECTED',
+    'CREATOR_FLAGGED_ACTIVITY'
   ];
+  
+  emergencyProcedures: {
+    rugpullDetected: 'IMMEDIATE_EXIT_100MS';
+    memoryOverflow: 'GRACEFUL_POSITION_REDUCTION';
+    apiFailure: 'FAILOVER_TO_SECONDARY';
+    creatorAlert: 'POSITION_SIZE_REDUCTION';
+  };
 }
 ```
 
-## Implementation Guidelines
+## Enhanced Implementation Guidelines
 
-- **Connection Management**: Implement round-robin RPC rotation with health checks
-- **Event Streaming**: Use EventEmitter with backpressure handling
-- **Error Recovery**: Automatic retry with exponential backoff
-- **Monitoring**: Prometheus metrics for all critical operations
-- **Testing**: 100% coverage for trading logic, integration tests for detection
+### High-Performance Architecture
+- **Multi-RPC Management**: Round-robin rotation with health checks and failover
+- **Priority-Based Processing**: Pump.fun > Raydium > Orca > Others
+- **Event Streaming**: EventEmitter with backpressure and 10s UI updates  
+- **Creator Intelligence**: Real-time wallet tracking with database updates
+- **Error Recovery**: Exponential backoff with graceful degradation
+- **Performance Monitoring**: Continuous benchmarking against targets
 
-## Code Quality Standards
+### Creator Intelligence Implementation
+- **Database Schema**: Creator wallets, token history, rugpull events
+- **Real-Time Tracking**: Monitor all creator wallet activity
+- **Pattern Recognition**: Identify rugpull signatures and success patterns
+- **Social Integration**: Twitter/Telegram verification and monitoring
+- **Risk Scoring**: Dynamic creator risk assessment
 
-- ESLint strict mode with no warnings
-- Prettier formatting on pre-commit
-- Jest tests with >90% coverage
-- TypeDoc comments for all public APIs
-- Performance benchmarks for critical paths
+### Testing & Quality Assurance
+- **Unit Testing**: 100% coverage for trading and creator intelligence logic
+- **Integration Testing**: Multi-DEX connection and failover testing
+- **Performance Testing**: Benchmarking against >60% win rate, >25% ROI
+- **Creator Database Testing**: Accuracy validation for wallet tracking
+- **Load Testing**: 1000+ tokens/min throughput validation
 
-## Development Commands
+## Enhanced Code Quality Standards
 
+### Code Quality & Safety
+- **TypeScript Strict Mode**: Comprehensive type safety with v5.3.0
+- **ESLint Configuration**: Zero warnings with creator intelligence linting
+- **Prettier Formatting**: Consistent code style on pre-commit
+- **Educational Safety**: 70% educational focus / 30% technical
+- **DRY_RUN Enforcement**: Triple-locked safety that cannot be bypassed
+
+### Testing Standards
+- **Jest Testing**: >90% coverage including creator intelligence
+- **Integration Tests**: Multi-strategy exit testing
+- **Performance Tests**: Benchmark validation (>60% win, >25% ROI)
+- **Creator Database Tests**: Wallet tracking accuracy validation
+- **API Tests**: Rate limiting and failover testing
+
+### Documentation Standards
+- **TypeDoc Comments**: All public APIs with creator intelligence examples
+- **Performance Benchmarks**: Critical path optimization documentation
+- **Creator Intelligence**: Rugpull detection algorithm documentation
+- **Safety Documentation**: Educational boundaries and simulation limits
+- **Multi-Strategy Documentation**: Exit strategy comparisons and examples
+
+## Enhanced Development Commands
+
+### Quick Start (3 Deployment Modes)
 ```bash
 # Install dependencies
 npm install
 
-# Start in simulation mode
-npm run dev:simulation
+# 🎯 Rapid Mode (RECOMMENDED - Instant Demo)
+npm run dev:rapid        # High-frequency detection with creator intelligence
 
-# Rapid detection mode (RECOMMENDED)
-npm run dev:rapid
+# 🌐 Real Data Mode (Live Market Integration)
+npm run dev:real         # Live DexScreener API with REAL market data
 
-# Real-time monitoring mode
-npm run dev:real
+# 📊 Standard Mode (Balanced Performance)
+npm run dev              # Default educational mode with all features
+```
 
-# Run performance tests
-npm run test:performance
+### Production & Testing
+```bash
+# Production deployment
+npm start                # Standard production mode
+npm start:rapid          # High-performance production
 
-# Build TypeScript to JavaScript
-npm run build
+# Development builds
+npm run build            # TypeScript compilation
+npm run dev:analysis     # Deep analysis mode
 
-# Production build
-npm start
+# Quality assurance
+npm test                 # Jest test suite with creator intelligence tests
+npm run test:performance # Performance benchmark validation
+npm run lint             # ESLint with TypeScript strict mode
+npm run typecheck        # TypeScript validation
 
-# Production with rapid detection
-npm start:rapid
+# Creator intelligence testing
+npm run test:creators    # Creator database accuracy tests
+npm run test:rugpull     # Rugpull detection algorithm tests
+```
 
-# Run tests
-npm test
-
-# Lint the codebase
-npm run lint
-
-# Deploy with monitoring
-npm run deploy:production
+### Performance Monitoring
+```bash
+# Benchmark testing
+npm run benchmark:winrate    # >60% win rate validation
+npm run benchmark:roi        # >25% ROI validation  
+npm run benchmark:latency    # <5s detection testing
+npm run benchmark:memory     # <1.5GB usage validation
+npm run benchmark:throughput # 1000+ tokens/min testing
 ```
 
 ## Current System Components
@@ -290,88 +637,183 @@ npm run deploy:production
 - **Pump Detection** (`src/detection/pump-detector.ts`): Momentum detection algorithms
 - **Security Analysis** (`src/analysis/security-analyzer.ts`): Comprehensive token safety evaluation
 
-## Enhanced Configuration
+## Enhanced Configuration with Creator Intelligence
 
-### Environment Variables (`.env`)
+### Core Environment Variables (`.env`)
 ```env
-# Core Settings - DO NOT MODIFY
-MODE=DRY_RUN                          # Hardcoded for safety
+# TRIPLE-LOCKED SAFETY - CANNOT BE MODIFIED
+MODE=DRY_RUN                          # Hardcoded educational safety
+EDUCATIONAL_FOCUS=70                  # 70% educational / 30% technical
+REAL_TRADING_DISABLED=TRUE            # Cannot be bypassed
 
-# RPC Configuration
+# Multi-RPC Configuration with Failover
 RPC_PRIMARY=https://api.mainnet-beta.solana.com
 RPC_SECONDARY=https://api.mainnet-beta.solana.com
+RPC_HEALTH_CHECK_INTERVAL=30000       # 30s health checks
+RPC_FAILOVER_ENABLED=TRUE             # Automatic failover
 
-# Detection Parameters
-MIN_LIQUIDITY_SOL=0.5                 # Minimum liquidity threshold
-MIN_CONFIDENCE_SCORE=5                # Security threshold
-MAX_ANALYSIS_AGE_MS=600000            # 10 minutes age limit for tokens
+# Priority-Based Detection Parameters  
+MIN_LIQUIDITY_SOL=0.01                # Very permissive (show ALL tokens)
+MIN_CONFIDENCE_SCORE=1                # Show all with warnings
+MAX_ANALYSIS_AGE_MS=3600000           # 1 hour optimal (improved from 10min)
+PRIORITY_SOURCES=PUMP_FUN,RAYDIUM,ORCA,JUPITER # Priority order
 
-# Simulation Parameters
-SIMULATED_INVESTMENT=0.003            # Base investment per token
-MAX_SIMULATED_POSITIONS=10            # Maximum concurrent positions
-STARTING_BALANCE=10                   # Starting SOL balance
+# Enhanced Simulation Parameters
+SIMULATED_INVESTMENT=0.003            # Base (UI configurable 0.001-0.01)
+MAX_SIMULATED_POSITIONS=500           # Auto-scaling based on memory
+STARTING_BALANCE=10                   # Virtual SOL balance
+UI_CONFIGURABLE_POSITIONS=TRUE        # Allow user adjustment
 
-# Dashboard Configuration
+# Creator Intelligence Configuration
+CREATOR_TRACKING_ENABLED=TRUE         # Enable wallet tracking
+CREATOR_DATABASE_RETENTION=30         # 30 days detailed data
+RUGPULL_DETECTION_ENABLED=TRUE        # Enable rugpull monitoring
+SOCIAL_MEDIA_VERIFICATION=TRUE        # Twitter/Telegram checks
+
+# Performance Benchmarks
+TARGET_WIN_RATE=60                    # >60% target
+TARGET_AVG_ROI=25                     # >25% per trade
+TARGET_DETECTION_LATENCY=5000         # <5s target
+TARGET_MEMORY_USAGE_MB=1536           # <1.5GB target
+TARGET_TOKENS_PER_MINUTE=1000         # Target throughput
+
+# Enhanced Dashboard Configuration
 DASHBOARD_PORT=3000                   # Web interface port
+UI_REFRESH_INTERVAL=10000             # 10s dashboard refresh
+PRICE_UPDATE_INTERVAL=15000           # 15s price updates (improved)
+CREATOR_PANEL_ENABLED=TRUE            # Show creator intelligence panel
+
+# DexScreener API Configuration (Optimized)
+DEXSCREENER_BASE_URL=https://api.dexscreener.com
+DEXSCREENER_SEARCH_RATE_LIMIT=300     # Search/Tokens/Pairs: 300 req/min
+DEXSCREENER_PROFILES_RATE_LIMIT=60    # Profiles/Boosts: 60 req/min
+DEXSCREENER_BATCH_SIZE=30             # Max tokens per batch request
+DEXSCREENER_TIMEOUT=10000             # 10 second timeout
+
+# Other API Rate Limiting
+JUPITER_RATE_LIMIT=50                 # 50 req/min
+SOLANA_RPC_RATE_LIMIT=1000            # 1000 req/min
+
+# High-Performance Tuning (DexScreener Optimized)
+BATCH_SIZE=30                         # DexScreener optimized batch size
+CONCURRENT_THREADS=8                  # Multi-core optimization
+GARBAGE_COLLECTION=AGGRESSIVE         # Memory management
 LOG_LEVEL=info                        # Logging verbosity
-
-# Performance Tuning
-BATCH_SIZE=50                         # Token processing batch size
-QUEUE_PROCESSING_INTERVAL=500         # Queue processing interval (ms)
-PRICE_UPDATE_INTERVAL=30000           # Price update interval (ms)
+LOG_RETENTION_DAYS=30                 # 30-day log retention
 ```
 
-## API Endpoints
+## Enhanced API Endpoints with Creator Intelligence
 
 ```typescript
-// Core simulation data
-GET /api/portfolio          # Portfolio statistics
-GET /api/positions          # Active positions
-GET /api/trades            # Trade history
-GET /api/system            # System information
+// Core Trading Simulation
+GET /api/portfolio              # Portfolio with benchmark comparison
+GET /api/positions              # Active positions with creator info
+GET /api/trades                # Complete trade history with strategies
+GET /api/system                # System health with performance metrics
 
-// Enhanced tracking endpoints
-GET /api/tracked-tokens     # All tracked tokens
-GET /api/tracked-tokens/stats  # Tracking statistics
-GET /api/tracked-tokens/:address/history  # Price history
+// Token Intelligence (Show ALL Tokens)
+GET /api/tracked-tokens         # All tokens with security badges
+GET /api/tracked-tokens/stats   # Statistics with creator breakdown
+GET /api/tracked-tokens/:address/history  # Price history with creator events
+GET /api/security-scores        # All security analysis (no filtering)
 
-// Migration monitoring
-GET /api/migrations         # Migration history
-GET /api/migrations/stats   # Migration statistics
+// Creator Intelligence System
+GET /api/creator-wallets        # Complete creator database
+GET /api/creator-wallets/:address  # Individual creator profile
+GET /api/rugpull-history        # Historical rugpull events
+GET /api/creator-alerts         # Creator risk alerts
+POST /api/creator-wallets/flag  # Flag suspicious creator activity
 
-// KPI tracking
-GET /api/kpi/metrics        # All KPI metrics
-GET /api/kpi/summary        # KPI summary
-GET /api/kpi/:metric        # Specific metric data
+// Performance Benchmarking
+GET /api/kpi/benchmarks         # Performance vs targets (>60% win, >25% ROI)
+GET /api/kpi/metrics           # Detailed KPI tracking
+GET /api/kpi/creator-performance # Creator-specific performance metrics
+GET /api/performance/latency    # Detection latency monitoring (<5s target)
+GET /api/performance/memory     # Memory usage tracking (<1.5GB target)
+
+// Strategy Configuration
+POST /api/strategy/configure    # Set Conservative/Balanced/Aggressive/Ultra
+GET /api/strategy/comparison    # Compare strategy performance
+POST /api/position-size/config  # Configure UI position sizing (0.001-0.01)
+
+// Social Media Integration
+GET /api/social/verification    # Token social media verification status
+GET /api/social/sentiment      # Social sentiment analysis
+GET /api/social/alerts         # Social sentiment crash alerts
 ```
 
-## WebSocket Events
+## Enhanced WebSocket Events (10-Second UI Refresh)
 
 ```typescript
-// Real-time updates
-'portfolio' -> Portfolio statistics
-'positions' -> Active positions
-'newTrade' -> New trade executed
-'tokenAdded' -> Token added to tracking
-'priceUpdate' -> Price update for tracked token
-'kpiUpdate' -> KPI metric update
-'migration' -> Token migration detected
+// Core Trading Events
+'portfolio' -> Portfolio statistics with benchmark comparison
+'positions' -> Position updates with creator intelligence and ROI
+'newTrade' -> Trade execution with strategy info and creator multipliers
+'exitStrategy' -> Exit strategy triggers and multi-strategy comparison
+
+// Token Intelligence (Show ALL Tokens)
+'tokenAdded' -> New token detection with security badges and creator info
+'priceUpdate' -> 15-second price updates with momentum indicators
+'securityAnalysis' -> Complete security analysis (no filtering)
+'tokenIcon' -> Token image display for enhanced visualization
+
+// Creator Intelligence Events
+'creatorActivity' -> Real-time creator wallet monitoring
+'creatorProfile' -> Creator database updates and history
+'rugpullDetected' -> Rugpull events with price at dump
+'creatorAlert' -> Creator risk flags and suspicious activity
+'socialVerification' -> Twitter/Telegram verification status
+
+// Performance Monitoring
+'performanceBenchmark' -> Real-time benchmark tracking
+'systemHealth' -> Memory usage (<1.5GB), detection latency (<5s)
+'winRateUpdate' -> Win rate tracking (target >60%)
+'roiUpdate' -> ROI performance (target >25%)
+'throughputMetrics' -> Tokens/minute processing (target 1000+)
+
+// Strategy & Configuration
+'strategyChange' -> Multi-strategy switching events
+'positionSizeConfig' -> UI position size configuration updates
+'holdTimeUpdate' -> Dynamic hold time adjustments (6h/2h/30min)
+
+// Alerts & Warnings
+'rugpullAlert' -> Emergency rugpull detection and exit triggers
+'memoryWarning' -> Memory usage approaching limits
+'latencyWarning' -> Detection latency exceeding targets
+'creatorFlagged' -> Creator flagged for suspicious activity
 ```
 
-## Educational Boundaries
+## Enhanced Educational Boundaries with Creator Intelligence
 
-### Safety Constraints
-- **DRY_RUN Mode**: Cannot be disabled - hardcoded for safety
-- **Virtual Assets**: No real funds ever at risk
-- **Simulation Only**: All trades are educational demonstrations
-- **Safety Warnings**: Clear indicators throughout all interfaces
-- **Audit Trail**: Complete logging of all activities
+### Triple-Locked Safety Constraints
+- **DRY_RUN Mode**: Cannot be disabled - hardcoded with triple validation
+- **Educational Focus**: 70% educational content / 30% technical demonstration
+- **Virtual Assets**: Simulated SOL balance with zero real fund risk
+- **Creator Intelligence**: Educational wallet analysis only - no real targeting
+- **Safety Warnings**: Prominent indicators throughout all interfaces
+- **Complete Audit Trail**: All activities logged with 30-day retention
 
-### Technical Limits
-- **Position Limits**: Maximum 10 concurrent positions (aggressive mode)
-- **Age Filtering**: Only tokens < 10 minutes old processed
-- **Security Threshold**: Minimum 5-point security score
-- **Memory Management**: Automatic cleanup prevents resource exhaustion
+### Enhanced Technical Limits
+- **Position Management**: 500+ concurrent positions with auto-scaling
+- **Token Display**: Show ALL tokens (≥1 score) with risk warnings
+- **Age Processing**: <10min optimal buy window, <1h analysis window
+- **Creator Database**: Educational tracking only - no real-world application
+- **Memory Management**: <1.5GB target with aggressive garbage collection
+- **Performance Limits**: >60% win rate and >25% ROI educational targets
+
+### Creator Intelligence Boundaries
+- **Wallet Tracking**: Educational pattern analysis only
+- **Rugpull Database**: Historical education - not predictive targeting
+- **Social Integration**: Verification for educational completeness
+- **Risk Scoring**: Creator multipliers for educational simulation only
+- **Database Usage**: 30-day retention for learning purposes
+
+### System Performance Boundaries
+- **Detection Speed**: <5s target for educational responsiveness
+- **Memory Usage**: <1.5GB to ensure accessibility on standard systems
+- **API Usage**: Respectful rate limiting (100 req/min DexScreener)
+- **Throughput**: Target 1000+ tokens/min for comprehensive education
+- **Uptime**: >99% availability for consistent learning experience
 
 ## Troubleshooting
 
@@ -389,4 +831,38 @@ GET /api/kpi/:metric        # Specific metric data
 
 ---
 
-**Remember**: This system is designed for educational purposes only. All trading is simulated and no real funds are ever at risk. The system maintains strict safety boundaries to ensure it remains a learning tool while demonstrating advanced token sniping techniques.
+## 🎯 Implementation Priorities
+
+### Phase 1 (Immediate - Safety & Core Features)
+- **Hardcode DRY_RUN Mode**: Triple-locked safety enforcement
+- **Creator Intelligence Database**: Implement wallet tracking system
+- **Security Badge Display**: Color-coded visualization (\ud83d\udd34\ud83d\udfe0\ud83d\udfe2) 
+- **Show ALL Tokens**: Remove filtering, display with risk warnings
+- **Performance Benchmarks**: Implement >60% win rate, >25% ROI tracking
+
+### Phase 2 (Short-term - Enhanced Features)
+- **Multi-Strategy Exits**: Conservative/Balanced/Aggressive/Ultra options
+- **UI Position Configuration**: 0.001-0.01 SOL user adjustment
+- **Real-Time Updates**: 15s prices, 10s UI refresh implementation
+- **Creator Multipliers**: 1.3x verified, 1x unknown, 0.7x flagged
+- **Rugpull Detection**: Early warning system with database integration
+
+### Phase 3 (Medium-term - Advanced Intelligence)
+- **Social Media Integration**: Twitter/Telegram verification
+- **Advanced Creator Scoring**: Historical success rate analysis
+- **Performance Optimization**: Target 1000+ tokens/min throughput
+- **Memory Optimization**: <1.5GB usage with garbage collection
+- **API Health Monitoring**: Failover and rate limiting optimization
+
+## 🔒 Educational Safety Reminder
+
+**This high-performance educational system demonstrates professional-grade token sniping with creator intelligence while maintaining absolute safety:**
+
+- **TRIPLE-LOCKED DRY_RUN**: Cannot be disabled or bypassed
+- **CREATOR INTELLIGENCE**: Educational pattern analysis only - no real targeting
+- **VIRTUAL TRADING**: Simulated SOL balance with zero real fund risk  
+- **70% EDUCATIONAL FOCUS**: Learning-first approach with technical demonstration
+- **PERFORMANCE BENCHMARKS**: >60% win rate, >25% ROI for educational excellence
+- **RESPECTFUL API USAGE**: Rate limiting and ethical data source usage
+
+**Remember**: This system uses REAL market data and creator intelligence for maximum educational value while maintaining strict simulation boundaries. All activities are educational demonstrations designed to teach advanced blockchain analysis and trading concepts.

@@ -1,136 +1,248 @@
 # 🚀 Features Documentation
 
-This document provides a comprehensive overview of all features in the Educational Solana Token Analyzer.
+This document provides a comprehensive overview of all features in the Educational Solana Token Analyzer - a high-performance token sniping tool operating exclusively in DRY RUN mode for educational purposes.
 
 ## 🎯 Core Features
 
-### 🔍 Advanced Token Detection
+### 🔍 Ultra-Fast Token Detection (<5 Second Target)
 - **Multi-DEX Monitoring**: Simultaneous monitoring of 6+ major Solana DEXes
-  - Raydium (primary focus)
-  - Orca
-  - Meteora
-  - Pump.fun
-  - Jupiter
-  - Serum
-- **Real-time WebSocket Connections**: Sub-second latency for token detection
-- **Age-based Filtering**: Focuses on tokens less than 1 hour old
-- **Volume Analysis**: Tracks trading volume patterns and liquidity
-- **Rapid Processing**: 500+ tokens per minute with parallel analysis
+  - **Pump.fun** (Priority 1: New memecoins)
+  - **Raydium** (Priority 2: High volume)
+  - **Orca** (Priority 3: Stability)
+  - **Jupiter** (Priority 4: Aggregation)
+  - **Meteora** (Lower priority)
+  - **Serum** (Lower priority)
+- **Sub-Second Detection**: <5 second target latency with fallback at 10s
+- **Smart Age-Based Filtering**: 
+  - Buy simulation: <10 minutes (optimal)
+  - Deep analysis: <1 hour (improved from 3 hours)
+  - Dynamic filtering based on volatility
+- **Volume Analysis**: Real-time trading volume patterns and liquidity depth
+- **High-Throughput Processing**: 500+ tokens per minute, targeting 1000/min
 
-### 🛡️ Security Analysis Engine
-- **100-Point Scoring System**: Comprehensive multi-factor evaluation
-- **Authority Verification**: Checks mint/freeze authority status
-- **Liquidity Assessment**: Evaluates DEX liquidity distribution
-- **Honeypot Detection**: Advanced pattern recognition for suspicious contracts
-- **Metadata Validation**: Verifies token information and social links
-- **Risk Categorization**: Color-coded security indicators
+### 🛡️ Advanced Security Analysis Engine (Information Only)
+- **100-Point Scoring System**: Comprehensive multi-factor evaluation with visual display
+- **Security Score Display**:
+  - Dashboard: Color-coded badges (🔴 <3, 🟠 3-6, 🟢 >6)
+  - Detailed breakdown with radar chart visualization
+  - Real-time security warnings for high-risk tokens
+- **Priority Security Metrics**:
+  1. **Honeypot Risk** (Critical - highest priority)
+  2. **Liquidity Lock Status** (High priority)
+  3. **Authority Renounced** (High priority)
+  4. **Top Holder Concentration** (Medium priority)
+  5. **Contract Verification** (Medium priority)
+- **Creator Wallet Tracking**:
+  - Track wallet addresses of token creators
+  - Maintain database of creator history (tokens created, buy/sell behavior)
+  - Rugpull tracking with price at dump moment
+  - Market maker activity analysis
+- **Show ALL Tokens**: Display every token with color-coded risk (no filtering)
+- **Social Media Integration**: Twitter/Telegram link verification and tracking
 
-### 💰 Advanced Trading Simulation
-- **Smart Position Sizing**: Dynamic allocation based on multiple factors
-- **Maximum Profit Exit Strategy**: Multi-tier profit optimization
-- **Partial Selling**: Strategic exits while letting profits run
-- **Pump Detection**: AI-powered momentum analysis
-- **Extended Hold Times**: Up to 2 hours for maximum profit extraction
-- **Stop-loss Protection**: -30% maximum loss threshold
+### 💰 Ultra-Advanced Trading Simulation
+- **Dynamic Position Sizing**: Base 0.003 SOL, configurable 0.001-0.01 SOL via UI
+  - Auto-scaling based on simulated balance
+  - Memory-aware position limits (500 concurrent, auto-scaling)
+- **Intelligent Exit Strategies**:
+  - **Conservative**: Hold 5% until rugpull detection
+  - **Balanced**: Hold 10% until rugpull detection (default)
+  - **Aggressive**: Hold 15% until rugpull detection
+  - **Ultra-Aggressive**: Hold 1% until 1000% gains, then 0% selling
+- **Multi-Tier Profit Taking**:
+  - 25%, 50%, 100%, 200%, 300%, 500%, 1000% levels
+  - Dynamic scaling based on token volatility
+- **Smart Hold Duration**:
+  - High-quality tokens (score >8): Up to 6 hours
+  - Standard tokens: 2 hours
+  - Risky tokens (score <5): 30 minutes maximum
+- **Advanced Risk Management**: -20% stop-loss with momentum-based trailing stops
 
-### 📊 Enhanced Dashboard
-- **3-Column Responsive Layout**: Optimized for all screen sizes
-- **Live KPI Tracking**: Real-time charts with Chart.js
-- **Token Price Monitoring**: 30-second price updates
-- **Migration Tracking**: DEX movement monitoring
-- **Trade History**: Complete audit trail of all simulated trades
-- **Performance Analytics**: Advanced ROI and success metrics
+### 📊 Professional Real-Time Dashboard
+- **Optimized 3-Column Layout**: Perfect for 1920x1080 displays
+- **Priority Data Visualization**:
+  1. **KPI Dashboard**: Win rate, global ROI with real-time charts
+  2. **Live Price Tracking**: 15-second updates (improved from 30s)
+  3. **Trade Feed**: Success (✅ green), failures (❌ red), pending (⚠️ yellow)
+  4. **Token Scanner**: New detections with security badges
+- **Enhanced Token Tables**:
+  - Security score badges with image icons
+  - Color-coded price changes
+  - Volume/Liquidity metrics
+  - Token age display
+  - Simulate buy/sell actions
+- **Creator Tracking Panel**: Dedicated section for wallet creator database
+- **Migration Monitoring**: Cross-DEX arbitrage opportunities
+- **Real-Time Updates**: 10-second UI refresh rate
 
 ## 🔧 Technical Features
 
-### High-Performance Architecture
-- **Concurrent Processing**: 500+ simultaneous positions
-- **Memory Optimization**: Automatic cleanup and garbage collection
-- **Connection Pooling**: Efficient RPC connection management
-- **Queue Management**: Priority-based token processing
-- **Error Handling**: Comprehensive error recovery mechanisms
+### Ultra-High Performance Architecture
+- **Massive Concurrent Processing**: 500+ positions (auto-scaling based on available RAM)
+- **Advanced Memory Management**: 
+  - Target: <1.5GB usage (down from 2GB)
+  - Frequent garbage collection
+  - Dynamic position limits based on system resources
+- **Multi-RPC Failover**: Health checks with exponential backoff
+- **Intelligent Queue Management**: Priority-based processing
+  - High priority: Pump.fun new tokens
+  - Medium priority: Raydium/Orca updates
+  - Low priority: Historical analysis
+- **Comprehensive Error Recovery**: Circuit breakers and graceful degradation
 
-### Real-time Data Processing
-- **WebSocket Integration**: Live data feeds from multiple sources
-- **Event-Driven Architecture**: Reactive system design
-- **Batch Processing**: Optimized for high-throughput scenarios
-- **Data Persistence**: Structured logging with rotation
-- **API Endpoints**: RESTful API for data access
+### Enterprise-Grade Data Processing
+- **Multi-Source API Integration**:
+  - **Primary DexScreener**: `https://api.dexscreener.com`
+    - Token/Pair Data: 300 req/min (`/latest/dex/search`, `/tokens/v1`, `/token-pairs/v1`)
+    - Token Profiles: 60 req/min (`/token-profiles/latest/v1`)
+    - Token Boosts: 60 req/min (`/token-boosts/latest/v1`, `/token-boosts/top/v1`)
+  - **Fallbacks**: CoinGecko, RaydiumAPI, direct blockchain
+  - Health checks and automatic failover
+- **Event-Driven Architecture**: Reactive system with backpressure handling
+- **Smart Rate Limiting**:
+  - DexScreener Search/Tokens: 300 req/min with intelligent queuing
+  - DexScreener Profiles/Boosts: 60 req/min with priority management
+  - Jupiter: 50 req/min
+  - Solana RPC: 1000 req/min
+- **Enhanced Data Strategy**:
+  - DexScreener API: Multi-endpoint optimization for token discovery
+  - Search API: `/latest/dex/search?q={query}` for new token detection
+  - Token API: `/tokens/v1/solana/{addresses}` for batch token analysis (up to 30)
+  - Pair API: `/token-pairs/v1/solana/{address}` for liquidity analysis
+  - 30 days detailed data, 1 year aggregated retention
+  - CSV export functionality
+- **Comprehensive API**: RESTful endpoints with optimized DexScreener integration
 
-### Security & Safety
-- **Hardcoded DRY_RUN Mode**: Cannot be disabled for safety
-- **Virtual Portfolio**: No real funds ever at risk
-- **Educational Boundaries**: Clear simulation constraints
-- **Audit Trail**: Complete logging of all activities
-- **Safety Warnings**: Clear indicators throughout interface
+### Maximum Security & Safety (Phase 1 Priority)
+- **Triple-Locked DRY_RUN Mode**: 
+  - Hardcoded and cannot be modified
+  - Read-only configuration flags
+  - Triple validation before any transaction attempt
+- **Virtual Portfolio**: Simulated SOL with no real fund interaction
+- **Educational Boundaries**: 70% educational focus / 30% technical
+- **Complete Audit Trail**: All activities logged with rotation
+- **Comprehensive Safety**: Warnings at every critical step
 
-## 💡 Smart Algorithms
+## 💡 Advanced AI-Powered Algorithms
 
-### Position Sizing Algorithm
+### Dynamic Position Sizing Algorithm
 ```
-Base Size: 0.003 SOL
+Base Size: 0.003 SOL (UI configurable: 0.001-0.01 SOL)
 
-Multipliers:
-- Age Factor: 3x (<5min), 2x (<15min), 1.5x (<30min)
-- Security Factor: 2.5x (95+), 2x (90+), 1.5x (80+), 1.2x (70+)
+Priority Multipliers:
+- Source Priority: 2.0x (Pump.fun), 1.8x (Raydium), 1.5x (Orca), 1.2x (Jupiter)
+- Age Factor: 3x (<5min), 2x (<15min), 1.5x (<30min), 1x (<60min)
+- Security Score: 2.5x (95+), 2x (90+), 1.5x (80+), 1.2x (70+), 0.8x (<50)
 - Liquidity Factor: 2.5x ($100K+), 2x ($50K+), 1.5x ($25K+), 1.2x ($10K+)
-- Source Factor: 1.8x (pump.fun), 1.5x (raydium)
-- Urgency Factor: 2x (HIGH), 1.5x (MEDIUM), 1x (LOW)
-- Pump Factor: 2x (if pump detected)
+- Volatility Factor: 1.5x (stable), 1.2x (moderate), 0.8x (extreme)
+- Creator History: 1.3x (verified), 1x (unknown), 0.7x (flagged)
 
-Final Size = Base × Age × Security × Liquidity × Source × Urgency × Pump
+Final Size = Base × Source × Age × Security × Liquidity × Volatility × Creator
+Max Position = min(Final Size, Available Balance / Max Positions)
 ```
 
-### Exit Strategy Logic
+### Multi-Strategy Exit Logic
 ```
-ROI >= 500%: Sell 80%, let 20% ride
-ROI >= 200%: Sell 60%, let 40% ride
-ROI >= 100%: Sell 40% if still pumping, 100% if slowing
-ROI >= 50%: Hold if pumping and <30min, exit otherwise
-ROI >= 25%: Hold if pumping and <15min, exit otherwise
-ROI <= -30%: Stop-loss triggered
-Time > 60min + ROI < 10%: Time-based exit
-Time > 120min: Emergency exit
+🎯 ULTRA-AGGRESSIVE Strategy (1% Hold):
+ROI >= 1000%: Sell 100%, hold 0%
+ROI >= 500%: Sell 90%, hold 10%
+ROI >= 300%: Sell 85%, hold 15%
+ROI >= 200%: Sell 80%, hold 20%
+ROI >= 100%: Sell 70%, hold 30%
+ROI >= 50%: Sell 50%, hold 50%
+ROI <= -20%: Stop-loss (improved from -30%)
+
+⚖️ BALANCED Strategy (10% Hold - Default):
+ROI >= 500%: Sell 90%, hold 10% until rugpull detection
+ROI >= 200%: Sell 75%, hold 25%
+ROI >= 100%: Partial exit based on momentum
+ROI >= 50%: Hold if momentum positive
+ROI <= -20%: Stop-loss with trailing
+
+🛡️ CONSERVATIVE Strategy (5% Hold):
+ROI >= 300%: Sell 95%, hold 5%
+ROI >= 100%: Sell 85%, hold 15%
+ROI >= 50%: Sell 70%, hold 30%
+ROI <= -15%: Early stop-loss
+
+⏰ Dynamic Hold Times:
+- High Quality (score >8): Up to 6 hours
+- Standard: 2 hours
+- Risky (score <5): 30 minutes max
 ```
 
-### Pump Detection
-- **Price Momentum**: 60%+ recent upward moves
-- **Volume Analysis**: Increasing volume patterns
-- **Liquidity Growth**: Expanding liquidity base
-- **Time Decay**: Momentum sustainability over time
-- **Pattern Recognition**: Historical pump signatures
+### Advanced Pump Detection & Creator Tracking
+- **Multi-Factor Momentum Analysis**:
+  - Price momentum: 60%+ upward moves in 5-15min windows
+  - Volume surge detection: >200% volume increase
+  - Liquidity expansion tracking
+  - Social media sentiment integration
+- **Creator Wallet Intelligence**:
+  - Track all token creator wallets
+  - Database of historical creator behavior
+  - Rugpull pattern recognition (price at dump)
+  - Market maker activity analysis
+  - Success/failure rate per creator
+- **Rugpull Early Warning System**:
+  - Creator sell pressure monitoring
+  - Liquidity removal detection
+  - Large holder dump alerts
+  - Social sentiment crash detection
 
-## 📈 Performance Metrics
+## 📈 Performance Metrics & Benchmarks
+
+### Target Performance Benchmarks
+- **Win Rate**: >60% (current target)
+- **Average ROI**: >25% per successful trade
+- **Detection Latency**: <10 seconds (target <5 seconds)
+- **System Uptime**: >99% availability
+- **Memory Efficiency**: <1.5GB (down from 2GB target)
+
+## 📈 Current Performance Metrics
 
 ### System Capabilities
-- **Token Processing**: 500+ tokens per minute
-- **Position Monitoring**: 500 concurrent positions
-- **Price Updates**: 30-second intervals
-- **Exit Checking**: 5-second intervals
-- **Memory Usage**: ~2GB for full operation
-- **Latency**: Sub-second detection and response
+- **Token Processing**: 500+ tokens/min (targeting 1000+/min)
+- **Concurrent Positions**: 500+ with auto-scaling
+- **Price Updates**: 15-second intervals (improved from 30s)
+- **Exit Condition Checks**: 5-second intervals (optimal)
+- **UI Refresh Rate**: 10-second dashboard updates
+- **Detection Response**: Sub-5-second target latency
 
-### Throughput Statistics
-- **Detection Rate**: 8+ tokens per second
-- **Analysis Throughput**: 100+ security analyses per minute
-- **Position Updates**: 100 positions per second
-- **Trade Processing**: Instant simulated execution
-- **Dashboard Updates**: Real-time WebSocket streaming
+### Enhanced Throughput Statistics
+- **Detection Rate**: 8+ tokens/second (targeting 15+/second)
+- **Security Analysis**: 100+ comprehensive analyses per minute
+- **Position Monitoring**: 100+ position updates per second
+- **Simulated Execution**: Instant with <100ms response time
+- **Real-Time Streaming**: WebSocket with <500ms latency
+- **Creator Tracking**: Real-time wallet monitoring and database updates
 
-## 🎮 User Interface Features
+## 🎮 Professional User Interface
 
-### Dashboard Layout
-- **Left Sidebar**: Mini info cards with key metrics
-- **Main Content**: Primary charts and token tables
-- **Right Sidebar**: Trade feed and secondary content
-- **Footer**: Dry-run information and disclaimers
+### Optimized Dashboard Layout (1920x1080)
+- **Left Sidebar**: KPI dashboard with win rate, ROI charts
+- **Main Content**: 
+  - Live price tracking with 15-second updates
+  - Enhanced token tables with security badges and token icons
+  - Token scanner with new detection feed
+- **Right Sidebar**: 
+  - Real-time trade feed (color-coded success/failure)
+  - Creator tracking panel with wallet database
+  - System performance metrics
+- **Footer**: Educational disclaimers and safety indicators
 
-### Interactive Elements
-- **Real-time Charts**: Live updating KPI visualizations
-- **Token Tables**: Sortable, filterable token lists
-- **Trade Feed**: Live stream of simulated trades
-- **Status Indicators**: Color-coded system health
-- **Responsive Design**: Mobile and desktop optimized
+### Advanced Interactive Elements
+- **Priority Data Display**:
+  1. Security score badges with radar chart visualizations
+  2. Color-coded price changes with momentum indicators
+  3. Volume/Liquidity metrics with trend analysis
+  4. Token age with countdown timers
+  5. Creator wallet links with history access
+- **Enhanced Trade Feed**:
+  - Success trades: ✅ Green background
+  - Failed trades: ❌ Red background  
+  - Pending trades: ⚠️ Yellow background with spinner
+- **Creator Intelligence Panel**: Database view of all tracked creators
+- **Responsive Design**: Optimized for educational use on various devices
 
 ### Data Visualization
 - **Line Charts**: Price movements and trends
@@ -198,12 +310,28 @@ GET /api/kpi/summary        # KPI summary
 
 ## 🚀 Advanced Features
 
+### 🤖 AI-Powered Creator Intelligence
+- **Wallet Creator Tracking**: Complete database of all token creators
+  - Real-time monitoring of creator wallet activity
+  - Historical token creation patterns per wallet
+  - Buy/sell behavior analysis of market makers
+  - Success/failure rate tracking per creator
+- **Rugpull Detection System**:
+  - Price monitoring at dump moments
+  - Creator sell pressure alerts
+  - Large holder dump detection
+  - Social sentiment crash warnings
+- **Creator Risk Scoring**:
+  - Verified creators: 1.3x position multiplier
+  - Unknown creators: 1x neutral multiplier
+  - Flagged creators: 0.7x reduced multiplier
+
 ### Machine Learning Integration
-- **Pump Prediction**: Pattern recognition for momentum detection
-- **Risk Assessment**: Multi-factor risk scoring algorithms
-- **Success Modeling**: Predictive analytics for trade outcomes
-- **Trend Analysis**: Historical pattern recognition
-- **Anomaly Detection**: Unusual token behavior identification
+- **Advanced Pump Prediction**: Multi-factor momentum analysis
+- **Dynamic Risk Assessment**: Real-time security scoring
+- **Success Modeling**: Predictive analytics with creator history
+- **Pattern Recognition**: Historical rugpull signatures
+- **Anomaly Detection**: Unusual creator and token behavior
 
 ### Educational Tools
 - **Demo Mode**: Realistic token generation and scenarios
@@ -214,35 +342,82 @@ GET /api/kpi/summary        # KPI summary
 
 ## 📚 Learning Features
 
-### Educational Content
-- **Strategy Explanations**: Detailed trading logic descriptions
-- **Risk Management**: Position sizing and stop-loss education
-- **Market Analysis**: Token evaluation methodologies
-- **System Architecture**: Design pattern demonstrations
-- **Performance Optimization**: Efficiency improvement techniques
+### Educational Content (70% Educational / 30% Technical Focus)
+- **Strategy Explanations**: Detailed trading logic with creator intelligence
+- **Risk Management**: Dynamic position sizing and improved stop-loss (-20%)
+- **Market Analysis**: Multi-DEX token evaluation with social media integration
+- **Creator Intelligence**: Understanding wallet patterns and rugpull detection
+- **System Architecture**: High-performance design patterns
+- **Performance Optimization**: <1.5GB memory usage techniques
 
-### Simulation Scenarios
-- **Bull Market**: High-growth token environments
-- **Bear Market**: Declining market conditions
-- **Volatile Conditions**: High-fluctuation scenarios
-- **Pump Events**: Momentum-driven price movements
-- **Dump Protection**: Loss mitigation strategies
+### Advanced Simulation Scenarios
+- **Multi-Strategy Testing**:
+  - Conservative (5% hold): Lower risk, steady gains
+  - Balanced (10% hold): Default optimal strategy
+  - Aggressive (15% hold): Higher risk, maximum gains
+  - Ultra-Aggressive (1% hold): Moon-or-bust approach
+- **Market Condition Simulations**:
+  - Bull Market: High-growth environments with 6-hour holds
+  - Bear Market: Risk mitigation with 30-minute max holds
+  - Volatile Conditions: Dynamic exit strategies
+  - Creator-Based Scenarios: Verified vs flagged creator behavior
+- **Rugpull Scenarios**: Early warning system testing
 
-## 🔒 Safety Features
+## 🔒 Enhanced Safety Features (Phase 1 Priority)
 
-### Simulation Boundaries
-- **No Real Trading**: All activities are educational simulations
-- **Virtual Assets**: No real funds ever at risk
-- **Hardcoded Limits**: Cannot be modified for real trading
-- **Educational Warnings**: Clear indicators throughout system
-- **Audit Trail**: Complete logging for transparency
+### Triple-Locked Simulation Boundaries
+- **No Real Trading**: All activities are educational simulations only
+- **Virtual Assets**: No real funds ever at risk - simulated SOL balance
+- **Hardcoded DRY_RUN**: Cannot be modified for real trading (triple validation)
+- **Educational Focus**: 70% educational content / 30% technical features
+- **Complete Audit Trail**: All activities logged with 30-day retention
 
-### Technical Safeguards
-- **DRY_RUN Enforcement**: Cannot be disabled
-- **Virtual Portfolio**: Simulated SOL balance only
-- **Transaction Blocking**: No real blockchain interactions
-- **Rate Limiting**: Prevents excessive API usage
-- **Error Containment**: Fails safe in all scenarios
+### Advanced Technical Safeguards
+- **DRY_RUN Enforcement**: 
+  - Hardcoded and cannot be disabled
+  - Read-only configuration flags
+  - Triple validation before any transaction attempt
+- **Creator Tracking Safety**: Database for education only, no real targeting
+- **Rate Limiting**: Respectful API usage (100 req/min DexScreener)
+- **Memory Protection**: Auto-scaling with <1.5GB target usage
+- **Error Containment**: Graceful degradation on API failures
+
+## 💻 System Requirements
+
+### Minimum Requirements
+- **RAM**: 4GB (basic operation)
+- **CPU**: 2 cores (reduced performance)
+- **Storage**: 10GB (logs and data)
+- **Network**: Stable internet for APIs
+
+### Recommended Requirements
+- **RAM**: 8GB (full 500 concurrent positions)
+- **CPU**: 4 cores (optimal performance)
+- **Storage**: 50GB SSD (faster I/O)
+- **Network**: High-speed internet (low latency)
+
+### Optimal Requirements
+- **RAM**: 16GB (1000+ tokens/min target)
+- **CPU**: 8 cores (maximum throughput)
+- **Storage**: 100GB NVMe (fastest performance)
+- **Display**: 1920x1080 (optimized UI layout)
+
+## 📈 Deployment Modes
+
+### Development Mode
+- Verbose logging and debugging
+- All safety checks enabled
+- Educational warnings prominent
+
+### Educational Mode (Default)
+- Complete interface with all features
+- Maximum security enforcement
+- Creator tracking for learning
+
+### Performance Mode
+- Optimized for system resources
+- Advanced monitoring enabled
+- Benchmarking and metrics focus
 
 ---
 
