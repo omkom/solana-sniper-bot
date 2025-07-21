@@ -67,8 +67,12 @@ export class SolscanApiClient {
 
   constructor(config: SolscanApiConfig = {}) {
     this.apiKey = config.apiKey || process.env.SOLSCAN_API_KEY;
-    this.retries = config.retries || 3;
-    this.retryDelay = config.retryDelay || 1000;
+    this.retries = config.retries || 1; // Reduce retries to avoid 401 spam
+    this.retryDelay = config.retryDelay || 2000; // Increase delay
+
+    if (!this.apiKey) {
+      console.warn('⚠️  Solscan API key not provided, API calls will be disabled');
+    }
 
     this.client = axios.create({
       baseURL: config.baseUrl || 'https://pro-api.solscan.io',
@@ -81,6 +85,10 @@ export class SolscanApiClient {
 
     // Add request interceptor for rate limiting
     this.client.interceptors.request.use((config) => {
+      // Block all requests if no API key
+      if (!this.apiKey) {
+        throw new Error('Solscan API key not provided, request blocked');
+      }
       return this.handleRateLimit(config);
     });
 
@@ -93,7 +101,8 @@ export class SolscanApiClient {
     console.log('🔍 Solscan API client initialized', {
       hasApiKey: !!this.apiKey,
       baseUrl: config.baseUrl || 'https://pro-api.solscan.io',
-      retries: this.retries
+      retries: this.retries,
+      enabled: !!this.apiKey
     });
   }
 
@@ -133,9 +142,21 @@ export class SolscanApiClient {
   }
 
   /**
+   * Check if API is enabled (has API key)
+   */
+  isEnabled(): boolean {
+    return !!this.apiKey;
+  }
+
+  /**
    * Get detailed transaction information from Solscan
    */
   async getTransactionDetail(txSignature: string): Promise<SolscanTransactionDetail | null> {
+    if (!this.isEnabled()) {
+      console.warn('⚠️  Solscan API not enabled, skipping transaction detail fetch');
+      return null;
+    }
+
     console.log(`🔍 [SOLSCAN] Fetching transaction detail: ${txSignature.slice(0, 8)}...`);
     
     try {
@@ -345,6 +366,11 @@ export class SolscanApiClient {
    * Test API connectivity
    */
   async testConnection(): Promise<boolean> {
+    if (!this.isEnabled()) {
+      console.warn('⚠️  Solscan API not enabled, skipping connection test');
+      return false;
+    }
+
     try {
       // Use a known transaction hash for testing
       const testTx = '2wihpMnQU5XJdmCLh2YFHp2jKqhvFLLHc9Y4MFbMj9iYRGKwJPnPqJT7R2MVjCRJe8k7pXj1cMPRwwKN2qGVgpEc';

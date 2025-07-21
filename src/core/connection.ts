@@ -1,5 +1,4 @@
 import { Connection, Commitment } from '@solana/web3.js';
-import { Config } from './config';
 import { logger } from '../monitoring/logger';
 
 interface RequestQueueItem {
@@ -14,26 +13,37 @@ interface RequestQueueItem {
 export class ConnectionManager {
   private connections: Map<string, Connection> = new Map();
   private currentIndex: number = 0;
-  private config: Config;
   private requestQueue: RequestQueueItem[] = [];
   private isProcessingQueue = false;
   private activeRequests = 0;
-  private maxConcurrentRequests = 3; // Allow 3 concurrent requests for monitoring
-  private requestDelay = 300; // Reduced to 300ms for better performance
+  private maxConcurrentRequests = 2; // Reduced from 3 to prevent overload
+  private requestDelay = 500; // Increased to 500ms for better rate limiting
   private lastRequestTime = 0;
-  private retryDelays = [500, 1000, 2000, 5000]; // Shorter backoff delays for detection
+  private retryDelays = [1000, 2000, 5000, 10000]; // Longer backoff delays
+  private initialized = false;
 
   constructor() {
-    this.config = Config.getInstance();
-    this.initializeConnections();
-    this.startQueueProcessor();
-    console.log('🚀 Using Helius pump.fun RPC for enhanced performance');
+    // Don't initialize immediately - let singleton manager handle it
   }
 
-  private initializeConnections(): void {
+  async initialize(config: any): Promise<void> {
+    if (this.initialized) return;
+
+    try {
+      this.initializeConnections(config);
+      this.startQueueProcessor();
+      this.initialized = true;
+      logger.info('🔗 ConnectionManager initialized successfully');
+    } catch (error) {
+      logger.error('❌ Failed to initialize ConnectionManager:', error);
+      throw error;
+    }
+  }
+
+  private initializeConnections(config: any): void {
     const endpoints = [
-      this.config.getRPCEndpoint(),
-      this.config.getFallbackRPC(),
+      config.getRPCEndpoint(),
+      config.getFallbackRPC(),
       // Add reliable fallback endpoints
       'https://api.mainnet-beta.solana.com'
     ];
@@ -42,7 +52,7 @@ export class ConnectionManager {
       try {
         const connection = new Connection(endpoint, {
           commitment: 'processed' as Commitment,
-          confirmTransactionInitialTimeout: 10000, // Reduced timeout for faster detection
+          confirmTransactionInitialTimeout: 15000, // Increased timeout for stability
           wsEndpoint: endpoint.replace('https://', 'wss://').replace('http://', 'ws://'),
           httpHeaders: {
             'Content-Type': 'application/json',
@@ -63,6 +73,15 @@ export class ConnectionManager {
   }
 
   getConnection(): Connection {
+    if (this.connections.size === 0) {
+      // If not initialized, create a fallback connection
+      logger.warn('ConnectionManager not initialized, creating fallback connection');
+      return new Connection(
+        'https://api.mainnet-beta.solana.com',
+        { commitment: 'processed' }
+      );
+    }
+    
     const endpoints = Array.from(this.connections.keys());
     const endpoint = endpoints[this.currentIndex % endpoints.length];
     this.currentIndex++;

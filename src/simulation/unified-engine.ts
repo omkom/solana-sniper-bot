@@ -86,7 +86,6 @@ export class UnifiedSimulationEngine extends BaseEventEmitter implements EventEm
       successRate: 0,
       activePositions: 0,
       totalValue: this.config.startingBalance,
-      balance: this.config.startingBalance,
       totalPnL: 0,
       totalPnLPercent: 0,
       winRate: 0,
@@ -199,11 +198,52 @@ export class UnifiedSimulationEngine extends BaseEventEmitter implements EventEm
       
       if (shouldEnter) {
         await this.createPosition(token);
+      } else {
+        // Emit tokenSkipped event with reason
+        const reason = this.getSkipReason(token);
+        this.emit('tokenSkipped', {
+          mint: token.address,
+          symbol: token.symbol,
+          reason
+        });
+        
+        logger.debug(`Token skipped: ${token.symbol} - ${reason}`);
       }
     } catch (error) {
       logger.error('Error processing token:', error);
       this.emit('error', error);
     }
+  }
+
+  private getSkipReason(token: UnifiedTokenInfo): string {
+    // Check basic constraints
+    if (this.positions.size >= this.config.maxPositions) {
+      return 'Maximum positions reached';
+    }
+
+    // Check if already have position for this token
+    if (this.positions.has(token.address)) {
+      return 'Already have position for this token';
+    }
+
+    // Check age constraint
+    const tokenAge = Date.now() - token.detectedAt;
+    if (tokenAge > this.config.maxAnalysisAge) {
+      return 'Token too old';
+    }
+
+    // Check confidence score
+    const confidenceScore = token.trendingScore || 0;
+    if (confidenceScore < this.config.minConfidenceScore) {
+      return 'Confidence score too low';
+    }
+
+    // Risk management check
+    if (!this.riskManager.shouldEnterPosition(token, this.portfolio)) {
+      return 'Risk management rejection';
+    }
+
+    return 'Unknown reason';
   }
 
   private async shouldEnterPosition(token: UnifiedTokenInfo): Promise<boolean> {
@@ -344,32 +384,31 @@ export class UnifiedSimulationEngine extends BaseEventEmitter implements EventEm
     const totalCost = trade.value * (1 + trade.fees + trade.slippage);
     
     if (type === 'BUY') {
-      if (this.portfolio.balance.sol >= totalCost) {
-        this.portfolio.balance.sol -= totalCost;
+      if (this.portfolio.availableBalance >= totalCost) {
+        this.portfolio.availableBalance -= totalCost;
         this.portfolio.activePositions++;
-        this.portfolio.totalPositions++;
       } else {
         trade.success = false;
         trade.error = 'Insufficient balance';
       }
     } else {
       const totalReceived = trade.value * (1 - trade.fees - trade.slippage);
-      this.portfolio.balance.sol += totalReceived;
+      this.portfolio.availableBalance += totalReceived;
       this.portfolio.activePositions--;
       
       // Update position
-      position.status = 'CLOSED';
-      position.exitPrice = price;
-      position.exitTimestamp = Date.now();
-      position.pnl = totalReceived - position.value;
-      position.pnlPercent = (position.pnl / position.value) * 100;
-      position.holdTime = Date.now() - position.timestamp;
+      position.status = 'closed';
+      position.exitTime = Date.now();
+      const positionValue = position.amount * position.entryPrice;
+      position.pnl = totalReceived - positionValue;
+      position.pnlPercent = (position.pnl / positionValue) * 100;
+      position.roi = position.pnlPercent;
     }
 
     this.trades.push(trade);
     this.portfolio.recentTrades = this.trades.slice(-50); // Keep last 50 trades
     
-    this.emit('tradeExecuted', trade);
+    this.emit('trade', trade);
     return trade;
   }
 
@@ -384,11 +423,15 @@ export class UnifiedSimulationEngine extends BaseEventEmitter implements EventEm
     const positionsToClose: Position[] = [];
 
     for (const [address, position] of this.positions) {
-      if (position.status !== 'ACTIVE') continue;
+      if (position.status !== 'active') continue;
 
-      const currentPrice = this.currentPricingStrategy.getCurrentPrice(position.token);
-      const holdTime = now - position.timestamp;
+      const currentPrice = this.currentPricingStrategy.getCurrentPrice(position.tokenInfo);
+      const holdTime = now - position.entryTime;
       const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
+
+      // Update position current price and ROI
+      position.currentPrice = currentPrice;
+      position.roi = pnlPercent;
 
       // Check exit conditions
       const shouldExit = this.shouldExitPosition(position, currentPrice, holdTime, pnlPercent);
@@ -434,17 +477,17 @@ export class UnifiedSimulationEngine extends BaseEventEmitter implements EventEm
 
   private async closePosition(position: Position): Promise<void> {
     try {
-      const currentPrice = this.currentPricingStrategy.getCurrentPrice(position.token);
+      const currentPrice = this.currentPricingStrategy.getCurrentPrice(position.tokenInfo);
       const sellTrade = await this.executeTrade(position, 'SELL', currentPrice, position.amount);
       
       if (sellTrade.success) {
-        this.positions.delete(position.token.address);
+        this.positions.delete(position.tokenInfo.address);
         this.updatePortfolio();
         
-        logger.info(`📉 Closed position: ${position.token.symbol}`, {
+        logger.info(`📉 Closed position: ${position.tokenInfo.symbol}`, {
           pnl: position.pnl,
           pnlPercent: position.pnlPercent,
-          holdTime: position.holdTime,
+          holdTime: position.exitTime ? position.exitTime - position.entryTime : 0,
           reason: position.exitReason
         });
         
@@ -456,17 +499,18 @@ export class UnifiedSimulationEngine extends BaseEventEmitter implements EventEm
   }
 
   private updatePortfolio(): void {
-    const activePositions = Array.from(this.positions.values()).filter(p => p.status === 'ACTIVE');
+    const activePositions = Array.from(this.positions.values()).filter(p => p.status === 'active');
     const closedPositions = this.trades.filter(t => t.type === 'SELL' && t.success);
     
     // Calculate total value
     let totalPositionValue = 0;
     for (const position of activePositions) {
-      const currentPrice = this.currentPricingStrategy.getCurrentPrice(position.token);
+      const currentPrice = this.currentPricingStrategy.getCurrentPrice(position.tokenInfo);
       totalPositionValue += position.amount * currentPrice;
     }
     
-    this.portfolio.totalValue = this.portfolio.balance.sol + totalPositionValue;
+    this.portfolio.totalValue = this.portfolio.availableBalance + totalPositionValue;
+    this.portfolio.totalBalance = this.portfolio.totalValue;
     this.portfolio.activePositions = activePositions.length;
     this.portfolio.positions = activePositions;
     
@@ -486,7 +530,7 @@ export class UnifiedSimulationEngine extends BaseEventEmitter implements EventEm
       this.portfolio.avgHoldTime = totalHoldTime / closedPositions.length;
     }
     
-    this.emit('portfolioUpdated', this.portfolio);
+    this.emit('portfolioUpdate', this.portfolio);
   }
 
   // Public API methods
@@ -623,11 +667,20 @@ class ConservativePricingStrategy implements PricingStrategy {
 
   getPortfolioStats(): any {
     return {
+      // Dashboard expected properties
+      currentBalance: this.portfolio.availableBalance,
+      totalInvested: this.portfolio.totalBalance - this.portfolio.availableBalance,
+      totalRealized: this.portfolio.totalProfit,
+      unrealizedPnL: this.portfolio.totalPnL - this.portfolio.totalProfit,
+      totalPortfolioValue: this.portfolio.totalValue || 0,
+      startingBalance: this.config.startingBalance,
+      totalROI: this.portfolio.totalPnLPercent || 0,
+      
+      // Legacy properties
       totalBalance: this.portfolio.totalBalance,
       availableBalance: this.portfolio.availableBalance,
       activePositions: this.portfolio.activePositions,
       totalProfit: this.portfolio.totalProfit,
-      totalROI: this.portfolio.totalROI,
       successRate: this.portfolio.successRate,
       totalValue: this.portfolio.totalValue || 0,
       totalPnL: this.portfolio.totalPnL || 0,
@@ -714,7 +767,7 @@ class RiskManager {
 
     // Check available balance
     const minBalance = this.config.baseInvestment * 2; // Keep 2x base investment as reserve
-    if (portfolio.balance.sol < minBalance) {
+    if (portfolio.availableBalance < minBalance) {
       return false;
     }
 

@@ -49,6 +49,16 @@ export class ApiGateway extends EventEmitter {
     reject: (reason: any) => void;
     fn: () => Promise<any>;
   }> = [];
+  
+  // Circuit breaker pattern for failed endpoints
+  private circuitBreakers: Map<string, {
+    failures: number;
+    lastFailure: number;
+    isOpen: boolean;
+  }> = new Map();
+  
+  // Health check timer reference for cleanup
+  private healthCheckTimer: NodeJS.Timeout | null = null;
 
   constructor(config: Partial<ApiGatewayConfig> = {}) {
     super();
@@ -59,14 +69,19 @@ export class ApiGateway extends EventEmitter {
       rateLimitBuffer: 20,
       enableMetrics: true,
       enableHealthChecks: true,
-      healthCheckInterval: 60000,
+      healthCheckInterval: 300000, // Increased to 5 minutes to reduce API calls
       maxConcurrentRequests: 3,
       fallbackDelay: 2000,
       ...config
     };
 
     this.setupDefaultEndpoints();
-    this.startHealthChecks();
+    
+    // Only start health checks if enabled
+    if (this.config.enableHealthChecks) {
+      this.startHealthChecks();
+    }
+    
     this.processRequestQueue();
 
     logger.info('🌐 API Gateway initialized', {
@@ -93,19 +108,22 @@ export class ApiGateway extends EventEmitter {
       healthCheck: '/latest/dex/search?q=SOL'
     });
 
-    // Solscan endpoints
+    // Solscan endpoints - disable health check if no API key
     this.addEndpoint({
       name: 'solscan_v2',
       baseUrl: 'https://pro-api.solscan.io',
-      rateLimit: 100, // More conservative for paid API
+      rateLimit: 30, // Very conservative for paid API without key
       timeout: 20000,
-      retryAttempts: 2,
+      retryAttempts: 1, // Reduce retries to avoid 401 spam
       priority: 4,
       headers: {
         'Content-Type': 'application/json',
         ...(process.env.SOLSCAN_API_KEY && { 'token': process.env.SOLSCAN_API_KEY })
       },
-      healthCheck: '/v2.0/account/transactions?account=11111111111111111111111111111112&limit=1'
+      // Only enable health check if we have an API key
+      ...(process.env.SOLSCAN_API_KEY && { 
+        healthCheck: '/v2.0/account/transactions?account=11111111111111111111111111111112&limit=1' 
+      })
     });
 
     // Jupiter API
@@ -170,6 +188,13 @@ export class ApiGateway extends EventEmitter {
     this.clients.set(endpoint.name, client);
     this.rateLimiters.set(endpoint.name, new RateLimiter(endpoint.rateLimit));
     this.healthStatus.set(endpoint.name, true);
+    
+    // Initialize circuit breaker
+    this.circuitBreakers.set(endpoint.name, {
+      failures: 0,
+      lastFailure: 0,
+      isOpen: false
+    });
 
     logger.info(`📡 Added API endpoint: ${endpoint.name}`, {
       baseUrl: endpoint.baseUrl,
@@ -244,7 +269,12 @@ export class ApiGateway extends EventEmitter {
         logger.warn(`❌ Smart request failed on ${endpointName}:`, error);
         
         // Mark endpoint as unhealthy if it's failing consistently
-        this.checkEndpointHealth(endpointName);
+        if (this.config.enableHealthChecks) {
+          this.checkEndpointHealth(endpointName);
+        } else {
+          // Just mark as unhealthy without performing actual health check
+          this.healthStatus.set(endpointName, false);
+        }
         
         // Continue to next endpoint
         continue;
@@ -477,9 +507,17 @@ export class ApiGateway extends EventEmitter {
    * Start health checks for all endpoints
    */
   private startHealthChecks(): void {
-    if (!this.config.enableHealthChecks) return;
+    if (!this.config.enableHealthChecks) {
+      logger.info('🔒 Health checks disabled, skipping health check initialization');
+      return;
+    }
 
-    setInterval(() => {
+    logger.info('🔍 Starting health checks', {
+      interval: this.config.healthCheckInterval,
+      endpoints: this.endpoints.size
+    });
+
+    this.healthCheckTimer = setInterval(() => {
       this.performHealthChecks();
     }, this.config.healthCheckInterval);
   }
@@ -505,15 +543,69 @@ export class ApiGateway extends EventEmitter {
    */
   private async checkEndpointHealth(endpointName: string, healthCheckPath?: string): Promise<boolean> {
     const client = this.clients.get(endpointName);
-    if (!client) return false;
+    const circuitBreaker = this.circuitBreakers.get(endpointName);
+    
+    if (!client || !circuitBreaker) return false;
+
+    // Check circuit breaker
+    if (circuitBreaker.isOpen) {
+      const timeSinceLastFailure = Date.now() - circuitBreaker.lastFailure;
+      const cooldownPeriod = 300000; // 5 minutes
+      
+      if (timeSinceLastFailure < cooldownPeriod) {
+        // Circuit breaker is open, skip health check
+        return false;
+      } else {
+        // Reset circuit breaker after cooldown
+        circuitBreaker.isOpen = false;
+        circuitBreaker.failures = 0;
+      }
+    }
 
     try {
       const path = healthCheckPath || '/';
       const response = await client.get(path, { timeout: 5000 });
+      
+      // Reset circuit breaker on success
+      circuitBreaker.failures = 0;
+      circuitBreaker.isOpen = false;
+      
       return response.status === 200;
-    } catch (error) {
-      logger.warn(`❌ Health check failed for ${endpointName}:`, error);
-      return false;
+    } catch (error: any) {
+      // Update circuit breaker
+      circuitBreaker.failures++;
+      circuitBreaker.lastFailure = Date.now();
+      
+      // Open circuit breaker after 3 failures
+      if (circuitBreaker.failures >= 3) {
+        circuitBreaker.isOpen = true;
+        logger.warn(`🔥 Circuit breaker opened for ${endpointName} after ${circuitBreaker.failures} failures`);
+      }
+      
+      // Handle specific error cases
+      if (error.response?.status === 401) {
+        // Authentication error - don't continuously retry
+        logger.warn(`🔐 Authentication required for ${endpointName}, disabling health checks`);
+        
+        // Remove health check for this endpoint to prevent continuous 401s
+        const endpoint = this.endpoints.get(endpointName);
+        if (endpoint) {
+          delete endpoint.healthCheck;
+          this.endpoints.set(endpointName, endpoint);
+        }
+        
+        // Open circuit breaker immediately for auth errors
+        circuitBreaker.isOpen = true;
+        return false;
+      } else if (error.response?.status === 429) {
+        // Rate limited - mark as unhealthy temporarily
+        logger.debug(`⏳ Rate limited for ${endpointName}, will retry later`);
+        return false;
+      } else {
+        // Other errors - log once and mark unhealthy
+        logger.debug(`❌ Health check failed for ${endpointName}: ${error.message}`);
+        return false;
+      }
     }
   }
 
@@ -575,6 +667,27 @@ export class ApiGateway extends EventEmitter {
    */
   getRecentMetrics(limit: number = 100): RequestMetrics[] {
     return this.requestMetrics.slice(-limit);
+  }
+
+  /**
+   * Stop health checks and cleanup
+   */
+  stopHealthChecks(): void {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = null;
+      logger.info('🔒 Health checks stopped');
+    }
+  }
+
+  /**
+   * Cleanup method
+   */
+  cleanup(): void {
+    this.stopHealthChecks();
+    this.clearMetrics();
+    this.requestQueue.length = 0;
+    logger.info('🧹 ApiGateway cleanup completed');
   }
 }
 

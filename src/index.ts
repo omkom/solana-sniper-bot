@@ -3,7 +3,7 @@
  * Consolidates all previous entry points into a single, configurable system
  */
 
-import { Config } from './core/config';
+import { initializeSingletons, getConfig } from './core/singleton-manager';
 import { UnifiedDetector } from './detection/unified-detector';
 import { UnifiedSimulationEngine } from './simulation/unified-engine';
 import { Dashboard } from './monitoring/dashboard';
@@ -16,28 +16,47 @@ import { UnifiedTokenInfo, SimulationConfig, DetectionConfig } from './types/uni
  * Orchestrates all components with unified configuration
  */
 export class TokenAnalyzerApp {
-  private config: Config;
+  private config: any;
   private detector!: UnifiedDetector;
   private simulationEngine!: UnifiedSimulationEngine;
   private dashboard!: Dashboard;
   private isRunning = false;
+  private initialized = false;
   
   // App modes
   private mode: 'rapid' | 'real' | 'unified' | 'analysis';
   
   constructor(mode: 'rapid' | 'real' | 'unified' | 'analysis' = 'unified') {
     this.mode = mode;
-    this.config = Config.getInstance();
     
-    // Initialize components based on mode
-    this.initializeComponents();
-    
-    console.log('🎓 Educational Token Analyzer initialized in DRY_RUN mode');
+    console.log('🎓 Educational Token Analyzer initializing...');
     console.log('📚 This system is for learning and analysis purposes only');
     console.log(`🎯 Mode: ${mode.toUpperCase()}`);
   }
 
-  private initializeComponents(): void {
+  private async initializeApp(): Promise<void> {
+    if (this.initialized) return;
+
+    try {
+      // Initialize singleton services first
+      await initializeSingletons();
+      
+      // Get config from singleton manager
+      this.config = await getConfig();
+      
+      // Initialize components based on mode
+      await this.initializeComponents();
+      
+      this.initialized = true;
+      logger.info('✅ TokenAnalyzerApp initialized successfully');
+      
+    } catch (error) {
+      logger.error('❌ Failed to initialize TokenAnalyzerApp:', error);
+      throw error;
+    }
+  }
+
+  private async initializeComponents(): Promise<void> {
     // Configure detection based on mode
     const detectionConfig: Partial<DetectionConfig> = this.getDetectionConfig();
     this.detector = new UnifiedDetector(detectionConfig);
@@ -141,10 +160,20 @@ export class TokenAnalyzerApp {
     // Token detection events
     this.detector.on('tokenDetected', (tokens: UnifiedTokenInfo[]) => {
       this.handleTokensDetected(tokens);
+      
+      // Forward to dashboard for real-time updates
+      if (this.dashboard) {
+        this.dashboard.emit('newTokensDetected', tokens);
+      }
     });
 
     this.detector.on('detectionResult', (result: any) => {
       logger.debug('Detection result:', result);
+      
+      // Forward detection results to dashboard
+      if (this.dashboard) {
+        this.dashboard.emit('detectionResult', result);
+      }
     });
 
     // Simulation events
@@ -194,6 +223,9 @@ export class TokenAnalyzerApp {
     }
 
     try {
+      // Initialize app first
+      await this.initializeApp();
+      
       logger.info(`🚀 Starting Token Analyzer in ${this.mode.toUpperCase()} mode`);
       
       // Start core components
@@ -226,16 +258,43 @@ export class TokenAnalyzerApp {
     logger.info('🛑 Stopping Token Analyzer...');
     
     try {
-      await this.detector.stop();
-      await this.simulationEngine.stop();
-      await this.dashboard.stop();
+      // Use Promise.allSettled for parallel shutdown to speed up Ctrl+C
+      const shutdownPromises = [
+        this.detector.stop().catch(error => {
+          logger.warn('⚠️  Detector stop error:', error);
+          return null;
+        }),
+        this.simulationEngine.stop().catch(error => {
+          logger.warn('⚠️  Simulation engine stop error:', error);
+          return null;
+        }),
+        this.dashboard.stop().catch(error => {
+          logger.warn('⚠️  Dashboard stop error:', error);
+          return null;
+        })
+      ];
+
+      // Wait for all services to stop (or fail gracefully)
+      const results = await Promise.allSettled(shutdownPromises);
+      
+      // Check if any critical shutdowns failed
+      const failedShutdowns = results
+        .filter(result => result.status === 'rejected')
+        .map(result => (result as PromiseRejectedResult).reason);
+
+      if (failedShutdowns.length > 0) {
+        logger.warn(`⚠️  ${failedShutdowns.length} services failed to stop cleanly`);
+      }
       
       this.isRunning = false;
       logger.info('🛑 Token Analyzer stopped successfully');
       
     } catch (error) {
       logger.error('❌ Error stopping Token Analyzer:', error);
-      throw error;
+      
+      // Don't throw error during shutdown to prevent hanging
+      logger.warn('⚠️  Continuing with shutdown despite errors');
+      this.isRunning = false;
     }
   }
 
@@ -285,32 +344,104 @@ export function createApp(): TokenAnalyzerApp {
 export async function main(): Promise<void> {
   const app = createApp();
   
-  // Graceful shutdown handling
+  // Enhanced graceful shutdown handling with optimization for Ctrl+C
+  let shutdownInProgress = false;
+  let shutdownTimeout: NodeJS.Timeout;
+  
   const shutdown = async (signal: string) => {
+    // Prevent multiple shutdown attempts
+    if (shutdownInProgress) {
+      logger.warn(`⚠️  Shutdown already in progress, ignoring ${signal}`);
+      return;
+    }
+    
+    shutdownInProgress = true;
     logger.info(`🛑 Received ${signal}, shutting down gracefully...`);
     
+    // Set a timeout for forced shutdown (prevents hanging on Ctrl+C)
+    shutdownTimeout = setTimeout(() => {
+      logger.warn('⚠️  Graceful shutdown taking too long, forcing exit...');
+      process.exit(1);
+    }, 10000); // 10 seconds timeout
+    
     try {
+      // Show immediate feedback for Ctrl+C
+      if (signal === 'SIGINT') {
+        console.log('\n🔄 Stopping services... (Press Ctrl+C again to force quit)');
+      }
+      
       await app.stop();
+      
+      // Clear timeout if shutdown completes successfully
+      if (shutdownTimeout) {
+        clearTimeout(shutdownTimeout);
+      }
+      
+      logger.info('✅ Shutdown completed successfully');
       process.exit(0);
     } catch (error) {
       logger.error('❌ Error during shutdown:', error);
+      
+      // Clear timeout before exit
+      if (shutdownTimeout) {
+        clearTimeout(shutdownTimeout);
+      }
+      
       process.exit(1);
     }
   };
 
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  // Enhanced signal handling with double Ctrl+C support
+  let sigintCount = 0;
+  process.on('SIGINT', () => {
+    sigintCount++;
+    
+    if (sigintCount === 1) {
+      // First Ctrl+C - graceful shutdown
+      shutdown('SIGINT');
+    } else if (sigintCount >= 2) {
+      // Second Ctrl+C - force exit
+      console.log('\n💥 Force quit requested, exiting immediately...');
+      process.exit(1);
+    }
+  });
+  
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGQUIT', () => shutdown('SIGQUIT'));
 
-  // Handle uncaught errors
+  // Handle uncaught errors with enhanced cleanup
   process.on('uncaughtException', (error) => {
     logger.error('💥 Uncaught Exception:', error);
-    shutdown('UNCAUGHT_EXCEPTION');
+    console.error('💥 Critical error occurred, shutting down...');
+    
+    // Force shutdown for uncaught exceptions
+    if (shutdownTimeout) {
+      clearTimeout(shutdownTimeout);
+    }
+    
+    // Try graceful shutdown but with shorter timeout
+    const emergencyShutdown = setTimeout(() => {
+      console.error('💥 Emergency shutdown timeout, forcing exit...');
+      process.exit(1);
+    }, 5000); // 5 seconds for emergency shutdown
+    
+    app.stop().then(() => {
+      clearTimeout(emergencyShutdown);
+      process.exit(1);
+    }).catch(() => {
+      clearTimeout(emergencyShutdown);
+      process.exit(1);
+    });
   });
 
   process.on('unhandledRejection', (reason, promise) => {
     logger.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
-    shutdown('UNHANDLED_REJECTION');
+    console.error('💥 Unhandled promise rejection, shutting down...');
+    
+    // For unhandled rejections, try graceful shutdown
+    if (!shutdownInProgress) {
+      shutdown('UNHANDLED_REJECTION');
+    }
   });
 
   try {

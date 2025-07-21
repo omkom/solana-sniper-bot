@@ -1,20 +1,41 @@
 import { logger } from '../monitoring/logger';
 import { DexScreenerResponse, DexScreenerPair, RealTokenInfo } from '../types/dexscreener';
 import { UnifiedTokenFilter, TokenFilterCriteria } from './unified-token-filter';
-import { ConnectionManager } from '../core/connection';
-import { getApiGateway } from '../core/api-gateway';
+import { getConnectionManager, getApiGateway } from '../core/singleton-manager';
+import { executeRequest } from '../core/request-manager';
+import { apiCoordinator } from '../core/centralized-api-coordinator';
 
 export class DexScreenerClient {
   private cache = new Map<string, { data: any; timestamp: number }>();
   private cacheTimeout = 60000; // 60 seconds cache to reduce API calls
-  private tokenFilter: UnifiedTokenFilter;
-  private connectionManager: ConnectionManager;
-  private apiGateway = getApiGateway();
+  private tokenFilter: UnifiedTokenFilter | null = null;
+  private connectionManager: any = null;
+  private apiGateway: any = null;
+  private initialized = false;
 
   constructor() {
-    this.connectionManager = new ConnectionManager();
-    this.tokenFilter = new UnifiedTokenFilter(this.connectionManager.getConnection());
-    console.log('🔗 DexScreener API client initialized with optimized API gateway');
+    this.initializeAsync();
+  }
+
+  private async initializeAsync(): Promise<void> {
+    if (this.initialized) return;
+
+    try {
+      this.connectionManager = await getConnectionManager();
+      this.apiGateway = await getApiGateway();
+      this.tokenFilter = new UnifiedTokenFilter(this.connectionManager.getConnection());
+      this.initialized = true;
+      logger.info('🔗 DexScreener client initialized with singleton services');
+    } catch (error) {
+      logger.error('❌ Failed to initialize DexScreener client:', error);
+      throw error;
+    }
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.initializeAsync();
+    }
   }
 
   // Throttling is now handled by the API gateway
@@ -35,30 +56,41 @@ export class DexScreenerClient {
   }
 
   async getTrendingTokens(criteria?: TokenFilterCriteria): Promise<RealTokenInfo[]> {
-    const filterCriteria = criteria || UnifiedTokenFilter.AGGRESSIVE_CRITERIA;
-    const cacheKey = `trending_${JSON.stringify(filterCriteria)}`;
+    await this.ensureInitialized();
     
-    // Check cache first
-    const cached = this.getCachedData(cacheKey);
-    if (cached) {
-      logger.verbose('Retrieved trending tokens from cache', { count: cached.length });
-      return cached;
-    }
-
+    const filterCriteria = criteria || UnifiedTokenFilter.AGGRESSIVE_CRITERIA;
+    const endpoint = '/token-profiles/latest/v1';
+    
+    logger.info('Fetching latest Solana trading pairs via centralized coordinator', { criteria: filterCriteria });
+    
     try {
-      // Use the optimized API gateway for DexScreener requests
-      const url = '/token-profiles/latest/v1';
-      
-      logger.info('Fetching latest Solana trading pairs via API gateway', { criteria: filterCriteria });
-      
-      const response = await this.apiGateway.requestDexScreener(url, {
-        method: 'GET'
-      });
+      // Use centralized API coordinator for global rate limiting and deduplication
+      const response = await apiCoordinator.makeRequest(
+        endpoint,
+        () => this.apiGateway!.requestDexScreener(endpoint, { method: 'GET' }),
+        'DexScreenerClient-getTrendingTokens',
+        {
+          priority: 2, // Medium priority
+          maxRetries: 1,
+          cacheTtl: this.cacheTimeout,
+          deduplicationKey: `trending_${JSON.stringify(filterCriteria)}`
+        }
+      );
+
+      if (!response.success) {
+        logger.warn('Failed to fetch trending tokens via centralized coordinator', {
+          error: response.error,
+          cached: response.cached
+        });
+        return [];
+      }
+
+      const data = response.data;
 
       let allTokens: RealTokenInfo[] = [];
-      if (response && response.pairs) {
+      if (data && data.pairs) {
         // Handle DexScreener trading pairs response format
-        const pairs = response.pairs;
+        const pairs = data.pairs;
         logger.info(`Trading pairs returned ${pairs.length} pairs`);
         
         if (pairs.length > 0) {
@@ -82,12 +114,12 @@ export class DexScreenerClient {
           logger.info(`Found ${rawTokens.length} Solana tokens from ${pairs.length} total pairs`);
           
           // Apply unified token filtering
-          const filteredTokens = await this.tokenFilter.filterTrendingTokens(rawTokens);
+          const filteredTokens = await this.tokenFilter!.filterTrendingTokens(rawTokens);
           logger.info(`After unified filtering: ${filteredTokens.length} tokens`);
           
           allTokens = filteredTokens;
         } else {
-          logger.warn('No pairs found in response', { keys: Object.keys(response) });
+          logger.warn('No pairs found in response', { keys: Object.keys(data) });
         }
       }
       
@@ -95,20 +127,18 @@ export class DexScreenerClient {
       const uniqueTokens = this.removeDuplicatesAndSort(allTokens);
       const limitedTokens = uniqueTokens.slice(0, 10); // Limit to top 10
       
-      // Cache the results
-      this.setCachedData(cacheKey, limitedTokens);
-      
-      logger.info('Successfully fetched trending tokens', { 
+      logger.info('Successfully fetched trending tokens via centralized coordinator', { 
         totalFound: allTokens.length,
         uniqueTokens: uniqueTokens.length,
-        filtered: limitedTokens.length 
+        filtered: limitedTokens.length,
+        cached: response.cached
       });
 
       return limitedTokens;
 
     } catch (error: any) {
-      // API Gateway handles rate limiting and retries automatically
-      logger.warn('Failed to fetch trending tokens via API gateway', {
+      // Centralized coordinator handles rate limiting and retries automatically
+      logger.warn('Failed to fetch trending tokens via centralized coordinator', {
         error: error instanceof Error ? error.message : String(error)
       });
       
@@ -129,7 +159,7 @@ export class DexScreenerClient {
       
       logger.verbose('Fetching token details via API gateway', { address });
       
-      const response = await this.apiGateway.requestDexScreener<DexScreenerResponse>(url);
+      const response = await this.apiGateway!.requestDexScreener(url) as DexScreenerResponse;
 
       if (!response || !response.pairs || response.pairs.length === 0) {
         return null;
@@ -344,22 +374,35 @@ export class DexScreenerClient {
 
   // Get latest boosted tokens for pump detection
   async getLatestBoosts(): Promise<RealTokenInfo[]> {
-    const cacheKey = 'latest_boosts';
-    const cached = this.getCachedData(cacheKey);
-    if (cached) {
-      logger.verbose('Retrieved latest boosts from cache', { count: cached.length });
-      return cached;
-    }
-
+    const endpoint = '/token-boosts/latest/v1';
+    
     try {
-      // Use optimized API gateway for boost requests
-      const url = '/token-boosts/latest/v1';
-      
-      const response = await this.apiGateway.requestDexScreener(url);
+      // Use centralized API coordinator for global rate limiting and deduplication
+      const response = await apiCoordinator.makeRequest(
+        endpoint,
+        () => this.apiGateway.requestDexScreener(endpoint),
+        'DexScreenerClient-getLatestBoosts',
+        {
+          priority: 1, // High priority for boosted tokens
+          maxRetries: 1,
+          cacheTtl: this.cacheTimeout,
+          deduplicationKey: 'latest_boosts'
+        }
+      );
+
+      if (!response.success) {
+        logger.warn('Failed to fetch latest boosts via centralized coordinator', {
+          error: response.error,
+          cached: response.cached
+        });
+        return [];
+      }
+
+      const data = response.data;
 
       let boostedTokens: RealTokenInfo[] = [];
-      if (response && response.length) {
-        const pairs = response;
+      if (data && data.length) {
+        const pairs = data;
         logger.info(`Trading pairs returned ${pairs.length} pairs for boost analysis`);
         
         // Convert boost data to tokens (different format than pairs)
@@ -378,7 +421,7 @@ export class DexScreenerClient {
         
         const filteredTokens: RealTokenInfo[] = [];
         for (const token of rawTokens) {
-          const result = await this.tokenFilter.filterToken(token, boostCriteria);
+          const result = await this.tokenFilter!.filterToken(token, boostCriteria);
           if (result.passed) {
             filteredTokens.push(token);
           }
@@ -388,11 +431,9 @@ export class DexScreenerClient {
         boostedTokens = filteredTokens;
       }
 
-      // Cache the results
-      this.setCachedData(cacheKey, boostedTokens);
-      
-      logger.info('Successfully fetched latest boosted tokens', { 
-        count: boostedTokens.length
+      logger.info('Successfully fetched latest boosted tokens via centralized coordinator', { 
+        count: boostedTokens.length,
+        cached: response.cached
       });
 
       return boostedTokens;
@@ -408,7 +449,6 @@ export class DexScreenerClient {
         const topBoosts = await this.getTopBoostsFallback();
         if (topBoosts.length > 0) {
           logger.info(`Using ${topBoosts.length} top boost tokens as fallback for latest boosts`);
-          this.setCachedData(cacheKey, topBoosts);
           return topBoosts;
         }
         
@@ -416,7 +456,6 @@ export class DexScreenerClient {
         const trendingTokens = await this.getTrendingTokensFallback();
         if (trendingTokens.length > 0) {
           logger.info(`Using ${trendingTokens.length} trending tokens as fallback for latest boosts`);
-          this.setCachedData(cacheKey, trendingTokens);
           return trendingTokens;
         }
         
@@ -434,25 +473,38 @@ export class DexScreenerClient {
 
   // Get top boosted tokens
   async getTopBoosts(): Promise<RealTokenInfo[]> {
-    const cacheKey = 'top_boosts';
-    const cached = this.getCachedData(cacheKey);
-    if (cached) {
-      logger.verbose('Retrieved top boosts from cache', { count: cached.length });
-      return cached;
-    }
-
+    const endpoint = '/token-boosts/top/v1';
+    
     try {
-      // Use optimized API gateway for top boost requests
-      const url = '/token-boosts/top/v1';
+      // Use centralized API coordinator for global rate limiting and deduplication
+      logger.info('Fetching Solana trading pairs for top activity analysis via centralized coordinator');
       
-       logger.info('Fetching Solana trading pairs for top activity analysis');
-      
-      const response = await this.apiGateway.requestDexScreener(url);
+      const response = await apiCoordinator.makeRequest(
+        endpoint,
+        () => this.apiGateway.requestDexScreener(endpoint),
+        'DexScreenerClient-getTopBoosts',
+        {
+          priority: 1, // High priority for top boosted tokens
+          maxRetries: 1,
+          cacheTtl: this.cacheTimeout,
+          deduplicationKey: 'top_boosts'
+        }
+      );
+
+      if (!response.success) {
+        logger.warn('Failed to fetch top boosts via centralized coordinator', {
+          error: response.error,
+          cached: response.cached
+        });
+        return [];
+      }
+
+      const data = response.data;
 
       let topBoostedTokens: RealTokenInfo[] = [];
 
-      if (response && response.pairs) {
-        const pairs = response.pairs;
+      if (data && data.pairs) {
+        const pairs = data.pairs;
         logger.info(`Trading pairs returned ${pairs.length} pairs for top activity analysis`);
         
         // Convert and filter for top performing tokens
@@ -470,7 +522,7 @@ export class DexScreenerClient {
         
         const filteredTokens: RealTokenInfo[] = [];
         for (const token of rawTokens) {
-          const result = await this.tokenFilter.filterToken(token, topCriteria);
+          const result = await this.tokenFilter!.filterToken(token, topCriteria);
           if (result.passed) {
             filteredTokens.push(token);
           }
@@ -484,17 +536,15 @@ export class DexScreenerClient {
         logger.info(`Found ${topBoostedTokens.length} top activity tokens after filtering`);
       }
 
-      // Cache the results
-      this.setCachedData(cacheKey, topBoostedTokens);
-      
-      logger.info('Successfully fetched top boosted tokens', { 
-        count: topBoostedTokens.length
+      logger.info('Successfully fetched top boosted tokens via centralized coordinator', { 
+        count: topBoostedTokens.length,
+        cached: response.cached
       });
 
       return topBoostedTokens;
 
     } catch (error) {
-      logger.warn('Failed to fetch top boosted tokens via API gateway', {
+      logger.warn('Failed to fetch top boosted tokens via centralized coordinator', {
         error: error instanceof Error ? error.message : String(error)
       });
       return [];
@@ -514,7 +564,7 @@ export class DexScreenerClient {
       const uniqueBoosts = this.removeDuplicatesAndSort(allBoosts);
       
       // Final filtering pass with aggressive criteria
-      const finalFiltered = await this.tokenFilter.filterTrendingTokens(uniqueBoosts);
+      const finalFiltered = await this.tokenFilter!.filterTrendingTokens(uniqueBoosts);
       
       logger.info('Combined boosted tokens', {
         latest: latestBoosts.length,
@@ -573,8 +623,8 @@ export class DexScreenerClient {
     return {
       cacheSize: this.cache.size,
       cacheTimeout: this.cacheTimeout,
-      apiGatewayStats: this.apiGateway.getStats(),
-      filterStats: this.tokenFilter.getFilterStats()
+      apiGatewayStats: this.apiGateway?.getStats(),
+      filterStats: this.tokenFilter?.getFilterStats()
     };
   }
 }

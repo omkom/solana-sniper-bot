@@ -70,7 +70,18 @@ export class ConnectionProvider {
 
   static getConnection(): Connection {
     if (!ConnectionProvider.connection) {
-      ConnectionProvider.connection = ConnectionProvider.getConnectionManager().getConnection();
+      const manager = ConnectionProvider.getConnectionManager();
+      // Check if manager is initialized, if not, use a fallback connection
+      try {
+        ConnectionProvider.connection = manager.getConnection();
+      } catch (error) {
+        logger.warn('ConnectionManager not initialized, creating fallback connection');
+        // Create a fallback connection directly
+        ConnectionProvider.connection = new Connection(
+          'https://api.mainnet-beta.solana.com',
+          { commitment: 'processed' }
+        );
+      }
     }
     return ConnectionProvider.connection;
   }
