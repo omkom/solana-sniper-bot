@@ -451,8 +451,41 @@ export interface SimulationConfig {
 
 // Security Scanner Types
 export interface SecurityInfo {
-  score: number;
+  score: number; // 0-100 (show ALL tokens >= 1)
   flags: string[];
+  visualDisplay: {
+    badge: '🔴' | '🟠' | '🟢';   // <3, 3-6, >6 color-coded display
+    radarChart: boolean;         // Detailed breakdown visualization
+    tokenIcon: string;           // Display token image
+  };
+  priorityMetrics: {
+    honeypotRisk: number;        // CRITICAL - highest priority
+    liquidityLocked: boolean;    // High priority
+    ownershipRenounced: boolean; // High priority
+    topHolderConcentration: number; // Medium priority
+    contractVerified: boolean;   // Medium priority
+  };
+  creatorIntelligence?: {
+    walletAddress: string;       // Creator wallet tracking
+    historicalTokens: number;    // Tokens created by this wallet
+    rugpullHistory: {
+      count: number;
+      priceAtDump: number[];     // Historical dump prices
+    };
+    marketMakerActivity: {
+      buyCount: number;
+      sellCount: number;
+      avgHoldTime: number;
+    };
+    successRate: number;         // % of successful tokens
+    riskMultiplier: number;      // 1.3x verified, 1x unknown, 0.7x flagged
+  };
+  socialMedia: {
+    twitterVerified: boolean;
+    telegramActive: boolean;
+    websiteValid: boolean;
+    socialScore: number;
+  };
   details: {
     contractVerified: boolean;
     liquidityLocked: boolean;
@@ -462,6 +495,7 @@ export interface SecurityInfo {
     [key: string]: any;
   };
   recommendation: 'PROCEED' | 'CAUTION' | 'HIGH_RISK';
+  displayAllTokens: true;      // Never filter, always show with warnings
   analyzedAt: number;
   confidence: number;
   riskIndicators: RiskIndicator[];
@@ -724,6 +758,93 @@ export interface AnalysisConfig {
   simulatedInvestment: number;
   maxSimulatedPositions: number;
   rpc: RpcConfig;
+}
+
+// ==============================================
+// CREATOR INTELLIGENCE SYSTEM TYPES
+// ==============================================
+
+export interface CreatorIntelligence {
+  walletAddress: string;
+  historicalTokens: number;
+  rugpullHistory: {
+    count: number;
+    priceAtDump: number[];
+    totalLost: number;
+  };
+  marketMakerActivity: {
+    buyCount: number;
+    sellCount: number;
+    avgHoldTime: number;
+    totalVolume: number;
+  };
+  successRate: number; // % of successful tokens
+  riskMultiplier: number; // 1.3x verified, 1x unknown, 0.7x flagged
+  socialMediaVerification: {
+    twitterVerified: boolean;
+    telegramActive: boolean;
+    websiteValid: boolean;
+    socialScore: number;
+  };
+  flags: CreatorFlag[];
+  createdAt: number;
+  lastActivity: number;
+}
+
+export interface CreatorProfile extends CreatorIntelligence {
+  tokensCreated: UnifiedTokenInfo[];
+  rugpullEvents: RugpullEvent[];
+  performanceMetrics: {
+    avgTokenLifespan: number;
+    avgMaxGain: number;
+    rugpullFrequency: number;
+  };
+}
+
+export interface RugpullEvent {
+  id: string;
+  tokenAddress: string;
+  creatorWallet: string;
+  rugpullType: 'LIQUIDITY_DRAIN' | 'HONEYPOT' | 'MINT_ATTACK' | 'SOCIAL_EXIT';
+  priceAtDump: number;
+  maxPriceReached: number;
+  lossPercent: number;
+  timestamp: number;
+  evidence: string[];
+  affectedTraders: number;
+}
+
+export interface CreatorFlag {
+  type: 'SUSPICIOUS_ACTIVITY' | 'RUGPULL_HISTORY' | 'HONEYPOT_CREATOR' | 'VERIFIED' | 'SOCIAL_SCAM';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  reason: string;
+  evidence: string[];
+  flaggedAt: number;
+  source: 'AUTOMATED' | 'COMMUNITY' | 'MANUAL';
+}
+
+export interface CreatorDatabase {
+  creators: Map<string, CreatorIntelligence>;
+  rugpullEvents: Map<string, RugpullEvent>;
+  verifiedCreators: Set<string>;
+  flaggedCreators: Set<string>;
+  stats: {
+    totalCreators: number;
+    verifiedCount: number;
+    flaggedCount: number;
+    rugpullCount: number;
+  };
+}
+
+export interface CreatorAlert {
+  id: string;
+  walletAddress: string;
+  alertType: 'NEW_TOKEN' | 'SUSPICIOUS_ACTIVITY' | 'RUGPULL_WARNING' | 'LARGE_TRANSACTION';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  message: string;
+  data: any;
+  timestamp: number;
+  acknowledged: boolean;
 }
 
 // Duplicate DetectionConfig removed - using consolidated version above

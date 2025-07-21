@@ -1,43 +1,59 @@
-# 🎓 Educational Solana Token Analyzer
+# 🎯 Educational Solana Token Analyzer - ENHANCED
 
-A comprehensive educational trading simulation system for understanding Solana token analysis, price tracking, and profit-maximizing strategies. This system operates **exclusively in DRY RUN mode** for learning purposes.
+**High-Performance Educational Token Sniping Tool with Creator Intelligence & Multi-Strategy Framework**
 
-## ⚠️ Important Notice
+A comprehensive educational trading simulation system demonstrating advanced token analysis, creator intelligence, and multi-strategy profit optimization. **Triple-locked DRY_RUN mode** ensures complete educational safety.
 
-**This is an educational tool only. No real trading occurs.**
-- All trades are simulated with virtual SOL
-- No real money is used or risked
-- Designed for learning blockchain analysis and trading concepts
-- Does not execute actual transactions on the blockchain
-- All profits/losses are educational simulations
+## 🔒 Triple-Locked Educational Safety
 
-## 🚀 Enhanced Features
+**This is a 100% educational tool with hardcoded safety constraints:**
+- **Triple-Locked DRY_RUN**: Cannot be disabled or bypassed at any level
+- **Creator Intelligence**: Educational analysis only - no real targeting
+- **Virtual Trading**: Simulated SOL balance with zero real fund risk
+- **70% Educational Focus**: Learning-first approach with technical demonstration
+- **Complete Audit Trail**: All activities logged for educational review
 
-### 🔍 Advanced Token Detection & Monitoring
-- **Multi-Source Detection**: Monitors pump.fun, Raydium, Orca, Meteora, Jupiter, and Serum
-- **Real-time WebSocket Connections**: Instant token detection with sub-second latency
-- **Age Filtering**: Focuses on tokens less than 1 hour old for maximum profit potential
-- **Volume Analysis**: Tracks trading volume and liquidity patterns
-- **Rapid Detection Engine**: Processes 500+ tokens per minute with parallel analysis
+## 🚀 MAJOR NEW FEATURES
 
-### 🛡️ Comprehensive Security Analysis
-- **Security Scoring**: 100-point scoring system with color-coded indicators
-- **Mint/Freeze Authority Verification**: Checks for disabled authorities
-- **Liquidity Pattern Analysis**: Evaluates DEX liquidity distribution
-- **Honeypot Detection**: Advanced pattern recognition for suspicious contracts
-- **Metadata Verification**: Validates token information and social links
-- **Risk Assessment**: Multi-factor risk scoring for educational purposes
+### 🧠 Creator Intelligence System
+- **Wallet Tracking**: Educational database of token creators with complete history
+- **Rugpull Detection**: Pattern analysis with price-at-dump tracking
+- **Creator Multipliers**: 1.3x verified, 1.0x unknown, 0.7x flagged creators
+- **Social Verification**: Twitter/Telegram verification simulation
+- **Risk Scoring**: Dynamic creator risk assessment with historical data
+- **Market Maker Analysis**: Buy/sell patterns and average hold times
 
-### 💰 Advanced Trading Simulation
-- **Smart Position Sizing**: Dynamic allocation based on security score, age, liquidity, and source
-- **Maximum Profit Exit Strategy**: Sophisticated exit rules for different profit levels
-- **Partial Selling**: Sells portions while letting profits run on pumping tokens
-- **Pump Detection**: AI-powered detection of price momentum and trend analysis
-- **Multi-Tier Profit Taking**: 
-  - 500%+ gains: Sell 80%, let 20% ride
-  - 200%+ gains: Sell 60%, let 40% ride  
-  - 100%+ gains: Partial exits based on pump momentum
-- **Extended Hold Times**: Up to 2 hours for maximum profit extraction
+### 🎯 Multi-Strategy Trading Framework
+- **4 Strategy Types**: Conservative, Balanced, Aggressive, Ultra-Aggressive
+- **Granular Profit Levels**: 25%, 50%, 100%, 200%, 300%, 500%, 1000%
+- **Dynamic Hold Times**: 6h/2h/30min based on token quality (score >8/<5)
+- **Creator-Aware Exits**: Extended holds for verified creators, quick exits for flagged
+- **Strategy Switching**: Real-time configuration via API
+- **Performance Tracking**: Win rate and ROI by strategy
+
+### 🔍 Enhanced Token Detection & Security
+- **Show ALL Tokens**: Display every token (≥1 score) with color-coded warnings
+- **Security Badges**: 🔴 (<3), 🟠 (3-6), 🟢 (>6) color-coded display
+- **Token Icons**: Visual token representation with image display
+- **Priority Sources**: Pump.fun → Raydium → Orca → Jupiter (optimized order)
+- **<5s Detection**: Target latency with <10s fallback threshold
+- **500+ Positions**: Auto-scaling based on memory (up to 500 concurrent)
+
+### 📊 Performance Benchmarking System
+- **Target Metrics**: >60% win rate, >25% ROI, <5s detection, <1.5GB memory
+- **Real-Time Monitoring**: Continuous performance tracking with trend analysis
+- **Automated Alerts**: Threshold violations with actionable recommendations
+- **Benchmark APIs**: `/api/kpi/benchmarks` with detailed performance data
+- **Memory Management**: Auto-scaling positions based on system resources
+- **Throughput Tracking**: 1000+ tokens/minute processing capability
+
+### 💰 Enhanced Trading Simulation
+- **UI Configurable Sizing**: Position sizes from 0.001-0.01 SOL via dashboard
+- **Multi-Strategy Exits**: Strategy-specific hold patterns and profit taking
+- **Stop-Loss Improved**: -20% (enhanced from -30%) with strategy-specific tuning
+- **Creator-Aware Positioning**: Adjust sizes based on creator risk multipliers
+- **Rugpull Protection**: Emergency exit system with 2-minute response time
+- **Extended Hold Times**: Up to 6 hours for high-quality tokens (score >8)
 
 ### 📊 Enhanced Dashboard & Monitoring
 - **3-Column Responsive Layout**: Optimized for different screen sizes
@@ -94,36 +110,79 @@ npm run build
 npm run dev
 ```
 
-### Available Commands
+### 🎯 Quick Start Deployment Modes
+
+Choose your preferred deployment mode based on learning objectives:
 
 ```bash
-# Standard simulation mode
-npm run dev
+# 🎯 Rapid Mode (RECOMMENDED - Instant Demo)
+npm run dev:rapid        # High-frequency detection with creator intelligence
+                        # Optimized for: Fast learning, immediate results
+                        # Features: <5s detection, 500+ positions, all strategies
 
-# Rapid detection mode (recommended)
-npm run dev:rapid
+# 🌐 Real Data Mode (Live Market Integration)
+npm run dev:real         # Live DexScreener API with REAL market data
+                        # Optimized for: Realistic simulation, market analysis
+                        # Features: Real-time prices, social verification, creator tracking
 
-# Real-time monitoring mode
-npm run dev:real
-
-# Production build
-npm start
-
-# Run tests
-npm test
-
-# Build TypeScript
-npm run build
+# 📊 Standard Mode (Balanced Performance)  
+npm run dev              # Default educational mode with all features
+                        # Optimized for: Comprehensive learning, system understanding
+                        # Features: Full feature set, educational focus
 ```
 
-## 📊 Dashboard Features
+### Additional Commands
 
-### Main Dashboard (http://localhost:3000)
-- **Portfolio Overview**: Real-time balance, ROI, and performance metrics
-- **Active Positions**: Monitor up to 500 concurrent simulated positions
-- **Trade History**: Complete history of all simulated transactions
-- **Token Discovery**: Live feed of newly detected tokens
-- **KPI Charts**: Real-time graphs of detection rates, success rates, and profits
+```bash
+# Production deployment
+npm start                # Standard production mode
+npm start:rapid          # High-performance production
+
+# Development builds
+npm run build            # TypeScript compilation
+npm run dev:analysis     # Deep analysis mode
+
+# Quality assurance
+npm test                 # Jest test suite with creator intelligence tests
+npm run test:performance # Performance benchmark validation
+npm run lint             # ESLint with TypeScript strict mode
+npm run typecheck        # TypeScript validation
+
+# Creator intelligence testing
+npm run test:creators    # Creator database accuracy tests
+npm run test:rugpull     # Rugpull detection algorithm tests
+
+# Performance monitoring
+npm run benchmark:winrate    # >60% win rate validation
+npm run benchmark:roi        # >25% ROI validation  
+npm run benchmark:latency    # <5s detection testing
+npm run benchmark:memory     # <1.5GB usage validation
+npm run benchmark:throughput # 1000+ tokens/min testing
+```
+
+## 📊 Enhanced Dashboard Features
+
+### 🌐 **Automatic Dashboard Launch**
+**All npm commands automatically launch the dashboard on http://localhost:3000**
+
+```bash
+# Any of these commands will open the dashboard:
+npm run dev          # Standard mode dashboard
+npm run dev:rapid    # High-speed detection dashboard
+npm run dev:real     # Real market data dashboard
+
+# Dashboard opens automatically in your browser at:
+# http://localhost:3000
+```
+
+### 🎯 **Main Dashboard Features**
+- **Portfolio Overview**: Real-time balance, ROI, and performance metrics with creator intelligence
+- **Active Positions**: Monitor up to 500 concurrent simulated positions with creator multipliers
+- **Trade History**: Complete history with strategy breakdown and creator analysis
+- **Token Discovery**: Live feed with color-coded security badges (🔴🟠🟢)
+- **Creator Intelligence Panel**: Real-time wallet tracking and rugpull alerts
+- **Performance Benchmarks**: Live tracking of >60% win rate and >25% ROI targets
+- **Multi-Strategy Analytics**: Compare Conservative/Balanced/Aggressive/Ultra performance
 
 ### Enhanced Token Tables
 - **Tracked Tokens**: Detailed view of all monitored tokens with live price updates
@@ -132,44 +191,119 @@ npm run build
 - **DEX Information**: Clear labeling of token sources
 - **Status Indicators**: Color-coded status for easy identification
 
-## 🔧 Configuration
+## 🔧 Enhanced Configuration
 
-Edit `.env` file to customize behavior:
+The system now includes 200+ configuration parameters for complete customization. Key settings in `.env`:
 
+### 🔒 Triple-Locked Safety (Cannot be Modified)
 ```env
-# Core Settings
-MODE=DRY_RUN                          # Always enforced for safety
-RPC_PRIMARY=https://api.mainnet-beta.solana.com
-
-# Detection Parameters
-MIN_LIQUIDITY_SOL=0.5                 # Minimum liquidity threshold
-MIN_CONFIDENCE_SCORE=5                # Minimum security score (very permissive)
-MAX_ANALYSIS_AGE_MS=3600000           # 1 hour age limit
-
-# Simulation Parameters  
-SIMULATED_INVESTMENT=0.003            # Base investment per token
-MAX_SIMULATED_POSITIONS=500           # Maximum concurrent positions
-STARTING_BALANCE=10                   # Starting SOL balance
-
-# Dashboard
-DASHBOARD_PORT=3000                   # Web interface port
-LOG_LEVEL=info                        # Logging verbosity
+MODE=DRY_RUN                          # Hardcoded educational safety
+EDUCATIONAL_FOCUS=70                  # 70% educational / 30% technical
+REAL_TRADING_DISABLED=TRUE            # Cannot be bypassed
+CREATOR_INTELLIGENCE_EDUCATIONAL=TRUE # Educational analysis only
 ```
 
-## 🌐 Real Data Integration Features
+### 🎯 Performance Benchmarks (New)
+```env
+TARGET_WIN_RATE=60                   # >60% target win rate
+TARGET_AVG_ROI=25                    # >25% per trade target
+TARGET_DETECTION_LATENCY=5000        # <5s detection target
+TARGET_MEMORY_USAGE_MB=1536          # <1.5GB memory target
+TARGET_TOKENS_PER_MINUTE=1000        # Target throughput
+```
 
-### Live Market Data Sources
-- **DexScreener API**: `https://api.dexscreener.com` - Primary real-time data
+### 🧠 Creator Intelligence System (New)
+```env
+CREATOR_TRACKING_ENABLED=true        # Enable wallet tracking
+RUGPULL_DETECTION_ENABLED=true       # Enable rugpull monitoring
+SOCIAL_MEDIA_VERIFICATION=true       # Twitter/Telegram checks
+CREATOR_MULTIPLIER_VERIFIED=1.3      # 1.3x boost for verified creators
+CREATOR_MULTIPLIER_FLAGGED=0.7       # 0.7x reduction for flagged creators
+```
+
+### 💰 Enhanced Simulation Parameters
+```env
+SIMULATED_INVESTMENT=0.003            # Base (UI configurable 0.001-0.01)
+MAX_SIMULATED_POSITIONS=500           # Auto-scaling based on memory
+UI_CONFIGURABLE_POSITIONS=true       # Allow user adjustment via dashboard
+STARTING_BALANCE=10                   # Virtual SOL balance
+```
+
+### 🔍 Show ALL Tokens Policy (New)
+```env
+SHOW_ALL_TOKENS=true                 # Display ALL tokens with warnings
+MIN_CONFIDENCE_SCORE=1               # Show all (minimum score 1)
+SECURITY_BADGE_RED_THRESHOLD=3       # 🔴 High risk (score < 3)
+SECURITY_BADGE_ORANGE_THRESHOLD=6    # 🟠 Caution (3 <= score < 6)
+SECURITY_BADGE_GREEN_THRESHOLD=6     # 🟢 Proceed (score >= 6)
+```
+
+### 🎯 Multi-Strategy Configuration (New)
+```env
+HOLD_TIME_HIGH_QUALITY=21600000      # 6 hours (score > 8)
+HOLD_TIME_STANDARD=7200000           # 2 hours (default)
+HOLD_TIME_RISKY=1800000              # 30 minutes (score < 5)
+STOP_LOSS_CONSERVATIVE=-15           # Conservative strategy
+STOP_LOSS_BALANCED=-20               # Balanced strategy (improved from -30%)
+```
+
+### 📊 Enhanced Dashboard & API
+```env
+DASHBOARD_PORT=3000                  # Web interface port
+UI_REFRESH_INTERVAL=10000            # 10s dashboard refresh
+PRICE_UPDATE_INTERVAL=15000          # 15s price updates (improved)
+CREATOR_PANEL_ENABLED=true           # Show creator intelligence panel
+ENABLE_COLOR_CODED_BADGES=true       # Security color coding (🔴🟠🟢)
+```
+
+## 🌐 ENHANCED: Real Data Integration Features
+
+**Uses REAL market data from professional APIs while maintaining 100% educational safety**
+
+### 📊 Live Market Data Integration
+- **DexScreener API**: `https://api.dexscreener.com` - Professional-grade real-time data
   - **Search Endpoint**: `/latest/dex/search` (300 req/min) for token discovery
   - **Token Data**: `/tokens/v1/solana/{addresses}` (300 req/min) for batch analysis
-  - **Token Pairs**: `/token-pairs/v1/solana/{address}` (300 req/min) for liquidity
+  - **Token Pairs**: `/token-pairs/v1/solana/{address}` (300 req/min) for liquidity data
   - **Token Profiles**: `/token-profiles/latest/v1` (60 req/min) for metadata
-  - **Token Boosts**: `/token-boosts/latest/v1` (60 req/min) for trending
-- **Fallback Sources**: CoinGecko, RaydiumAPI, direct blockchain monitoring
-- **Creator Intelligence**: Wallet tracking database with rugpull history
-- **Social Integration**: Twitter/Telegram verification and monitoring
+  - **Token Boosts**: `/token-boosts/latest/v1` (60 req/min) for trending scores
+- **Multi-Source Integration**: CoinGecko, Jupiter, direct blockchain monitoring
+- **Creator Intelligence**: Real wallet tracking database with rugpull pattern analysis
+- **Social Integration**: Live Twitter/Telegram verification and sentiment monitoring
 
-### Data Quality & Performance
+### 🔍 Real Market Analysis Features
+- **Live Price Tracking**: Actual token prices updated every 15 seconds
+- **Real Liquidity Data**: Genuine liquidity pool depths from DEXs
+- **Market Trends**: Real trending scores and momentum indicators (5m/1h/24h)
+- **Volume Analysis**: Actual trading volume and transaction activity
+- **Security Assessment**: Enhanced scoring with real market conditions
+- **Creator Behavior**: Real-time wallet activity and rugpull detection
+
+### 💹 Advanced Market Filtering
+```typescript
+// Real market conditions applied:
+{
+  chainIds: ['solana'],
+  dexIds: ['pumpfun', 'raydium', 'orca', 'jupiter'],
+  minLiquidity: 5000,        // $5k minimum USD
+  minVolume: 1000,           // $1k daily volume
+  minMarketCap: 10000,       // $10k market cap
+  maxAge: 24,                // 24 hours max age
+  rankBy: 'trendingScoreM5', // 5-minute momentum
+  priceStability: 50,        // < 50% change in 5min
+  momentum: -30,             // > -30% change in 1h
+  transactions: 3            // > 3 txns in 5min
+}
+```
+
+### 📈 Realistic Market Simulation
+- **Entry Decisions**: Based on REAL market conditions and creator intelligence
+- **Position Sizing**: Constrained by actual liquidity availability
+- **Exit Strategies**: Triggered by REAL price movements and rugpull detection
+- **Portfolio Tracking**: Live market data with creator-aware risk management
+- **Multi-Strategy Exits**: Real momentum analysis for Conservative/Balanced/Aggressive/Ultra
+
+### ⚡ Data Quality & Performance
 - **Update Frequencies**: 15s prices, 30s discovery, 10s UI refresh
 - **Optimized Rate Limiting**: 
   - DexScreener Search/Tokens/Pairs: 300 req/min
@@ -177,33 +311,73 @@ LOG_LEVEL=info                        # Logging verbosity
   - Intelligent queuing and batch processing (up to 30 tokens per request)
 - **Health Checks**: Automatic failover to backup data sources
 - **Data Validation**: Comprehensive market data verification with API response validation
+- **Error Handling**: Graceful degradation on API failures with caching
+- **Creator Database**: Real-time updates with 30-day retention
+
+### 🎯 Real vs Educational Simulation Comparison
+
+| Feature | Standard Mode | Real Data Mode | Enhanced Mode |
+|---------|---------------|----------------|---------------|
+| Token Detection | Simulated events | Real DexScreener API | Creator Intelligence + Real API |
+| Prices | Algorithmic simulation | Live market prices | Real prices + Creator multipliers |
+| Liquidity | Mock values | Actual pool data | Real liquidity + Creator risk scoring |
+| Volume | Simulated patterns | Real trading volume | Real volume + Creator activity tracking |
+| Market Trends | Randomized | DexScreener trending | Real trends + Rugpull detection |
+| Creator Intelligence | Basic simulation | N/A | Full wallet tracking + Social verification |
+| Price Updates | Time-based | Market-driven | Real-time + Creator event triggers |
+
+### 🔒 Enhanced Safety with Real Data
+- **API Rate Limiting**: Respectful usage with intelligent caching (15s/5min/1h/24h)
+- **Educational Boundaries**: Real data input, simulated output only
+- **Error Handling**: Graceful degradation maintains educational experience
+- **Data Validation**: Professional-grade market data verification
+- **Creator Intelligence**: Educational analysis only - no real targeting
+- **Simulation Enforcement**: Triple-locked DRY_RUN with real market data
 
 ## 📁 Enhanced Project Structure
 
 ```
 src/
-├── core/                   # Core configuration and connections
-│   ├── config.ts          # Environment and settings management
-│   ├── connection.ts      # Solana RPC connection management
-│   └── rapid-token-analyzer.ts  # High-performance token analyzer
-├── detection/             # Token monitoring and detection
-│   ├── multi-dex-monitor.ts     # Multi-DEX WebSocket monitoring
-│   ├── raydium-monitor.ts       # Raydium-specific monitoring
-│   ├── pump-detector.ts         # Pump detection algorithms
-│   └── dexscreener-client.ts    # DexScreener API integration
-├── analysis/              # Security analysis and filtering
-│   └── security-analyzer.ts     # Comprehensive security checks
-├── simulation/            # Advanced trading simulation
-│   └── dry-run-engine.ts        # Enhanced simulation with profit maximization
-├── monitoring/            # Dashboard and tracking
-│   ├── dashboard.ts             # Web dashboard server
-│   ├── token-price-tracker.ts   # Real-time price tracking
-│   ├── migration-monitor.ts     # DEX migration tracking
-│   └── kpi-tracker.ts          # Performance metrics tracking
-└── types/                # TypeScript definitions
+├── core/                   # Core configuration and orchestration
+│   ├── config.ts          # Enhanced configuration with 200+ parameters
+│   ├── orchestrator.ts    # Main coordination engine with creator intelligence
+│   └── connection-pool.ts # Multi-RPC failover system
+├── detection/             # Ultra-fast token detection
+│   ├── blockchain-analyzer.ts   # Direct chain monitoring with mempool scanning
+│   ├── multi-dex-monitor.ts     # Priority-based multi-DEX monitoring
+│   ├── pump-detector.ts         # Advanced momentum detection algorithms
+│   └── multi-source-aggregator.ts # Coordinated data source integration
+├── analysis/              # Enhanced security & creator intelligence
+│   ├── security-scanner.ts      # Color-coded badge generation (🔴🟠🟢)
+│   ├── creator-intelligence.ts  # Creator wallet tracking & rugpull detection
+│   └── metrics-calculator.ts    # Performance metrics & ROI calculation
+├── trading/               # Multi-strategy simulation engine
+│   ├── simulation-engine.ts     # <10min token simulator with creator multipliers
+│   ├── multi-strategy-engine.ts # 4-strategy framework (Conservative/Balanced/Aggressive/Ultra)
+│   └── exit-strategy.ts         # Dynamic exits with creator-aware timing
+├── monitoring/            # Advanced dashboard & benchmarking
+│   ├── consolidated-dashboard.ts # Complete API with creator intelligence endpoints
+│   ├── benchmark-tracker.ts     # Performance monitoring (>60% win, >25% ROI)
+│   ├── real-time-dashboard.ts   # Enhanced UI with creator panels
+│   └── websocket-server.ts      # 10s refresh with creator activity events
+├── types/                 # Enhanced TypeScript definitions
+│   └── unified.ts         # Creator intelligence & security badge interfaces
+└── utils/                # Performance utilities
+    ├── rate-limiter.ts    # API rate limiting with intelligent queuing
+    └── performance-profiler.ts # Memory & latency optimization
 
-public/                   # Enhanced dashboard interface
-logs/                    # Application logs with rotation
+public/                   # Enhanced responsive dashboard (3-column layout)
+├── dashboard.html        # Main interface with creator intelligence panels
+├── css/                  # Enhanced styling with color-coded badges
+└── js/                   # Real-time updates & Chart.js integration
+
+logs/                     # Comprehensive logging system
+├── analyzer.log          # System activity & performance benchmarks
+├── creators.log          # Creator intelligence & rugpull events
+└── benchmark.log         # Performance monitoring & alerts
+
+.env                      # 200+ configuration parameters
+.env.example              # Complete configuration template
 ```
 
 ## 🎯 Learning Objectives
@@ -292,26 +466,100 @@ The system evaluates tokens across multiple dimensions:
 - **Dynamic Hold Times**: 6h (high quality), 2h (standard), 30min (risky)
 - **Enhanced Stop-Loss**: -20% (improved from -30%) with trailing stops
 
-## 🎮 Advanced Educational Features
+## 🎮 Advanced Educational Features & Real Data Integration
 
 ### Creator Intelligence System
 - **Wallet Creator Database**: Track all token creator wallets in dedicated database
 - **Historical Creator Behavior**: 
-  - Tokens created per wallet
-  - Market maker buy/sell activity patterns
-  - Rugpull history with price at dump moments
-  - Success/failure rate tracking per creator
+  - Tokens created per wallet with REAL transaction history
+  - Market maker buy/sell activity patterns from actual blockchain data
+  - Rugpull history with price at dump moments from real market events
+  - Success/failure rate tracking per creator using actual performance data
 - **Rugpull Early Warning**: 
-  - Creator sell pressure monitoring
-  - Large holder dump detection
-  - Social sentiment crash alerts
-  - Liquidity removal detection
+  - Creator sell pressure monitoring with real-time wallet tracking
+  - Large holder dump detection from actual transaction monitoring
+  - Social sentiment crash alerts from live Twitter/Telegram monitoring
+  - Liquidity removal detection using real DEX pool data
+
+### 🚀 Multiple Launch Modes
+
+**All modes launch dashboard on http://localhost:3000 automatically**
+
+#### 🎯 **Rapid Mode (RECOMMENDED)**
+```bash
+npm run dev:rapid
+```
+**Perfect for learning and demos:**
+- High-frequency token detection with creator intelligence
+- Optimized for fast learning and immediate results
+- Features: <5s detection, 500+ positions, all 4 strategies
+- Uses optimized algorithms for educational demonstration
+
+#### 🌐 **Real Data Mode (Market Integration)**
+```bash
+npm run dev:real
+```
+**Realistic market simulation:**
+- Live DexScreener API with REAL market data
+- Actual token prices, volumes, and trending scores
+- Real-time creator wallet activity monitoring
+- Features: Live market integration, social verification, creator tracking
+
+#### 📊 **Standard Mode (Comprehensive Learning)**
+```bash
+npm run dev
+```
+**Full feature educational system:**
+- Complete feature set for thorough understanding
+- Balanced performance with educational focus
+- All creator intelligence features enabled
+- Optimal for systematic learning and analysis
+
+### 📈 Real Market Data Examples
+
+#### Live Token Detection Log
+```
+🔍 NEW TOKEN DETECTED (Real Data): $BONK
+💰 Current Price: $0.00001234 (Live DexScreener)
+📊 Liquidity: $45,678 USD (Real pool data)
+📈 24h Change: +156.7% (Actual market performance)
+🔥 Trending Score: 89/100 (DexScreener momentum)
+📈 Volume 24h: $12,345 (Real trading volume)
+🎯 Source: dexscreener_pumpfun (Live API)
+👤 Creator: 7x...abc (Verified wallet - 85% success rate)
+🎯 Strategy Applied: BALANCED (Creator multiplier: 1.3x)
+```
+
+#### Real-Time Price Updates
+```
+📊 PROCESSING REAL MARKET DATA: $PEPE
+💵 Current Price: $0.00000892 (Live update)
+📈 5min Change: +12.3% | 1h: -5.7% | 24h: +23.4%
+💧 Liquidity: $67,890 USD (Real DEX pools)
+🔒 Security Score: 78/100 (Enhanced with real data)
+👤 Creator Intelligence: Unknown wallet (1.0x multiplier)
+✅ SIMULATED BUY: 0.003 SOL at $0.00000892
+🎯 Strategy: AGGRESSIVE (15% hold, -20% stop-loss)
+⏰ Expected Hold: 2 hours (standard quality token)
+```
+
+#### Creator Intelligence Alert
+```
+🚨 CREATOR ACTIVITY DETECTED
+👤 Wallet: 7x4m...abc (Previously flagged)
+📊 Action: Large sell (45% of holdings)
+🎯 Token: $SCAM (Current position)
+⚠️ Rugpull Risk: HIGH (Creator dumping pattern detected)
+🏃 Emergency Exit: Triggered (0.7x flagged multiplier applied)
+💰 Educational Result: -15% loss avoided through early warning
+```
 
 ### Enhanced Demo Functionality
-- **Multi-Strategy Testing**: Compare Conservative/Balanced/Aggressive/Ultra approaches
-- **Creator-Based Scenarios**: Verified vs flagged creator simulations
-- **Market Condition Simulations**: Bull/bear market with dynamic hold times
-- **Real vs Simulated Mode**: Switch between live data and educational scenarios
+- **Multi-Strategy Testing**: Compare Conservative/Balanced/Aggressive/Ultra with real data
+- **Creator-Based Scenarios**: Live verified vs flagged creator simulations
+- **Market Condition Analysis**: Real bull/bear market response with dynamic holds
+- **Live vs Simulated Comparison**: Toggle between educational and market modes
+- **Real-Time Rugpull Detection**: Live monitoring with actual creator wallet activity
 
 ## 📝 Comprehensive Logging
 
@@ -398,7 +646,7 @@ This software is provided for educational purposes only. Users are responsible f
 - **[SOURCES.md](SOURCES.md)**: Data sources and API integrations
 - **[FIXES-SUMMARY.md](FIXES-SUMMARY.md)**: Implementation fixes and enhancements
 - **[CLAUDE.md](CLAUDE.md)**: AI assistant development guidance
-- **[README-REAL.md](README-REAL.md)**: Real market data integration guide
+- **README-REAL.md**: ✅ **Merged into main README** - Real market data features now integrated above
 - **[RECREATE_PROMPT.md](RECREATE_PROMPT.md)**: System recreation guidelines
 
 ### 🎯 Live System Access

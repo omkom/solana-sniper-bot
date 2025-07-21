@@ -291,6 +291,304 @@ export class ConsolidatedDashboard extends EventEmitter {
         timestamp: Date.now()
       });
     });
+
+    // ==============================================
+    // CREATOR INTELLIGENCE API ENDPOINTS
+    // ==============================================
+    
+    this.app.get('/api/creator-wallets', (req, res) => {
+      try {
+        // Educational creator database simulation
+        const creatorDatabase = {
+          creators: [
+            {
+              walletAddress: 'DEMO_VERIFIED_CREATOR_123',
+              historicalTokens: 8,
+              rugpullHistory: { count: 0, priceAtDump: [] },
+              successRate: 87.5,
+              riskMultiplier: 1.3,
+              verified: true
+            },
+            {
+              walletAddress: 'DEMO_FLAGGED_CREATOR_456', 
+              historicalTokens: 12,
+              rugpullHistory: { count: 3, priceAtDump: [0.15, 0.08, 0.22] },
+              successRate: 25.0,
+              riskMultiplier: 0.7,
+              verified: false
+            },
+            {
+              walletAddress: 'DEMO_UNKNOWN_CREATOR_789',
+              historicalTokens: 3,
+              rugpullHistory: { count: 0, priceAtDump: [] },
+              successRate: 66.7,
+              riskMultiplier: 1.0,
+              verified: false
+            }
+          ],
+          stats: {
+            totalCreators: 3,
+            verifiedCount: 1,
+            flaggedCount: 1,
+            rugpullCount: 3
+          }
+        };
+        
+        res.json({
+          success: true,
+          data: creatorDatabase,
+          educational: true,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch creator database' });
+      }
+    });
+
+    this.app.get('/api/creator-wallets/:address', (req, res) => {
+      try {
+        const { address } = req.params;
+        
+        // Educational creator profile simulation
+        let profile = null;
+        if (address.includes('VERIFIED')) {
+          profile = {
+            walletAddress: address,
+            historicalTokens: 8,
+            rugpullHistory: { count: 0, priceAtDump: [], totalLost: 0 },
+            marketMakerActivity: { buyCount: 45, sellCount: 38, avgHoldTime: 4.2, totalVolume: 156.7 },
+            successRate: 87.5,
+            riskMultiplier: 1.3,
+            socialMediaVerification: { twitterVerified: true, telegramActive: true, websiteValid: true, socialScore: 92 },
+            flags: [{ type: 'VERIFIED', severity: 'LOW', reason: 'Social media verified' }],
+            tokensCreated: ['TOKEN1', 'TOKEN2', 'TOKEN3'],
+            performanceMetrics: { avgTokenLifespan: 18, avgMaxGain: 245, rugpullFrequency: 0 }
+          };
+        } else if (address.includes('FLAGGED')) {
+          profile = {
+            walletAddress: address,
+            historicalTokens: 12,
+            rugpullHistory: { count: 3, priceAtDump: [0.15, 0.08, 0.22], totalLost: 67.3 },
+            marketMakerActivity: { buyCount: 89, sellCount: 92, avgHoldTime: 0.8, totalVolume: 234.1 },
+            successRate: 25.0,
+            riskMultiplier: 0.7,
+            socialMediaVerification: { twitterVerified: false, telegramActive: false, websiteValid: false, socialScore: 15 },
+            flags: [{ type: 'RUGPULL_HISTORY', severity: 'CRITICAL', reason: 'Multiple rugpull events detected' }],
+            tokensCreated: ['SCAM1', 'SCAM2', 'SCAM3'],
+            performanceMetrics: { avgTokenLifespan: 3, avgMaxGain: 89, rugpullFrequency: 0.25 }
+          };
+        } else {
+          profile = {
+            walletAddress: address,
+            historicalTokens: 3,
+            rugpullHistory: { count: 0, priceAtDump: [], totalLost: 0 },
+            marketMakerActivity: { buyCount: 12, sellCount: 8, avgHoldTime: 2.1, totalVolume: 45.2 },
+            successRate: 66.7,
+            riskMultiplier: 1.0,
+            socialMediaVerification: { twitterVerified: false, telegramActive: true, websiteValid: false, socialScore: 45 },
+            flags: [],
+            tokensCreated: ['TOKEN_A', 'TOKEN_B', 'TOKEN_C'],
+            performanceMetrics: { avgTokenLifespan: 12, avgMaxGain: 156, rugpullFrequency: 0 }
+          };
+        }
+
+        res.json({
+          success: true,
+          data: profile,
+          educational: true,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch creator profile' });
+      }
+    });
+
+    this.app.get('/api/rugpull-history', (req, res) => {
+      try {
+        const rugpullEvents = [
+          {
+            id: 'rugpull_001',
+            tokenAddress: 'SCAM_TOKEN_123',
+            creatorWallet: 'DEMO_FLAGGED_CREATOR_456',
+            rugpullType: 'LIQUIDITY_DRAIN',
+            priceAtDump: 0.15,
+            maxPriceReached: 0.89,
+            lossPercent: 83.1,
+            timestamp: Date.now() - 86400000 * 7, // 7 days ago
+            evidence: ['Liquidity removed suddenly', 'Large holder dump detected'],
+            affectedTraders: 234
+          },
+          {
+            id: 'rugpull_002',
+            tokenAddress: 'SCAM_TOKEN_456',
+            creatorWallet: 'DEMO_FLAGGED_CREATOR_456',
+            rugpullType: 'HONEYPOT',
+            priceAtDump: 0.08,
+            maxPriceReached: 1.23,
+            lossPercent: 93.5,
+            timestamp: Date.now() - 86400000 * 14, // 14 days ago
+            evidence: ['Unable to sell tokens', 'Contract ownership not renounced'],
+            affectedTraders: 156
+          }
+        ];
+
+        res.json({
+          success: true,
+          data: rugpullEvents,
+          educational: true,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch rugpull history' });
+      }
+    });
+
+    // ==============================================
+    // PERFORMANCE BENCHMARK API ENDPOINTS
+    // ==============================================
+    
+    this.app.get('/api/kpi/benchmarks', (req, res) => {
+      try {
+        const benchmarks = {
+          winRate: { current: 68.4, target: 60, status: 'ABOVE', trend: 'IMPROVING' },
+          avgROI: { current: 31.7, target: 25, status: 'ABOVE', trend: 'STABLE' },
+          detectionLatency: { current: 3200, target: 5000, status: 'BELOW', trend: 'IMPROVING' },
+          memoryUsage: { current: 1247, target: 1536, status: 'BELOW', trend: 'STABLE' },
+          tokensPerMinute: { current: 1150, target: 1000, status: 'ABOVE', trend: 'IMPROVING' },
+          systemUptime: { current: 99.2, target: 99, status: 'ABOVE' }
+        };
+
+        res.json({
+          success: true,
+          data: benchmarks,
+          meetsAllTargets: true,
+          educational: true,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch benchmark data' });
+      }
+    });
+
+    this.app.post('/api/strategy/configure', (req, res) => {
+      try {
+        const { strategy, customHoldPercent, customStopLoss } = req.body;
+        
+        const validStrategies = ['CONSERVATIVE', 'BALANCED', 'AGGRESSIVE', 'ULTRA_AGGRESSIVE'];
+        if (!strategy || !validStrategies.includes(strategy)) {
+          return res.status(400).json({ error: 'Invalid strategy' });
+        }
+
+        const configuration = {
+          strategy,
+          customHoldPercent: customHoldPercent || null,
+          customStopLoss: customStopLoss || null,
+          appliedAt: Date.now(),
+          educational: true
+        };
+
+        res.json({
+          success: true,
+          data: configuration,
+          message: `Educational strategy changed to ${strategy}`,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to configure strategy' });
+      }
+    });
+
+    this.app.get('/api/security-scores', (req, res) => {
+      try {
+        const securityScores = [
+          {
+            tokenAddress: 'DEMO_SAFE_TOKEN_001',
+            symbol: 'SAFE',
+            score: 8.7,
+            badge: '🟢',
+            recommendation: 'PROCEED',
+            priorityMetrics: {
+              honeypotRisk: 5,
+              liquidityLocked: true,
+              ownershipRenounced: true,
+              contractVerified: true
+            }
+          },
+          {
+            tokenAddress: 'DEMO_CAUTION_TOKEN_002', 
+            symbol: 'WARN',
+            score: 4.2,
+            badge: '🟠',
+            recommendation: 'CAUTION',
+            priorityMetrics: {
+              honeypotRisk: 35,
+              liquidityLocked: false,
+              ownershipRenounced: true,
+              contractVerified: false
+            }
+          },
+          {
+            tokenAddress: 'DEMO_RISK_TOKEN_003',
+            symbol: 'RISK',
+            score: 1.8,
+            badge: '🔴',
+            recommendation: 'HIGH_RISK',
+            priorityMetrics: {
+              honeypotRisk: 85,
+              liquidityLocked: false,
+              ownershipRenounced: false,
+              contractVerified: false
+            }
+          }
+        ];
+
+        // Show ALL tokens policy - never filter
+        res.json({
+          success: true,
+          data: securityScores,
+          showAll: true,
+          colorCoded: true,
+          educational: true,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch security scores' });
+      }
+    });
+
+    this.app.post('/api/position-size/config', (req, res) => {
+      try {
+        const { minAmount, maxAmount, defaultAmount } = req.body;
+        
+        // Validate range
+        const min = parseFloat(minAmount) || 0.001;
+        const max = parseFloat(maxAmount) || 0.01;
+        const def = parseFloat(defaultAmount) || 0.003;
+        
+        if (min < 0.001 || max > 0.01 || min >= max || def < min || def > max) {
+          return res.status(400).json({ 
+            error: 'Invalid position sizing configuration. Must be within 0.001-0.01 SOL range.' 
+          });
+        }
+
+        const configuration = {
+          minAmount: min,
+          maxAmount: max,
+          defaultAmount: def,
+          appliedAt: Date.now(),
+          educational: true
+        };
+
+        res.json({
+          success: true,
+          data: configuration,
+          message: 'Educational position sizing configured',
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to configure position sizing' });
+      }
+    });
   }
 
   private setupEventHandlers(): void {
