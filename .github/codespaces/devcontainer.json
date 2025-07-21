@@ -1,0 +1,57 @@
+{
+  "name": "Solana Educational Bot - GitHub Codespaces",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bullseye",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "upgradePackages": true
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "nodeGypDependencies": true,
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.vscode-typescript-next",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-json"
+      ]
+    },
+    "codespaces": {
+      "repositories": {
+        "solana-sniper-bot": {
+          "permissions": "write"
+        }
+      }
+    }
+  },
+
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Educational Dashboard",
+      "visibility": "public",
+      "onAutoForward": "notify",
+      "requireLocalPort": false,
+      "protocol": "http"
+    }
+  },
+
+  "postCreateCommand": "npm install && echo '✅ Dependencies installed'",
+  "postStartCommand": "echo '🎯 Ready to run: npm run dev, npm run dev:rapid, or npm run dev:real'",
+
+  "remoteUser": "node",
+  "remoteEnv": {
+    "PORT": "3000",
+    "NODE_ENV": "development"
+  }
+}
