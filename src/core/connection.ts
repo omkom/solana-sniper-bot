@@ -1,5 +1,6 @@
 import { Connection, Commitment } from '@solana/web3.js';
 import { logger } from '../monitoring/logger';
+import { RateLimiter } from '../utils/rate-limiter';
 
 interface RequestQueueItem {
   request: () => Promise<any>;
@@ -17,13 +18,21 @@ export class ConnectionManager {
   private isProcessingQueue = false;
   private activeRequests = 0;
   private maxConcurrentRequests = 2; // Reduced from 3 to prevent overload
-  private requestDelay = 500; // Increased to 500ms for better rate limiting
+  private requestDelay = 2000; // Increased to 2s for better rate limiting
   private lastRequestTime = 0;
-  private retryDelays = [1000, 2000, 5000, 10000]; // Longer backoff delays
+  private retryDelays = [5000, 15000, 30000, 60000]; // Much longer backoff delays for 429s
   private initialized = false;
+  private rateLimiter: RateLimiter;
 
   constructor() {
-    // Don't initialize immediately - let singleton manager handle it
+    // Initialize rate limiter with conservative settings
+    this.rateLimiter = new RateLimiter({
+      windowSize: 60000,      // 1 minute window
+      maxRequests: 30,        // Only 30 requests per minute
+      burstAllowance: 5,      // Small burst allowance
+      backoffMultiplier: 2.0, // Aggressive backoff
+      maxBackoffTime: 300000  // 5 minute max backoff
+    });
   }
 
   async initialize(config: any): Promise<void> {
@@ -31,9 +40,10 @@ export class ConnectionManager {
 
     try {
       this.initializeConnections(config);
+      this.rateLimiter.start();
       this.startQueueProcessor();
       this.initialized = true;
-      logger.info('🔗 ConnectionManager initialized successfully');
+      logger.info('🔗 ConnectionManager initialized successfully with rate limiting');
     } catch (error) {
       logger.error('❌ Failed to initialize ConnectionManager:', error);
       throw error;
@@ -152,7 +162,7 @@ export class ConnectionManager {
   private async processQueue(): Promise<void> {
     while (this.isProcessingQueue) {
       if (this.requestQueue.length === 0 || this.activeRequests >= this.maxConcurrentRequests) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 100)); // Increased wait time
         continue;
       }
 
@@ -162,10 +172,14 @@ export class ConnectionManager {
       
       if (!queueItem) continue;
 
-      // Rate limiting
-      const timeSinceLastRequest = Date.now() - this.lastRequestTime;
-      if (timeSinceLastRequest < this.requestDelay) {
-        await new Promise(resolve => setTimeout(resolve, this.requestDelay - timeSinceLastRequest));
+      // Check rate limiter before making request
+      const canMakeRequest = await this.rateLimiter.makeRequest('solana_rpc', 1, queueItem.priority);
+      
+      if (!canMakeRequest) {
+        // Put request back at end of queue
+        this.requestQueue.push(queueItem);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before checking again
+        continue;
       }
 
       this.activeRequests++;
@@ -180,15 +194,28 @@ export class ConnectionManager {
       const result = await queueItem.request();
       queueItem.resolve(result);
     } catch (error) {
+      // Check if this is a 429 rate limit error
+      const is429Error = this.is429Error(error);
+      
+      if (is429Error) {
+        // Apply backoff to rate limiter for this endpoint
+        this.rateLimiter.applyBackoff('solana_rpc', 30000); // 30 second backoff for 429s
+        logger.warn(`429 Rate limit hit - applying 30s backoff. Queue length: ${this.requestQueue.length}`);
+      }
+      
       if (queueItem.retryCount < queueItem.maxRetries && this.shouldRetry(error)) {
         queueItem.retryCount++;
-        const retryDelay = this.retryDelays[Math.min(queueItem.retryCount - 1, this.retryDelays.length - 1)];
+        let retryDelay = this.retryDelays[Math.min(queueItem.retryCount - 1, this.retryDelays.length - 1)];
         
-        // Comment out excessive retry logging
-        // logger.warn(`Request failed, retrying in ${retryDelay}ms (attempt ${queueItem.retryCount}/${queueItem.maxRetries})`, { error });
+        // For 429 errors, use much longer delays
+        if (is429Error) {
+          retryDelay = Math.max(retryDelay, 30000 * Math.pow(2, queueItem.retryCount - 1)); // Exponential backoff starting at 30s
+        }
+        
+        logger.debug(`Request failed, retrying in ${retryDelay/1000}s (attempt ${queueItem.retryCount}/${queueItem.maxRetries})`);
         
         setTimeout(() => {
-          this.requestQueue.unshift(queueItem); // Add back to front for priority
+          this.requestQueue.push(queueItem); // Add to end of queue for 429s to reduce pressure
         }, retryDelay);
       } else {
         queueItem.reject(error);
@@ -196,6 +223,18 @@ export class ConnectionManager {
     } finally {
       this.activeRequests--;
     }
+  }
+
+  private is429Error(error: any): boolean {
+    if (!error) return false;
+    
+    const errorMessage = error.message?.toLowerCase() || '';
+    const statusCode = error.status || error.response?.status;
+    
+    return statusCode === 429 || 
+           errorMessage.includes('429') || 
+           errorMessage.includes('too many requests') ||
+           errorMessage.includes('rate limit');
   }
 
   private shouldRetry(error: any): boolean {

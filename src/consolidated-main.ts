@@ -101,10 +101,10 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   private getApiServiceConfig(): any {
     return {
       enableDexScreener: true,
-      enableSolscan: true,
-      enableJupiter: true,
-      cacheTimeout: 60000,
-      rateLimitDelay: this.config.mode === 'rapid' ? 500 : 2000,
+      enableSolscan: false, // Disable to reduce API load
+      enableJupiter: false, // Disable to reduce API load
+      cacheTimeout: 300000, // 5 minutes cache
+      rateLimitDelay: 10000, // 10 second minimum delay
       maxRetries: 2,
       priority: {
         dexscreener: 5,
@@ -119,51 +119,51 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       minLiquidity: 1000,
       maxAge: 3600000, // 1 hour
       minConfidence: 5,
-      batchSize: 5,
-      maxConcurrentRequests: 3,
-      cacheTimeout: 60000,
+      batchSize: 1, // Reduce batch size to 1
+      maxConcurrentRequests: 1, // Reduce to 1
+      cacheTimeout: 300000, // 5 minute cache
       filterHoneypots: true,
       filterRugs: true,
       enableRealTimeMonitoring: true,
-      enableBlockchainScanning: true,
-      enableApiPolling: true
+      enableBlockchainScanning: false, // DISABLE blockchain scanning
+      enableApiPolling: false // DISABLE API polling
     };
 
     switch (this.config.mode) {
       case 'rapid':
         return {
           ...baseConfig,
-          enabledSources: ['websocket', 'api', 'dexscreener', 'pump'],
-          scanInterval: 30000, // 30 seconds
-          maxConcurrentRequests: 5,
-          rateLimitDelay: 500
+          enabledSources: ['websocket'], // Only websocket to avoid API spam
+          scanInterval: 300000, // 5 minutes instead of 30 seconds
+          maxConcurrentRequests: 1, // Reduce to 1 to avoid overwhelming APIs
+          rateLimitDelay: 15000 // 15 second delay
         };
       
       case 'real':
         return {
           ...baseConfig,
-          enabledSources: ['websocket', 'api', 'dexscreener'],
-          scanInterval: 60000, // 1 minute
-          maxConcurrentRequests: 2,
-          rateLimitDelay: 2000
+          enabledSources: ['websocket'], // Only websocket for now
+          scanInterval: 300000, // 5 minutes instead of 1 minute
+          maxConcurrentRequests: 1, // Only 1 concurrent request
+          rateLimitDelay: 20000 // 20 second delay
         };
       
       case 'analysis':
         return {
           ...baseConfig,
-          enabledSources: ['dexscreener'],
-          scanInterval: 120000, // 2 minutes
+          enabledSources: ['websocket'], // Only websocket, no API polling
+          scanInterval: 300000, // 5 minutes
           maxConcurrentRequests: 1,
-          rateLimitDelay: 3000
+          rateLimitDelay: 10000 // 10 second delay
         };
       
       default: // unified
         return {
           ...baseConfig,
-          enabledSources: ['websocket', 'api', 'dexscreener', 'pump'],
-          scanInterval: 90000, // 90 seconds
-          maxConcurrentRequests: 3,
-          rateLimitDelay: 1000
+          enabledSources: ['websocket'], // ONLY websocket to prevent 429 errors
+          scanInterval: 300000, // 5 minutes instead of 90 seconds
+          maxConcurrentRequests: 1, // Only 1 concurrent request
+          rateLimitDelay: 15000 // 15 second rate limit delay
         };
     }
   }

@@ -31,6 +31,18 @@ export class UnifiedDetector extends BaseEventEmitter {
     super();
     
     this.config = {
+      sources: {
+        blockchain: {
+          rpcEndpoints: ['https://api.mainnet-beta.solana.com'],
+          blockAnalysisDepth: 3,
+          mempoolScanning: true
+        },
+        dexScreener: { enabled: true, websocket: true },
+        jupiter: { enabled: true, polling: false },
+        raydium: { directPoolMonitoring: true }
+      },
+      maxLatency: 50,
+      parallelProcessing: true,
       enableRaydium: true,
       enablePumpFun: true,
       enableDexScreener: true,
@@ -284,6 +296,11 @@ abstract class DetectionStrategy extends BaseEventEmitter {
  */
 class WebSocketStrategy extends DetectionStrategy {
   private connection: Connection | null = null;
+  
+  // Transaction processing rate limiting
+  private transactionProcessingQueue = new Map<string, number>();
+  private lastTransactionProcessTime = 0;
+  private transactionRateLimit = 5000; // 5 second minimum between transaction processing
 
   async start(): Promise<void> {
     this.isRunning = true;
@@ -363,6 +380,21 @@ class WebSocketStrategy extends DetectionStrategy {
 
   private async processTransaction(signature: string, dexName: string): Promise<UnifiedTokenInfo[]> {
     try {
+      // Rate limiting check
+      const now = Date.now();
+      if (now - this.lastTransactionProcessTime < this.transactionRateLimit) {
+        logger.debug(`Rate limiting transaction processing for ${signature.slice(0, 8)}...`);
+        return []; // Skip processing if rate limited
+      }
+      
+      // Check if already processing this transaction
+      if (this.transactionProcessingQueue.has(signature)) {
+        return [];
+      }
+      
+      this.transactionProcessingQueue.set(signature, now);
+      this.lastTransactionProcessTime = now;
+
       const connection = ConnectionProvider.getConnection();
       const transaction = await connection.getTransaction(signature, {
         maxSupportedTransactionVersion: 0,
@@ -406,6 +438,19 @@ class WebSocketStrategy extends DetectionStrategy {
         });
       }
       return [];
+    } finally {
+      // Clean up processed transaction
+      this.transactionProcessingQueue.delete(signature);
+      
+      // Periodically clean up old queue entries
+      if (this.transactionProcessingQueue.size > 100) {
+        const cutoff = Date.now() - 300000; // 5 minutes ago
+        for (const [sig, time] of this.transactionProcessingQueue) {
+          if (time < cutoff) {
+            this.transactionProcessingQueue.delete(sig);
+          }
+        }
+      }
     }
   }
 

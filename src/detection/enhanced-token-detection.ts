@@ -101,6 +101,18 @@ export class EnhancedTokenDetection extends EventEmitter {
     super();
     
     this.config = {
+      sources: {
+        blockchain: {
+          rpcEndpoints: ['https://api.mainnet-beta.solana.com'],
+          blockAnalysisDepth: 3,
+          mempoolScanning: true
+        },
+        dexScreener: { enabled: true, websocket: true },
+        jupiter: { enabled: true, polling: false },
+        raydium: { directPoolMonitoring: true }
+      },
+      maxLatency: 50,
+      parallelProcessing: true,
       enableRaydium: true,
       enablePumpFun: true,
       enableDexScreener: true,

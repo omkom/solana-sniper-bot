@@ -213,7 +213,7 @@ export interface EventEmittingSimulationEngine {
 // SECURITY ANALYSIS INTERFACES
 // ==============================================
 
-export interface SecurityCheck {
+export interface SecurityCheckBase {
   name: string;
   passed: boolean;
   score: number;
@@ -224,7 +224,7 @@ export interface SecurityCheck {
 export interface SecurityAnalysis {
   overall: boolean;
   score: number;
-  checks: SecurityCheck[];
+  checks: SecurityCheckBase[];
   warnings: string[];
 }
 
@@ -377,4 +377,285 @@ export interface SimulationConfig {
   baseInvestment?: number;
   maxAnalysisAge?: number;
   minConfidenceScore?: number;
+}
+
+// ==============================================
+// NEW TYPE DEFINITIONS FOR ENHANCED FEATURES
+// ==============================================
+
+// Security Scanner Types
+export interface SecurityInfo {
+  score: number;
+  flags: string[];
+  details: {
+    contractVerified: boolean;
+    liquidityLocked: boolean;
+    ownershipRenounced: boolean;
+    honeypotRisk: number;
+    rugPullIndicators: string[];
+    [key: string]: any;
+  };
+  recommendation: 'PROCEED' | 'CAUTION' | 'HIGH_RISK';
+  analyzedAt: number;
+  confidence: number;
+  riskIndicators: RiskIndicator[];
+  checks: SecurityCheckEnhanced[];
+}
+
+export interface RiskIndicator {
+  type: 'HONEYPOT' | 'RUG_PULL' | 'LOW_LIQUIDITY' | 'HIGH_CONCENTRATION' | 'SUSPICIOUS_ACTIVITY';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  confidence: number;
+  description: string;
+  evidence: string[];
+}
+
+export interface SecurityCheckEnhanced {
+  name: string;
+  category: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  passed: boolean;
+  score: number;
+  confidence: number;
+  message: string;
+  details: any;
+  recommendation?: string;
+}
+
+// Trading Strategy Types
+export interface TradingStrategy {
+  simulation: {
+    enabledFor: string;
+    amount: number;
+    parallelSimulations: number;
+  };
+  analysis: {
+    timeWindow: number;
+    metricsTracked: string[];
+  };
+  execution: {
+    mode: 'CONSERVATIVE' | 'MODERATE' | 'AGGRESSIVE';
+    slippage: number;
+    gasMultiplier: number;
+  };
+}
+
+// Exit Strategy Types
+export interface ExitStrategyConfig {
+  targetROI: {
+    primary: number;
+    trailing: boolean;
+  };
+  bagManagement: {
+    initialSell: number;
+    holdPercentage: number;
+    microSells: boolean;
+  };
+  rugPullProtection: {
+    liquidityMonitoring: string;
+    ownerActivityTracking: boolean;
+    exitTriggers: string[];
+    maxExitTime: number;
+  };
+}
+
+// Detection Configuration Types
+export interface DetectionConfig {
+  sources: {
+    blockchain: {
+      rpcEndpoints: string[];
+      blockAnalysisDepth: number;
+      mempoolScanning: boolean;
+    };
+    dexScreener: { enabled: boolean; websocket: boolean };
+    jupiter: { enabled: boolean; polling: boolean };
+    raydium: { directPoolMonitoring: boolean };
+  };
+  maxLatency: number;
+  parallelProcessing: boolean;
+  enableRaydium: boolean;
+  enablePumpFun: boolean;
+  enableDexScreener: boolean;
+  enableMultiDex: boolean;
+  enableRealTime: boolean;
+  minLiquidity: number;
+  maxAge: number;
+  minConfidence: number;
+  filterHoneypots: boolean;
+  filterRugs: boolean;
+  enabledSources?: string[];
+  scanInterval?: number;
+  processingTime?: number;
+  maxTokens?: number;
+  batchSize?: number;
+  retryAttempts?: number;
+  timeout?: number;
+  maxConcurrentRequests?: number;
+  rateLimitDelay?: number;
+  cacheTimeout?: number;
+}
+
+// Blockchain Analysis Types
+export interface BlockchainAnalyzer {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  analyzeTransaction(signature: string): Promise<any>;
+}
+
+export interface MempoolScanner {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  getPendingLaunches(): any[];
+  getStatus(): any;
+  healthCheck(): Promise<boolean>;
+}
+
+export interface SecurityScanner {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  analyzeToken(token: UnifiedTokenInfo): Promise<SecurityInfo>;
+  getStats(): any;
+  healthCheck(): Promise<boolean>;
+}
+
+export interface SimulationEngine {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  processToken(token: UnifiedTokenInfo): Promise<void>;
+  handleExitSignal(signal: any): Promise<void>;
+  emergencyExit(tokenAddress: string): Promise<void>;
+  getStatus(): any;
+  healthCheck(): Promise<boolean>;
+}
+
+export interface ExecutionEngine {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  executeOrder(order: TradeOrder): Promise<ExecutionResult>;
+  getStatus(): any;
+  healthCheck(): Promise<boolean>;
+}
+
+export interface ExitStrategy {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  evaluatePosition(position: Position): Promise<ExitDecision>;
+  getStatus(): any;
+}
+
+export interface WebSocketServer {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  emit(event: string, data: any): void;
+  getStatus(): any;
+  healthCheck(): Promise<boolean>;
+}
+
+// Trading Types
+export interface TradeOrder {
+  id: string;
+  tokenAddress: string;
+  side: 'BUY' | 'SELL';
+  amount: number;
+  price?: number;
+  slippage: number;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  timeInForce: 'IOC' | 'FOK' | 'GTC';
+  metadata?: any;
+}
+
+export interface ExecutionResult {
+  orderId: string;
+  success: boolean;
+  executedAmount: number;
+  executedPrice: number;
+  fees: number;
+  slippage: number;
+  timestamp: number;
+  transactionId?: string;
+  error?: string;
+}
+
+export interface ExitDecision {
+  action: 'HOLD' | 'PARTIAL_SELL' | 'FULL_SELL' | 'EMERGENCY_EXIT';
+  percentage: number;
+  reason: string;
+  urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  expectedPrice?: number;
+  stopLoss?: boolean;
+  takeProfit?: boolean;
+}
+
+// System Health Types
+export interface SystemHealth {
+  status: 'HEALTHY' | 'DEGRADED' | 'CRITICAL';
+  components: {
+    [componentName: string]: {
+      status: 'HEALTHY' | 'DEGRADED' | 'CRITICAL' | 'OFFLINE';
+      latency?: number;
+      errorRate?: number;
+      lastCheck: number;
+    };
+  };
+  metrics: {
+    totalLatency: number;
+    successRate: number;
+    throughput: number;
+    errorCount: number;
+  };
+}
+
+// Real-time Event Types
+export interface RealtimeEvents {
+  'token:detected': UnifiedTokenInfo & { detectionLatency: number };
+  'token:analyzed': TokenAnalysis & { securityInfo: SecurityInfo };
+  'trade:simulated': SimulationResult;
+  'trade:executed': ExecutionResult;
+  'position:update': PositionUpdate & { roi: number; exitRecommendation: string };
+  'alert:rugpull': { tokenAddress: string; action: 'EMERGENCY_EXIT' };
+  'system:health': SystemHealth;
+  'performance:alert': { component: string; metric: string; value: number; threshold: number };
+}
+
+// Additional utility types
+export interface TokenAnalysis extends SecurityAnalysis {
+  token: UnifiedTokenInfo;
+  timestamp: number;
+  analyzer: string;
+}
+
+export interface SimulationResult {
+  id: string;
+  token: UnifiedTokenInfo;
+  outcome: 'PROFIT' | 'LOSS' | 'BREAK_EVEN';
+  roi: number;
+  duration: number;
+  reason: string;
+}
+
+export interface PositionUpdate {
+  positionId: string;
+  token: UnifiedTokenInfo;
+  currentPrice: number;
+  unrealizedPnL: number;
+  holdTime: number;
+  lastUpdate: number;
+}
+
+// Configuration interfaces
+export interface RpcConfig {
+  primary: string;
+  secondary: string;
+  fallback?: string[];
+  timeout: number;
+  retries: number;
+}
+
+export interface AnalysisConfig {
+  mode: 'DRY_RUN';
+  minLiquiditySol: number;
+  minConfidenceScore: number;
+  maxAnalysisAge: number;
+  simulatedInvestment: number;
+  maxSimulatedPositions: number;
+  rpc: RpcConfig;
 }
