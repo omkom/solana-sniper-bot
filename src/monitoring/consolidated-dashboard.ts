@@ -571,11 +571,40 @@ export class ConsolidatedDashboard extends EventEmitter {
     this.io.emit('kpiUpdate', this.kpiMetrics);
   }
 
+  private async findAvailablePort(startPort: number): Promise<number> {
+    const net = require('net');
+    
+    const isPortAvailable = (port: number): Promise<boolean> => {
+      return new Promise((resolve) => {
+        const server = net.createServer();
+        server.listen(port, () => {
+          server.close(() => resolve(true));
+        });
+        server.on('error', () => resolve(false));
+      });
+    };
+
+    for (let port = startPort; port < startPort + 100; port++) {
+      if (await isPortAvailable(port)) {
+        if (port !== startPort) {
+          logger.warn(`Port ${startPort} unavailable, using port ${port} instead`);
+        }
+        return port;
+      }
+    }
+    
+    throw new Error(`No available ports found starting from ${startPort}`);
+  }
+
   async start(): Promise<void> {
     if (this.dashboardRunning) {
       logger.warn('Dashboard already running');
       return;
     }
+    
+    // Find available port
+    const availablePort = await this.findAvailablePort(this.config.port);
+    this.config.port = availablePort;
     
     return new Promise((resolve, reject) => {
       this.server.listen(this.config.port, () => {

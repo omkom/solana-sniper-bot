@@ -46,7 +46,9 @@
       "Bash(apt:*)",
       "Bash(apt install:*)",
       "Bash(git push:*)",
-      "WebFetch(domain:198140802-files.gitbook.io)"
+      "WebFetch(domain:198140802-files.gitbook.io)",
+      "Bash(touch:*)",
+      "Bash(gh codespace ports:*)"
     ],
     "deny": []
   }
