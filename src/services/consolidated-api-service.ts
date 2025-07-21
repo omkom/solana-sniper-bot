@@ -11,7 +11,7 @@
 import { EventEmitter } from 'events';
 import { logger } from '../monitoring/logger';
 import { apiCoordinator } from '../core/centralized-api-coordinator';
-import { getApiGateway } from '../core/singleton-manager';
+// import { getApiGateway } from '../core/singleton-manager'; // Removed - ApiGateway deleted
 import { UnifiedTokenInfo } from '../types/unified';
 
 export interface ApiServiceConfig {
@@ -95,7 +95,6 @@ export interface TransactionData {
 
 export class ConsolidatedApiService extends EventEmitter {
   private config: ApiServiceConfig;
-  private apiGateway: any;
   private initialized = false;
   private cache: Map<string, { data: any; timestamp: number; ttl: number }> = new Map();
   
@@ -135,14 +134,33 @@ export class ConsolidatedApiService extends EventEmitter {
     if (this.initialized) return;
     
     try {
-      this.apiGateway = await getApiGateway();
+      // ApiGateway removed - initialize without it
       this.initialized = true;
       
-      logger.info('🌐 Consolidated API Service initialized', {
+      logger.info('🌐 Consolidated API Service initialized (ApiGateway disabled)', {
         enabledEndpoints: this.config.enabledEndpoints
       });
     } catch (error) {
       logger.error('❌ Failed to initialize API service:', error);
+      throw error;
+    }
+  }
+
+  private async makeApiRequest(url: string, options: any = {}): Promise<any> {
+    try {
+      // Use apiCoordinator for rate-limited requests
+      const response = await apiCoordinator.makeRequest(
+        url,
+        async () => {
+          const res = await fetch(url, options);
+          return res.json();
+        },
+        'consolidated-api',
+        { priority: 3 }
+      );
+      return response.data;
+    } catch (error) {
+      logger.error(`API request failed: ${url}`, error);
       throw error;
     }
   }
@@ -216,7 +234,7 @@ export class ConsolidatedApiService extends EventEmitter {
       // Use centralized API coordinator
       const response = await apiCoordinator.makeRequest(
         '/token-profiles/latest/v1',
-        () => this.apiGateway.requestDexScreener('/token-profiles/latest/v1'),
+        () => this.makeApiRequest('https://api.dexscreener.com/token-profiles/latest/v1'),
         'ConsolidatedApiService-getTrendingTokens',
         {
           priority: this.config.priority.dexscreener,
@@ -259,7 +277,7 @@ export class ConsolidatedApiService extends EventEmitter {
       // Use centralized API coordinator
       const response = await apiCoordinator.makeRequest(
         '/token-boosts/latest/v1',
-        () => this.apiGateway.requestDexScreener('/token-boosts/latest/v1'),
+        () => this.makeApiRequest('https://api.dexscreener.com/token-boosts/latest/v1'),
         'ConsolidatedApiService-getBoostedTokens',
         {
           priority: this.config.priority.dexscreener,
@@ -408,7 +426,7 @@ export class ConsolidatedApiService extends EventEmitter {
     try {
       const response = await apiCoordinator.makeRequest(
         `/latest/dex/tokens/${address}`,
-        () => this.apiGateway.requestDexScreener(`/latest/dex/tokens/${address}`),
+        () => this.makeApiRequest(`https://api.dexscreener.com/latest/dex/tokens/${address}`),
         'ConsolidatedApiService-getDexScreenerTokenInfo',
         {
           priority: this.config.priority.dexscreener,
@@ -434,7 +452,7 @@ export class ConsolidatedApiService extends EventEmitter {
     try {
       const response = await apiCoordinator.makeRequest(
         `/v2.0/account/token?address=${address}`,
-        () => this.apiGateway.requestSolscan(`/v2.0/account/token?address=${address}`),
+        () => this.makeApiRequest(`https://api.solscan.io/v2.0/account/token?address=${address}`),
         'ConsolidatedApiService-getSolscanTokenInfo',
         {
           priority: this.config.priority.solscan,
@@ -459,7 +477,7 @@ export class ConsolidatedApiService extends EventEmitter {
     try {
       const response = await apiCoordinator.makeRequest(
         `/v6/tokens/${address}`,
-        () => this.apiGateway.requestJupiter(`/v6/tokens/${address}`),
+        () => this.makeApiRequest(`https://tokens.jup.ag/v6/tokens/${address}`),
         'ConsolidatedApiService-getJupiterTokenInfo',
         {
           priority: this.config.priority.jupiter,
@@ -484,7 +502,7 @@ export class ConsolidatedApiService extends EventEmitter {
     try {
       const response = await apiCoordinator.makeRequest(
         `/v2.0/account/transactions?address=${address}&limit=${limit}`,
-        () => this.apiGateway.requestSolscan(`/v2.0/account/transactions?address=${address}&limit=${limit}`),
+        () => this.makeApiRequest(`https://api.solscan.io/v2.0/account/transactions?address=${address}&limit=${limit}`),
         'ConsolidatedApiService-getSolscanTransactions',
         {
           priority: this.config.priority.solscan,
