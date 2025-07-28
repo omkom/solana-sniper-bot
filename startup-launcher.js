@@ -7,7 +7,24 @@
 
 const { spawn } = require('child_process');
 const debug = require('debug');
-const chalk = require('chalk');
+const http = require('http');
+
+// Handle chalk import for v5 (ESM) compatibility
+let chalk;
+(async () => {
+  try {
+    chalk = (await import('chalk')).default;
+  } catch (error) {
+    // Fallback for older versions or missing chalk
+    chalk = {
+      cyan: (text) => `\x1b[36m${text}\x1b[0m`,
+      gray: (text) => `\x1b[90m${text}\x1b[0m`,
+      yellow: (text) => `\x1b[33m${text}\x1b[0m`,
+      green: (text) => `\x1b[32m${text}\x1b[0m`,
+      red: (text) => `\x1b[31m${text}\x1b[0m`,
+    };
+  }
+})();
 
 // Create debug instance
 const debugLauncher = debug('codespaces:launcher');
@@ -17,6 +34,13 @@ class StartupLauncher {
     this.isCodespaces = !!process.env.CODESPACES;
     this.codespaceName = process.env.CODESPACE_NAME;
     this.startTime = Date.now();
+  }
+
+  async initialize() {
+    // Wait for chalk to be available
+    while (!chalk) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
     
     console.log(chalk.cyan('🚀 Enhanced Startup Launcher'));
     console.log(chalk.gray(`Environment: ${this.isCodespaces ? 'GitHub Codespaces' : 'Local'}`));
@@ -30,6 +54,9 @@ class StartupLauncher {
 
   async launch() {
     try {
+      // Step 0: Initialize (wait for chalk)
+      await this.initialize();
+      
       // Step 1: Environment Check
       await this.checkEnvironment();
       
@@ -123,7 +150,6 @@ class StartupLauncher {
   async checkPorts() {
     console.log(chalk.yellow('🔌 Port Availability'));
     
-    const http = require('http');
     const ports = [3000, 3001, 3002];
     
     for (const port of ports) {
@@ -224,4 +250,7 @@ if (!process.env.DEBUG) {
 
 // Launch the application
 const launcher = new StartupLauncher();
-launcher.launch();
+launcher.launch().catch((error) => {
+  console.error('Startup failed:', error.message);
+  process.exit(1);
+});

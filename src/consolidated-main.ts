@@ -108,11 +108,16 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
 
   private async autoOpenBrowser(url: string): Promise<void> {
     try {
-      const open = require('open');
       setTimeout(async () => {
-        console.log('🌐 Auto-opening dashboard in browser...');
-        await open(url);
-        logger.info(`Browser opened automatically: ${url}`);
+        try {
+          console.log('🌐 Auto-opening dashboard in browser...');
+          const { default: open } = await import('open');
+          await open(url);
+          logger.info(`Browser opened automatically: ${url}`);
+        } catch (importError) {
+          logger.warn('Could not import open module:', importError);
+          console.log(`🌐 Please manually open: ${url}`);
+        }
       }, 3000); // Wait 3 seconds for server to fully start
     } catch (error) {
       logger.warn('Could not auto-open browser:', error);
