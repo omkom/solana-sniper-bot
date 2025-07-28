@@ -1,0 +1,90 @@
+{
+  "name": "Solana Sniper Bot Educational Environment",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:18",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    }
+  },
+  
+  // Configure tool-specific properties
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.vscode-typescript-next",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-json",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.live-server"
+      ],
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "typescript.preferences.importModuleSpecifier": "relative"
+      }
+    }
+  },
+
+  // Port forwarding configuration for automatic browser opening
+  "forwardPorts": [3000, 3001, 8000, 8080],
+  "portsAttributes": {
+    "3000": {
+      "label": "Dashboard",
+      "onAutoForward": "openPreview",
+      "visibility": "public",
+      "protocol": "http"
+    },
+    "3001": {
+      "label": "Dashboard Alt",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
+    "8000": {
+      "label": "Development Server",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
+    "8080": {
+      "label": "HTTP Server",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    }
+  },
+
+  // Post-create command to set up the environment
+  "postCreateCommand": "npm install && echo '🎉 Environment ready! Run: npm run dev'",
+  
+  // Post-start command to provide helpful information
+  "postStartCommand": "echo '🚀 Codespace started! Dashboard will be available at: https://$CODESPACE_NAME-3000.app.github.dev'",
+
+  // Lifecycle commands
+  "onCreateCommand": {
+    "install-deps": "npm install",
+    "setup-permissions": "chmod +x codespaces-diagnostic.js",
+    "create-logs": "mkdir -p logs && touch logs/startup.log"
+  },
+
+  // Environment variables
+  "containerEnv": {
+    "NODE_ENV": "development",
+    "DEBUG": "app:*,codespaces:*",
+    "DASHBOARD_PORT": "3000",
+    "EDUCATIONAL_MODE": "true",
+    "DRY_RUN": "true",
+    "AUTO_OPEN_BROWSER": "true"
+  },
+
+  // Container user
+  "remoteUser": "node",
+  
+  // Mounts
+  "mounts": [
+    "source=${localWorkspaceFolder}/logs,target=/workspaces/${localWorkspaceFolderBasename}/logs,type=bind,consistency=cached"
+  ],
+
+  // Wait for command to complete before marking container as ready
+  "waitFor": "postCreateCommand",
+  
+  // Shut down action
+  "shutdownAction": "stopCompose"
+}

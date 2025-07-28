@@ -90,7 +90,34 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
     console.log(`🎯 Mode: ${this.config.mode.toUpperCase()}`);
     console.log(`💰 Starting Balance: ${this.config.startingBalance} SOL`);
     console.log(`📊 Dashboard: http://localhost:${this.config.dashboardPort}`);
+    
+    // Enhanced Codespaces integration
+    if (process.env.CODESPACES) {
+      const codespaceUrl = `https://${process.env.CODESPACE_NAME}-${this.config.dashboardPort}.app.github.dev`;
+      console.log(`🌐 Codespaces URL: ${codespaceUrl}`);
+      console.log('🚀 Port forwarding will be automatic in GitHub Codespaces');
+      
+      // Auto-open browser in Codespaces if enabled
+      if (process.env.AUTO_OPEN_BROWSER === 'true') {
+        this.autoOpenBrowser(codespaceUrl);
+      }
+    }
+    
     console.log('===============================================\n');
+  }
+
+  private async autoOpenBrowser(url: string): Promise<void> {
+    try {
+      const open = require('open');
+      setTimeout(async () => {
+        console.log('🌐 Auto-opening dashboard in browser...');
+        await open(url);
+        logger.info(`Browser opened automatically: ${url}`);
+      }, 3000); // Wait 3 seconds for server to fully start
+    } catch (error) {
+      logger.warn('Could not auto-open browser:', error);
+      console.log(`🌐 Please manually open: ${url}`);
+    }
   }
 
   private initializeComponents(): void {

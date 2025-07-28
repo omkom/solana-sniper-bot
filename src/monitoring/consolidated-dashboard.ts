@@ -919,6 +919,18 @@ export class ConsolidatedDashboard extends EventEmitter {
         this.emit('started');
         logger.info(`📊 Dashboard started on port ${this.config.port}`);
         logger.info(`🌐 Dashboard URL: http://localhost:${this.config.port}`);
+        
+        // Enhanced Codespaces integration with startup logging
+        if (process.env.CODESPACES) {
+          const codespaceUrl = `https://${process.env.CODESPACE_NAME}-${this.config.port}.app.github.dev`;
+          logger.info(`🚀 Codespaces URL: ${codespaceUrl}`);
+          console.log(`\n🎉 CODESPACES READY!`);
+          console.log(`📱 Your dashboard is now available at:`);
+          console.log(`   ${codespaceUrl}`);
+          console.log(`🔗 GitHub will automatically forward this port`);
+          console.log(`🌐 Click the "Open in Browser" notification or check the PORTS tab\n`);
+        }
+        
         resolve();
       });
       
