@@ -5,6 +5,7 @@
 
 import { EventEmitter } from 'events';
 import { logger } from './monitoring/logger';
+import { launchLogger } from './utils/launch-logger';
 import { ConsolidatedTokenDetector } from './detection/consolidated-token-detector';
 import { ConsolidatedSimulationEngine } from './simulation/consolidated-simulation-engine';
 import { ConsolidatedDashboard } from './monitoring/consolidated-dashboard';
@@ -43,6 +44,10 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   constructor(config: Partial<AppConfig> = {}) {
     super();
     
+    // Initialize launch logging
+    launchLogger.logStartupPhase('CONSTRUCTOR STARTED');
+    launchLogger.logEnvironmentInfo();
+    
     this.config = {
       mode: 'unified',
       startingBalance: 10,
@@ -60,7 +65,11 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       ...config
     };
 
+    launchLogger.logConfigurationLoaded(this.config);
+    launchLogger.logStartupPhase('WELCOME MESSAGE');
     this.logWelcome();
+    
+    launchLogger.logStartupPhase('COMPONENT INITIALIZATION');
     this.initializeComponents();
   }
 
@@ -107,48 +116,52 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
   }
 
   private async autoOpenBrowser(url: string): Promise<void> {
-    try {
-      setTimeout(async () => {
-        try {
-          console.log('🌐 Auto-opening dashboard in browser...');
-          const { default: open } = await import('open');
-          await open(url);
-          logger.info(`Browser opened automatically: ${url}`);
-        } catch (importError) {
-          logger.warn('Could not import open module:', importError);
-          console.log(`🌐 Please manually open: ${url}`);
-        }
-      }, 3000); // Wait 3 seconds for server to fully start
-    } catch (error) {
-      logger.warn('Could not auto-open browser:', error);
-      console.log(`🌐 Please manually open: ${url}`);
-    }
+    // Disable auto-open functionality due to ES module compatibility issues
+    // Just provide the URL for manual opening
+    console.log(`🌐 Please manually open: ${url}`);
+    logger.info(`Dashboard URL provided: ${url}`);
   }
 
   private initializeComponents(): void {
     try {
       // Initialize API service first
+      launchLogger.logComponentInit('ConsolidatedApiService', 'STARTING');
       this.apiService = new ConsolidatedApiService(this.getApiServiceConfig());
+      launchLogger.logComponentInit('ConsolidatedApiService', 'SUCCESS');
       
       // Initialize detector with consolidated configuration
+      launchLogger.logComponentInit('ConsolidatedTokenDetector', 'STARTING');
       this.detector = new ConsolidatedTokenDetector(this.getDetectorConfig());
+      launchLogger.logComponentInit('ConsolidatedTokenDetector', 'SUCCESS');
       
       // Initialize simulation engine
+      launchLogger.logComponentInit('ConsolidatedSimulationEngine', 'STARTING');
       this.simulationEngine = new ConsolidatedSimulationEngine(this.getSimulationConfig());
+      launchLogger.logComponentInit('ConsolidatedSimulationEngine', 'SUCCESS');
       
       // Initialize unified engine for advanced trading
+      launchLogger.logComponentInit('UnifiedEngine', 'STARTING');
       this.unifiedEngine = new UnifiedEngine(this.getUnifiedEngineConfig());
+      launchLogger.logComponentInit('UnifiedEngine', 'SUCCESS');
       
       // Initialize dashboard
+      launchLogger.logComponentInit('ConsolidatedDashboard', 'STARTING');
       this.dashboard = new ConsolidatedDashboard(this.getDashboardConfig());
+      launchLogger.logComponentInit('ConsolidatedDashboard', 'SUCCESS');
       
       // Setup event handlers
+      launchLogger.logStartupPhase('EVENT HANDLERS SETUP');
       this.setupEventHandlers();
       
       this.initialized = true;
+      launchLogger.logStartupPhase('COMPONENTS INITIALIZED', { 
+        componentsCount: 5,
+        memoryUsage: process.memoryUsage()
+      });
       logger.info('✅ Consolidated components initialized successfully');
       
     } catch (error) {
+      launchLogger.logError('INITIALIZATION', error as Error, { phase: 'component initialization' });
       logger.error('❌ Failed to initialize components:', error);
       throw error;
     }
@@ -439,37 +452,56 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
 
   async start(): Promise<void> {
     if (this.isRunning) {
+      launchLogger.log('WARN', 'START', 'Application already running');
       logger.warn('Application already running');
       return;
     }
 
     if (!this.initialized) {
-      throw new Error('Components not initialized');
+      const error = new Error('Components not initialized');
+      launchLogger.logError('START', error);
+      throw error;
     }
 
     try {
+      launchLogger.logStartupPhase('APPLICATION START', { mode: this.config.mode });
       logger.info(`🚀 Starting Consolidated Token Analyzer in ${this.config.mode.toUpperCase()} mode`);
 
       // Start components in order
       if (this.config.enabledFeatures.simulation) {
+        launchLogger.logComponentInit('SimulationEngine', 'STARTING');
         await this.simulationEngine.start();
+        launchLogger.logComponentInit('SimulationEngine', 'SUCCESS');
       }
 
       // Start unified engine for advanced trading
+      launchLogger.logComponentInit('UnifiedEngine-Start', 'STARTING');
       await this.unifiedEngine.start();
+      launchLogger.logComponentInit('UnifiedEngine-Start', 'SUCCESS');
       logger.info('✅ Unified Engine started (advanced trading)');
 
       if (this.config.enabledFeatures.detection) {
+        launchLogger.logComponentInit('TokenDetector-Start', 'STARTING');
         await this.detector.start();
+        launchLogger.logComponentInit('TokenDetector-Start', 'SUCCESS');
         logger.info('✅ Token detection enabled and started');
       }
 
       if (this.config.enabledFeatures.dashboard) {
+        launchLogger.logComponentInit('Dashboard-Start', 'STARTING');
         await this.dashboard.start();
+        launchLogger.logComponentInit('Dashboard-Start', 'SUCCESS');
       }
 
       this.isRunning = true;
       this.startStatusLogging();
+
+      // Log application ready
+      const urls = [
+        `http://localhost:${this.config.dashboardPort}`,
+        ...(process.env.CODESPACES ? [`https://${process.env.CODESPACE_NAME}-${this.config.dashboardPort}.app.github.dev`] : [])
+      ];
+      launchLogger.logApplicationReady(this.config.dashboardPort, urls);
 
       logger.info('✅ Consolidated Token Analyzer started successfully');
       this.logStatus();
@@ -477,6 +509,7 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       this.emit('started');
 
     } catch (error) {
+      launchLogger.logError('START', error as Error, { phase: 'application start' });
       logger.error('❌ Failed to start application:', error);
       throw error;
     }
@@ -484,9 +517,11 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
 
   async stop(): Promise<void> {
     if (!this.isRunning) {
+      launchLogger.log('WARN', 'STOP', 'Application not running');
       return;
     }
 
+    launchLogger.logStartupPhase('APPLICATION SHUTDOWN');
     logger.info('🛑 Stopping Consolidated Token Analyzer...');
 
     try {
@@ -496,28 +531,34 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       const shutdownPromises = [];
 
       if (this.config.enabledFeatures.dashboard) {
+        launchLogger.logComponentInit('Dashboard-Stop', 'STARTING');
         shutdownPromises.push(this.dashboard.stop());
       }
 
       if (this.config.enabledFeatures.detection) {
+        launchLogger.logComponentInit('TokenDetector-Stop', 'STARTING');
         shutdownPromises.push(this.detector.stop());
       }
 
       // Stop unified engine
+      launchLogger.logComponentInit('UnifiedEngine-Stop', 'STARTING');
       shutdownPromises.push(this.unifiedEngine.stop());
 
       if (this.config.enabledFeatures.simulation) {
+        launchLogger.logComponentInit('SimulationEngine-Stop', 'STARTING');
         shutdownPromises.push(this.simulationEngine.stop());
       }
 
       await Promise.all(shutdownPromises);
 
       this.isRunning = false;
+      launchLogger.logShutdown('Normal shutdown requested');
       logger.info('✅ Consolidated Token Analyzer stopped successfully');
 
       this.emit('stopped');
 
     } catch (error) {
+      launchLogger.logError('STOP', error as Error, { phase: 'application shutdown' });
       logger.error('❌ Error stopping application:', error);
       throw error;
     }
