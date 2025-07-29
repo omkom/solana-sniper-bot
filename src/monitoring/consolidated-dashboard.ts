@@ -640,14 +640,51 @@ export class ConsolidatedDashboard extends EventEmitter {
     socket.emit('migrations', this.migrations.slice(-20));
   }
 
-  private handleTokenDetection(tokens: UnifiedTokenInfo[]): void {
-    this.metrics.totalDetected += tokens.length;
-    this.kpiMetrics.tokensDetected += tokens.length;
+  private handleTokenDetection(tokens: UnifiedTokenInfo[] | UnifiedTokenInfo): void {
+    try {
+      // Handle both single token and array of tokens
+      const tokenArray = Array.isArray(tokens) ? tokens : [tokens];
+    
+    this.metrics.totalDetected += tokenArray.length;
+    this.kpiMetrics.tokensDetected += tokenArray.length;
+    
+    // Add tokens to tracked tokens
+    tokenArray.forEach(token => {
+      const trackedToken: TrackedToken = {
+        address: token.address,
+        symbol: token.symbol,
+        name: token.name,
+        price: token.price || token.priceUsd || 0,
+        priceHistory: [{ price: token.price || token.priceUsd || 0, timestamp: Date.now() }],
+        volume24h: token.volume24h || 0,
+        liquidity: token.liquidity?.usd || token.liquidityUsd || 0,
+        isActive: true,
+        trackedSince: Date.now(),
+        alerts: []
+      };
+      
+      this.trackedTokens.set(token.address, trackedToken);
+      
+      // Emit real-time update to all connected clients
+      this.io.emit('tokenDetected', {
+        token: token,
+        trackedToken: trackedToken,
+        timestamp: Date.now(),
+        source: token.source,
+        confidence: token.confidence
+      });
+      
+      logger.info(`📊 Dashboard: Token detection broadcasted - ${token.symbol}`, {
+        address: token.address,
+        source: token.source,
+        confidence: token.confidence
+      });
+    });
     
     // Add to detection history
     this.detectionHistory.push({
-      source: tokens[0]?.source || 'unknown',
-      count: tokens.length,
+      source: tokenArray[0]?.source || 'unknown',
+      count: tokenArray.length,
       timestamp: Date.now()
     });
     
@@ -657,13 +694,18 @@ export class ConsolidatedDashboard extends EventEmitter {
     }
     
     // Add to tracked tokens
-    tokens.forEach(token => {
+    tokenArray.forEach((token: UnifiedTokenInfo) => {
       this.addTrackedToken(token);
     });
     
     // Emit to clients
     this.io.emit('tokensDetected', tokens);
     this.io.emit('metrics', this.metrics);
+    
+    } catch (error) {
+      logger.error('Error handling token detection:', error);
+      this.metrics.errors++;
+    }
   }
 
   private handleDetectionResult(result: any): void {

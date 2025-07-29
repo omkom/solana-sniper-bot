@@ -50,7 +50,8 @@
       "Bash(touch:*)",
       "Bash(gh codespace ports:*)",
       "Bash(chmod:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "WebFetch(domain:pumpportal.fun)"
     ],
     "deny": []
   }

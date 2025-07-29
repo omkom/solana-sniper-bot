@@ -78,6 +78,12 @@ export interface UnifiedTokenInfo extends BaseToken {
   confidence?: number;
   securityScore?: number;
   rugRisk?: number;
+  
+  // Additional properties for enhanced detection
+  price?: number;
+  complete?: boolean;
+  creator?: string;
+  bondingCurveComplete?: boolean;
 }
 
 // Legacy type aliases for backward compatibility

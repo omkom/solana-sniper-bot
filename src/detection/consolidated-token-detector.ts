@@ -16,6 +16,8 @@ import { BlockchainAnalyzer } from './blockchain-analyzer';
 import { ConnectionPool } from '../core/connection-pool';
 import { EnhancedTokenDetection, EnhancedTokenAnalysis } from './enhanced-token-detection';
 import { MultiDexMonitor, PoolInfo } from './multi-dex-monitor';
+import { enhancedDirectDetector, DetectedToken } from './enhanced-direct-detector';
+import { pumpFunDetector, PumpFunToken } from './pump-fun-detector';
 
 export interface ConsolidatedDetectorConfig {
   minLiquidity: number;
@@ -450,6 +452,24 @@ export class ConsolidatedTokenDetector extends EventEmitter {
     try {
       logger.info('🚀 Starting Consolidated Token Detector...');
       
+      // Start enhanced direct detector first (most reliable)
+      await enhancedDirectDetector.start();
+      logger.info('✅ Enhanced direct detector started');
+      
+      // Set up event listeners for direct detector
+      enhancedDirectDetector.on('tokenDetected', (token: DetectedToken) => {
+        this.handleDirectDetectorToken(token);
+      });
+      
+      // Start Pump.fun detector
+      await pumpFunDetector.start();
+      logger.info('✅ Pump.fun detector started');
+      
+      // Set up event listeners for Pump.fun detector
+      pumpFunDetector.on('tokenDetected', (token: PumpFunToken) => {
+        this.handlePumpFunToken(token);
+      });
+      
       // Start unified detector
       await this.unifiedDetector.start();
       
@@ -575,6 +595,128 @@ export class ConsolidatedTokenDetector extends EventEmitter {
       ...this.stats,
       uptime: this.isRunning ? Date.now() - this.startTime : 0
     };
+  }
+
+  private async handlePumpFunToken(pumpToken: PumpFunToken): Promise<void> {
+    try {
+      // Convert PumpFunToken to UnifiedTokenInfo format
+      const unifiedToken: UnifiedTokenInfo = {
+        address: pumpToken.address,
+        symbol: pumpToken.symbol,
+        name: pumpToken.name,
+        decimals: 9, // Default for Solana
+        detected: true,
+        detectedAt: Date.now(),
+        createdAt: pumpToken.createdTimestamp,
+        source: `pump_fun`,
+        confidence: pumpToken.confidence,
+        price: 0, // Will be fetched separately
+        volume24h: 0,
+        volume1h: 0,
+        liquidity: {
+          sol: pumpToken.virtualSolReserves,
+          usd: 0
+        },
+        marketCap: pumpToken.marketCap,
+        priceChange24h: 0,
+        priceChange1h: 0,
+        dexId: 'pump.fun',
+        chainId: 'solana',
+        pairAddress: pumpToken.raydiumPool || '',
+        creator: pumpToken.creator,
+        complete: pumpToken.complete,
+        bondingCurveComplete: pumpToken.bondingCurveComplete
+      };
+
+      // Check if token already exists
+      if (this.detectedTokens.has(unifiedToken.address)) {
+        // Update existing token with Pump.fun data
+        const existing = this.detectedTokens.get(unifiedToken.address)!;
+        const updated = { ...existing, ...unifiedToken, lastUpdated: Date.now() };
+        this.detectedTokens.set(unifiedToken.address, updated);
+        logger.debug(`🔄 Updated existing token with Pump.fun data: ${unifiedToken.symbol}`);
+      } else {
+        // Add new Pump.fun token
+        this.detectedTokens.set(unifiedToken.address, unifiedToken);
+        this.stats.totalDetected++;
+        
+        logger.info(`🎪 New Pump.fun token detected: ${unifiedToken.symbol} (${unifiedToken.address.substring(0, 8)}...)`, {
+          source: unifiedToken.source,
+          confidence: unifiedToken.confidence,
+          marketCap: unifiedToken.marketCap,
+          complete: unifiedToken.complete,
+          liquidity: unifiedToken.liquidity
+        });
+        
+        // Emit the token for other components
+        this.emit('tokenDetected', unifiedToken);
+      }
+      
+      this.stats.processed++;
+      
+    } catch (error) {
+      logger.error('Error handling Pump.fun token:', error);
+      this.stats.errors++;
+    }
+  }
+
+  private async handleDirectDetectorToken(detectedToken: DetectedToken): Promise<void> {
+    try {
+      // Convert DetectedToken to UnifiedTokenInfo format
+      const unifiedToken: UnifiedTokenInfo = {
+        address: detectedToken.address,
+        symbol: detectedToken.symbol,
+        name: detectedToken.name,
+        decimals: 9, // Default for Solana
+        detected: true,
+        detectedAt: Date.now(),
+        createdAt: detectedToken.createdAt,
+        source: `direct_${detectedToken.source}`,
+        confidence: detectedToken.confidence,
+        price: detectedToken.priceUsd,
+        volume24h: detectedToken.volume24h,
+        volume1h: detectedToken.volume1h,
+        liquidity: {
+          usd: detectedToken.liquidity.usd,
+          sol: detectedToken.liquidity.sol
+        },
+        marketCap: detectedToken.marketCap,
+        priceChange24h: detectedToken.priceChange24h,
+        priceChange1h: detectedToken.priceChange1h,
+        dexId: detectedToken.dexId,
+        chainId: detectedToken.chainId,
+        pairAddress: detectedToken.pairAddress
+      };
+
+      // Check if token already exists
+      if (this.detectedTokens.has(unifiedToken.address)) {
+        // Update existing token with new data
+        const existing = this.detectedTokens.get(unifiedToken.address)!;
+        const updated = { ...existing, ...unifiedToken, lastUpdated: Date.now() };
+        this.detectedTokens.set(unifiedToken.address, updated);
+        logger.debug(`🔄 Updated existing token: ${unifiedToken.symbol}`);
+      } else {
+        // Add new token
+        this.detectedTokens.set(unifiedToken.address, unifiedToken);
+        this.stats.totalDetected++;
+        
+        logger.info(`✅ New token detected: ${unifiedToken.symbol} (${unifiedToken.address.substring(0, 8)}...)`, {
+          source: unifiedToken.source,
+          confidence: unifiedToken.confidence,
+          price: unifiedToken.price,
+          liquidity: unifiedToken.liquidity
+        });
+        
+        // Emit the token for other components
+        this.emit('tokenDetected', unifiedToken);
+      }
+      
+      this.stats.processed++;
+      
+    } catch (error) {
+      logger.error('Error handling direct detector token:', error);
+      this.stats.errors++;
+    }
   }
 
   // Manual token analysis

@@ -769,11 +769,11 @@ export class ConsolidatedApiService extends EventEmitter {
   // Utility methods
   async testConnection(): Promise<boolean> {
     try {
-      await this.ensureInitialized();
-      
-      // Test DexScreener connection
-      const testToken = await this.getDexScreenerTokenInfo('So11111111111111111111111111111111111111112'); // WSOL
-      return testToken !== null;
+      // Use direct API client for connection test (bypass coordinator issues)
+      const { directApiClient } = await import('../core/direct-api-client');
+      const result = await directApiClient.testConnection();
+      logger.info(`🔌 API connectivity test: ${result ? 'PASSED' : 'FAILED'}`);
+      return result;
     } catch (error) {
       logger.error('Connection test failed:', error);
       return false;

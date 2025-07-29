@@ -152,6 +152,7 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       // Setup event handlers
       launchLogger.logStartupPhase('EVENT HANDLERS SETUP');
       this.setupEventHandlers();
+      this.connectTokenDetectionToDashboard();
       
       this.initialized = true;
       launchLogger.logStartupPhase('COMPONENTS INITIALIZED', { 
@@ -299,6 +300,25 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       maxHistorySize: 1000,
       features: this.config.enabledFeatures
     };
+  }
+
+  private connectTokenDetectionToDashboard(): void {
+    // Connect token detector events to dashboard
+    this.detector.on('tokenDetected', (token: UnifiedTokenInfo) => {
+      logger.info(`🔗 Forwarding token to dashboard: ${token.symbol}`, {
+        address: token.address,
+        source: token.source
+      });
+      
+      // Forward the token detection to dashboard
+      this.dashboard.emit('tokenDetected', token);
+      
+      // Also forward to simulation engines for potential trading
+      this.simulationEngine.emit('tokenDetected', token);
+      this.unifiedEngine.emit('tokenDetected', token);
+    });
+    
+    logger.info('🔗 Token detection connected to dashboard and simulation engines');
   }
 
   private setupEventHandlers(): void {
@@ -480,13 +500,12 @@ export class ConsolidatedTokenAnalyzer extends EventEmitter {
       launchLogger.logComponentInit('UnifiedEngine-Start', 'SUCCESS');
       logger.info('✅ Unified Engine started (advanced trading)');
 
-      // Temporarily disable token detection to allow dashboard to start
-      // if (this.config.enabledFeatures.detection) {
-      //   launchLogger.logComponentInit('TokenDetector-Start', 'STARTING');
-      //   await this.detector.start();
-      //   launchLogger.logComponentInit('TokenDetector-Start', 'SUCCESS');
-      //   logger.info('✅ Token detection enabled and started');
-      // }
+      if (this.config.enabledFeatures.detection) {
+        launchLogger.logComponentInit('TokenDetector-Start', 'STARTING');
+        await this.detector.start();
+        launchLogger.logComponentInit('TokenDetector-Start', 'SUCCESS');
+        logger.info('✅ Token detection enabled and started');
+      }
 
       if (this.config.enabledFeatures.dashboard) {
         launchLogger.logComponentInit('Dashboard-Start', 'STARTING');
@@ -680,16 +699,24 @@ export async function main(): Promise<void> {
   });
   
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    const reasonString = reason instanceof Error ? reason.message : String(reason);
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reasonString);
+    
+    // Don't shutdown for API failures - they're expected during development
+    if (reasonString.includes('Request failed') || reasonString.includes('API')) {
+      logger.warn('API failure detected, continuing operation...');
+      return;
+    }
+    
     shutdown('UNHANDLED_REJECTION');
   });
   
   try {
-    // Test connections before starting - temporarily disabled to allow startup
-    // const connectionsOk = await app.testConnections();
-    // if (!connectionsOk) {
-    //   logger.warn('⚠️ Some API connections failed, but continuing...');
-    // }
+    // Test connections before starting - now using direct API client
+    const connectionsOk = await app.testConnections();
+    if (!connectionsOk) {
+      logger.warn('⚠️ Some API connections failed, but continuing...');
+    }
     
     await app.start();
     
