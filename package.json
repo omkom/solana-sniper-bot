@@ -19,7 +19,10 @@
     "lint": "eslint src/**/*.ts",
     "diagnose": "node codespaces-diagnostic.js",
     "codespaces:setup": "npm install && chmod +x codespaces-diagnostic.js && echo 'Codespaces setup complete!'",
-    "codespaces:test": "npm run diagnose && npm run dev"
+    "codespaces:test": "npm run diagnose && npm run dev",
+    "auto-sync": "./scripts/start-auto-sync.sh",
+    "stop-sync": "./scripts/stop-auto-sync.sh",
+    "sync-status": "./scripts/status.sh"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.0",

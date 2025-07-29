@@ -51,7 +51,11 @@
       "Bash(gh codespace ports:*)",
       "Bash(chmod:*)",
       "Bash(npm uninstall:*)",
-      "WebFetch(domain:pumpportal.fun)"
+      "WebFetch(domain:pumpportal.fun)",
+      "Bash(./scripts/status.sh:*)",
+      "Bash(./setup-auto-sync.sh:*)",
+      "Bash(npm run sync-status:*)",
+      "Bash(HTTP/1.1 200 OK)"
     ],
     "deny": []
   }
