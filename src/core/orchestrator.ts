@@ -259,14 +259,7 @@ export class Orchestrator extends EventEmitter {
       enableAnalytics: true
     });
     this.actionLogger = new TokenActionLogger(this.webSocketServer);
-    this.benchmarkTracker = new BenchmarkTracker({
-      winRate: 60,
-      avgROI: 25,
-      detectionLatency: 5000,
-      memoryUsageMB: 1536,
-      tokensPerMinute: 1000,
-      systemUptime: 99
-    });
+    this.benchmarkTracker = new BenchmarkTracker();
   }
 
   private setupEventHandlers(): void {
