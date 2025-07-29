@@ -55,7 +55,10 @@
       "Bash(./scripts/status.sh:*)",
       "Bash(./setup-auto-sync.sh:*)",
       "Bash(npm run sync-status:*)",
-      "Bash(HTTP/1.1 200 OK)"
+      "Bash(HTTP/1.1 200 OK)",
+      "Bash(npm run stop-sync:*)",
+      "Bash(npm run:*)",
+      "Bash(./test-auto-reload.sh:*)"
     ],
     "deny": []
   }

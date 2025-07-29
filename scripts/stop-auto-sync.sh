@@ -11,7 +11,7 @@ echo "🛑 Stopping Auto-Sync Monitor..."
 
 # Stop auto-sync monitor
 if [ -f "$PID_FILE" ]; then
-    local sync_pid=$(cat "$PID_FILE")
+    sync_pid=$(cat "$PID_FILE")
     if kill -0 "$sync_pid" 2>/dev/null; then
         echo "Stopping auto-sync monitor (PID: $sync_pid)..."
         kill -TERM "$sync_pid" 2>/dev/null
@@ -28,7 +28,7 @@ fi
 
 # Stop the application
 if [ -f "$APP_PID_FILE" ]; then
-    local app_pid=$(cat "$APP_PID_FILE")
+    app_pid=$(cat "$APP_PID_FILE")
     if kill -0 "$app_pid" 2>/dev/null; then
         echo "Stopping application (PID: $app_pid)..."
         kill -TERM "$app_pid" 2>/dev/null

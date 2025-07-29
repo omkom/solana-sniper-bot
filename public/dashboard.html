@@ -1005,6 +1005,69 @@
             // Could show notification here
         });
 
+        // Repository sync auto-reload functionality
+        socket.on('repositorySync', (data) => {
+            console.log('🔄 Repository sync detected:', data);
+            
+            // Show sync notification
+            showSyncNotification(data);
+            
+            // Auto-reload the page after a short delay to show the notification
+            setTimeout(() => {
+                console.log('🔄 Auto-reloading dashboard with latest code changes...');
+                window.location.reload();
+            }, 2000); // 2 second delay to show notification
+        });
+
+        // Function to show sync notification
+        function showSyncNotification(syncData) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(45deg, #00ff88, #00cc6a);
+                color: #000;
+                padding: 15px 20px;
+                border-radius: 8px;
+                font-family: 'JetBrains Mono', monospace;
+                font-weight: 600;
+                z-index: 10000;
+                box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+                animation: slideIn 0.3s ease-out;
+                max-width: 400px;
+            `;
+            
+            notification.innerHTML = `
+                🔄 <strong>CODE UPDATE DETECTED</strong><br>
+                📦 ${syncData.commitHash ? syncData.commitHash.substring(0, 8) : 'Latest'}<br>
+                🕒 Reloading in 2 seconds...
+            `;
+            
+            // Add CSS animation if not already added
+            if (!document.getElementById('syncNotificationStyles')) {
+                const style = document.createElement('style');
+                style.id = 'syncNotificationStyles';
+                style.textContent = `
+                    @keyframes slideIn {
+                        from { transform: translateX(100%); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            document.body.appendChild(notification);
+            
+            // Remove notification after 2 seconds (just before reload)
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 1800);
+        }
+
         function updatePortfolioStats(stats) {
             // Main portfolio value
             const totalValueElement = document.getElementById('totalValue');

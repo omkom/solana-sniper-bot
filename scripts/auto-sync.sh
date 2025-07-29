@@ -51,7 +51,7 @@ print_error() {
 # Kill existing app processes
 kill_app() {
     if [ -f "$PID_FILE" ]; then
-        local pid=$(cat "$PID_FILE")
+        pid=$(cat "$PID_FILE")
         if kill -0 "$pid" 2>/dev/null; then
             print_status "Stopping existing app (PID: $pid)..."
             kill -TERM "$pid" 2>/dev/null || true
@@ -94,7 +94,7 @@ build_and_start() {
     # Start the application
     print_status "Starting application on port $PORT..."
     nohup npm start > "$REPO_DIR/logs/app.log" 2>&1 &
-    local app_pid=$!
+    app_pid=$!
     echo "$app_pid" > "$PID_FILE"
     
     # Wait a moment and check if it started successfully
@@ -109,6 +109,36 @@ build_and_start() {
     fi
 }
 
+# Notify dashboard of repository sync
+notify_dashboard_sync() {
+    commit_hash="$1"
+    commit_message="$2"
+    changes="$3"
+    author="$4"
+    
+    # Create JSON payload
+    json_payload=$(cat <<EOF
+{
+  "commitHash": "$commit_hash",
+  "message": "$commit_message",
+  "changes": $changes,
+  "author": "$author"
+}
+EOF
+)
+    
+    # Send notification to dashboard API
+    if curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "$json_payload" \
+        "http://localhost:$PORT/api/repository-sync" \
+        >/dev/null 2>&1; then
+        print_success "Dashboard notified of repository sync"
+    else
+        print_error "Failed to notify dashboard (dashboard may not be running yet)"
+    fi
+}
+
 # Check for remote updates
 check_updates() {
     cd "$REPO_DIR"
@@ -117,18 +147,27 @@ check_updates() {
     git fetch origin main >/dev/null 2>&1
     
     # Check if we're behind
-    local local_commit=$(git rev-parse HEAD)
-    local remote_commit=$(git rev-parse origin/main)
+    local_commit=$(git rev-parse HEAD)
+    remote_commit=$(git rev-parse origin/main)
     
     if [ "$local_commit" != "$remote_commit" ]; then
         print_status "New changes detected in remote repository"
         print_status "Local:  $local_commit"
         print_status "Remote: $remote_commit"
         
+        # Get commit message and changes before pulling
+        commit_message=$(git log --format="%s" -n 1 "$remote_commit" 2>/dev/null || echo "Repository updated")
+        author=$(git log --format="%an" -n 1 "$remote_commit" 2>/dev/null || echo "Auto-sync")
+        changed_files=$(git diff --name-only "$local_commit" "$remote_commit" 2>/dev/null | jq -R -s -c 'split("\n")[:-1]' 2>/dev/null || echo '[]')
+        
         # Pull changes
         print_status "Pulling latest changes..."
         if git pull origin main; then
             print_success "Successfully pulled latest changes"
+            
+            # Notify dashboard of the sync
+            notify_dashboard_sync "$remote_commit" "$commit_message" "$changed_files" "$author"
+            
             return 0  # Changes were pulled
         else
             print_error "Failed to pull changes"
@@ -142,7 +181,7 @@ check_updates() {
 # Health check for the running app
 health_check() {
     if [ -f "$PID_FILE" ]; then
-        local pid=$(cat "$PID_FILE")
+        pid=$(cat "$PID_FILE")
         if kill -0 "$pid" 2>/dev/null; then
             # Check if port 3000 is responding
             if curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT | grep -q "200"; then
@@ -215,7 +254,7 @@ trap cleanup SIGINT SIGTERM
 
 # Check if script is already running
 if [ -f "$REPO_DIR/logs/auto-sync.pid" ]; then
-    local existing_pid=$(cat "$REPO_DIR/logs/auto-sync.pid")
+    existing_pid=$(cat "$REPO_DIR/logs/auto-sync.pid")
     if kill -0 "$existing_pid" 2>/dev/null; then
         print_error "Auto-sync is already running (PID: $existing_pid)"
         print_status "To stop it, run: kill $existing_pid"

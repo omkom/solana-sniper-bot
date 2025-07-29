@@ -589,6 +589,40 @@ export class ConsolidatedDashboard extends EventEmitter {
         res.status(500).json({ error: 'Failed to configure position sizing' });
       }
     });
+
+    // Repository sync notification endpoint
+    this.app.post('/api/repository-sync', (req, res) => {
+      try {
+        const { commitHash, message, changes, author } = req.body;
+        
+        const syncData = {
+          commitHash: commitHash || 'unknown',
+          message: message || 'Repository updated',
+          timestamp: Date.now(),
+          changes: changes || [],
+          author: author || 'Auto-sync'
+        };
+
+        logger.info('📡 Repository sync API called', {
+          commitHash: syncData.commitHash.substring(0, 8),
+          message: syncData.message,
+          changesCount: syncData.changes.length
+        });
+
+        // Notify all connected dashboard clients
+        this.notifyRepositorySync(syncData);
+
+        res.json({
+          success: true,
+          message: 'Repository sync notification sent',
+          data: syncData,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        logger.error('❌ Failed to process repository sync notification:', error);
+        res.status(500).json({ error: 'Failed to process repository sync notification' });
+      }
+    });
   }
 
   private setupEventHandlers(): void {
@@ -1038,5 +1072,30 @@ export class ConsolidatedDashboard extends EventEmitter {
   addError(error: string): void {
     this.metrics.errors++;
     this.io.emit('error', { message: error, timestamp: Date.now() });
+  }
+
+  // Repository sync notification method
+  notifyRepositorySync(syncData: { 
+    commitHash?: string; 
+    message?: string; 
+    timestamp: number; 
+    changes?: string[];
+    author?: string;
+  }): void {
+    logger.info('🔄 Notifying dashboard clients of repository sync', {
+      commitHash: syncData.commitHash?.substring(0, 8),
+      message: syncData.message,
+      changes: syncData.changes?.length || 0
+    });
+    
+    // Emit repository sync event to all connected clients
+    this.io.emit('repositorySync', {
+      commitHash: syncData.commitHash,
+      message: syncData.message || 'Repository updated',
+      timestamp: syncData.timestamp,
+      changes: syncData.changes || [],
+      author: syncData.author || 'Auto-sync',
+      reloadDelay: 2000 // 2 seconds delay before reload
+    });
   }
 }

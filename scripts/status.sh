@@ -42,7 +42,7 @@ fi
 # Check port 3000
 if lsof -i:$PORT >/dev/null 2>&1; then
     echo "🟢 Port $PORT: IN USE"
-    local port_process=$(lsof -i:$PORT | tail -n 1 | awk '{print $1 " (PID: " $2 ")"}')
+    port_process=$(lsof -i:$PORT | tail -n 1 | awk '{print $1 " (PID: " $2 ")"}')
     echo "   └─ Process: $port_process"
 else
     echo "🔴 Port $PORT: FREE"
