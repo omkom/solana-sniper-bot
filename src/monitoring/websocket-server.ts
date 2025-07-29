@@ -4,6 +4,8 @@
  */
 
 import { EventEmitter } from 'events';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import { WebSocketServer as WebSocketServerInterface } from '../types/unified';
 import { logger } from '../monitoring/logger';
 
@@ -25,10 +27,12 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
   private clients = new Map<string, ClientConnection>();
   private isRunning = false;
   private port: number;
+  private server: any;
+  private io: SocketIOServer | null = null;
   private broadcastInterval?: NodeJS.Timeout;
   private metricsInterval?: NodeJS.Timeout;
 
-  // Simulated data streams
+  // Real data streams (no longer simulated)
   private tokenUpdates: any[] = [];
   private positionUpdates: any[] = [];
   private portfolioUpdates: any[] = [];
@@ -48,14 +52,31 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
     }
 
     try {
-      // Start data broadcasting simulation
-      this.startDataBroadcasting();
+      // Create HTTP server and Socket.IO instance
+      this.server = createServer();
+      this.io = new SocketIOServer(this.server, {
+        cors: {
+          origin: '*',
+          methods: ['GET', 'POST']
+        }
+      });
+
+      // Setup Socket.IO event handlers
+      this.setupSocketHandlers();
+
+      // Start server
+      await new Promise<void>((resolve, reject) => {
+        this.server.listen(this.port, () => {
+          logger.info(`✅ Real WebSocket Server started on port ${this.port}`);
+          resolve();
+        });
+        this.server.on('error', reject);
+      });
       
       // Start metrics collection
       this.startMetricsCollection();
 
       this.isRunning = true;
-      logger.info(`✅ WebSocket Server started on port ${this.port}`);
       this.emit('started');
 
     } catch (error) {
@@ -80,6 +101,19 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
       this.metricsInterval = undefined;
     }
 
+    // Close Socket.IO server
+    if (this.io) {
+      this.io.close();
+      this.io = null;
+    }
+
+    // Close HTTP server
+    if (this.server) {
+      await new Promise<void>((resolve) => {
+        this.server.close(() => resolve());
+      });
+    }
+
     // Close all client connections
     this.clients.clear();
 
@@ -88,11 +122,71 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
     this.emit('stopped');
   }
 
-  private startDataBroadcasting(): void {
-    this.broadcastInterval = setInterval(() => {
-      this.simulateDataUpdates();
-      this.broadcastToClients();
-    }, 2000); // Every 2 seconds
+  private setupSocketHandlers(): void {
+    if (!this.io) return;
+
+    this.io.on('connection', (socket) => {
+      const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const client: ClientConnection = {
+        id: clientId,
+        subscriptions: new Set(['tokenUpdates', 'positionUpdates', 'portfolioUpdates']),
+        lastPing: Date.now(),
+        isAlive: true
+      };
+      
+      this.clients.set(clientId, client);
+      logger.info(`🔌 Client connected: ${clientId} (Total: ${this.clients.size})`);
+
+      // Handle client subscription requests
+      socket.on('subscribe', (channels: string[]) => {
+        channels.forEach(channel => {
+          client.subscriptions.add(channel);
+          socket.join(channel);
+        });
+        logger.debug(`📡 Client ${clientId} subscribed to: ${channels.join(', ')}`);
+      });
+
+      socket.on('unsubscribe', (channels: string[]) => {
+        channels.forEach(channel => {
+          client.subscriptions.delete(channel);
+          socket.leave(channel);
+        });
+        logger.debug(`📡 Client ${clientId} unsubscribed from: ${channels.join(', ')}`);
+      });
+
+      // Handle client requests
+      socket.on('requestPortfolio', () => {
+        this.emit('portfolioRequested', { clientId, socket });
+      });
+
+      socket.on('requestPositions', () => {
+        this.emit('positionsRequested', { clientId, socket });
+      });
+
+      socket.on('requestTokenData', () => {
+        this.emit('tokenDataRequested', { clientId, socket });
+      });
+
+      // Handle ping/pong for connection health
+      socket.on('ping', () => {
+        client.lastPing = Date.now();
+        socket.emit('pong');
+      });
+
+      // Handle disconnection
+      socket.on('disconnect', (reason) => {
+        this.clients.delete(clientId);
+        logger.info(`🔌 Client disconnected: ${clientId} (Reason: ${reason}, Remaining: ${this.clients.size})`);
+      });
+
+      // Send initial connection confirmation
+      socket.emit('connected', {
+        clientId,
+        serverTime: Date.now(),
+        availableChannels: ['tokenUpdates', 'positionUpdates', 'portfolioUpdates', 'alerts', 'detectionResults']
+      });
+    });
   }
 
   private startMetricsCollection(): void {
@@ -101,60 +195,8 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
     }, 5000); // Every 5 seconds
   }
 
-  private simulateDataUpdates(): void {
-    // Simulate token updates
-    if (Math.random() > 0.7) {
-      const tokenUpdate = {
-        address: this.generateTokenAddress(),
-        symbol: this.generateTokenSymbol(),
-        price: Math.random() * 10,
-        change24h: (Math.random() - 0.5) * 100,
-        volume: Math.random() * 1000000,
-        detected: true,
-        timestamp: Date.now()
-      };
-      this.tokenUpdates.push(tokenUpdate);
-    }
-
-    // Simulate position updates
-    if (Math.random() > 0.8) {
-      const positionUpdate = {
-        id: `pos_${Date.now()}`,
-        symbol: this.generateTokenSymbol(),
-        size: Math.random() * 0.01,
-        pnl: (Math.random() - 0.5) * 0.001,
-        timestamp: Date.now()
-      };
-      this.positionUpdates.push(positionUpdate);
-    }
-
-    // Simulate portfolio updates
-    const portfolioUpdate = {
-      balance: 10 + (Math.random() - 0.5) * 2,
-      totalValue: 10 + (Math.random() - 0.5) * 2,
-      pnl: (Math.random() - 0.5) * 1,
-      positions: this.positionUpdates.length,
-      timestamp: Date.now()
-    };
-    this.portfolioUpdates.push(portfolioUpdate);
-
-    // Simulate alerts
-    if (Math.random() > 0.95) {
-      const alert = {
-        type: Math.random() > 0.5 ? 'profit_target' : 'stop_loss',
-        message: `${this.generateTokenSymbol()} triggered ${Math.random() > 0.5 ? 'profit target' : 'stop loss'}`,
-        level: Math.random() > 0.5 ? 'info' : 'warning',
-        timestamp: Date.now()
-      };
-      this.alerts.push(alert);
-    }
-
-    // Keep arrays manageable
-    if (this.tokenUpdates.length > 100) this.tokenUpdates.splice(0, 50);
-    if (this.positionUpdates.length > 50) this.positionUpdates.splice(0, 25);
-    if (this.portfolioUpdates.length > 50) this.portfolioUpdates.splice(0, 25);
-    if (this.alerts.length > 20) this.alerts.splice(0, 10);
-  }
+  // Data arrays are now populated by real events from the orchestrator
+  // Arrays are cleaned up automatically in the broadcast methods
 
   private collectSystemMetrics(): void {
     const metrics = {
@@ -177,14 +219,14 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
   }
 
   private broadcastToClients(): void {
-    const clientCount = this.clients.size;
-    
-    // For simulation, we'll just log the broadcast
-    if (clientCount > 0) {
-      logger.debug(`📡 Broadcasting updates to ${clientCount} clients`);
+    if (!this.io || this.clients.size === 0) {
+      return;
     }
 
-    // Simulate broadcasting different types of data
+    const clientCount = this.clients.size;
+    logger.debug(`📡 Broadcasting updates to ${clientCount} clients`);
+
+    // Broadcast to all connected clients
     if (this.tokenUpdates.length > 0) {
       const latestToken = this.tokenUpdates[this.tokenUpdates.length - 1];
       this.broadcastTokenUpdate(latestToken);
@@ -208,6 +250,8 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
 
   // Public methods for broadcasting different types of data
   broadcastTokenUpdate(tokenData: any): void {
+    if (!this.io) return;
+
     const message: WebSocketMessage = {
       type: 'tokenUpdate',
       data: tokenData,
@@ -215,11 +259,18 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
       id: `token_${Date.now()}`
     };
 
-    logger.debug(`📊 Token update: ${tokenData.symbol} - $${tokenData.price?.toFixed(6)}`);
+    // Store real data
+    this.tokenUpdates.push(tokenData);
+    this.cleanupArrays();
+
+    this.io.emit('tokenUpdate', message.data);
+    logger.debug(`📊 Token update broadcasted: ${tokenData.symbol} - $${tokenData.price?.toFixed(6)}`);
     this.emit('tokenUpdate', message);
   }
 
   broadcastPositionUpdate(positionData: any): void {
+    if (!this.io) return;
+
     const message: WebSocketMessage = {
       type: 'positionUpdate',
       data: positionData,
@@ -227,11 +278,18 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
       id: `position_${Date.now()}`
     };
 
-    logger.debug(`💼 Position update: ${positionData.symbol} - PnL: ${positionData.pnl?.toFixed(6)}`);
+    // Store real data
+    this.positionUpdates.push(positionData);
+    this.cleanupArrays();
+
+    this.io.emit('positionUpdate', message.data);
+    logger.debug(`💼 Position update broadcasted: ${positionData.symbol} - PnL: ${positionData.pnl?.toFixed(6)}`);
     this.emit('positionUpdate', message);
   }
 
   broadcastPortfolioUpdate(portfolioData: any): void {
+    if (!this.io) return;
+
     const message: WebSocketMessage = {
       type: 'portfolioUpdate',
       data: portfolioData,
@@ -239,11 +297,18 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
       id: `portfolio_${Date.now()}`
     };
 
-    logger.debug(`💰 Portfolio update: ${portfolioData.balance?.toFixed(4)} SOL`);
+    // Store real data
+    this.portfolioUpdates.push(portfolioData);
+    this.cleanupArrays();
+
+    this.io.emit('portfolio', message.data);
+    logger.debug(`💰 Portfolio update broadcasted: ${portfolioData.balance?.toFixed(4)} SOL`);
     this.emit('portfolioUpdate', message);
   }
 
   broadcastAlert(alertData: any): void {
+    if (!this.io) return;
+
     const message: WebSocketMessage = {
       type: 'alert',
       data: alertData,
@@ -251,11 +316,18 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
       id: `alert_${Date.now()}`
     };
 
-    logger.info(`🚨 Alert: ${alertData.message}`);
+    // Store real data
+    this.alerts.push(alertData);
+    this.cleanupArrays();
+
+    this.io.emit('alert', message.data);
+    logger.info(`🚨 Alert broadcasted: ${alertData.message}`);
     this.emit('alert', message);
   }
 
   broadcastDetectionResult(detectionData: any): void {
+    if (!this.io) return;
+
     const message: WebSocketMessage = {
       type: 'detectionResult',
       data: detectionData,
@@ -263,11 +335,14 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
       id: `detection_${Date.now()}`
     };
 
-    logger.debug(`🎯 Detection result: ${detectionData.token?.symbol || 'Unknown'}`);
+    this.io.emit('detectionResult', message.data);
+    logger.debug(`🎯 Detection result broadcasted: ${detectionData.token?.symbol || 'Unknown'}`);
     this.emit('detectionResult', message);
   }
 
   broadcastTradeSignal(signalData: any): void {
+    if (!this.io) return;
+
     const message: WebSocketMessage = {
       type: 'tradeSignal',
       data: signalData,
@@ -275,39 +350,55 @@ export class WebSocketServer extends EventEmitter implements WebSocketServerInte
       id: `signal_${Date.now()}`
     };
 
-    logger.debug(`📈 Trade signal: ${signalData.action} ${signalData.token?.symbol}`);
+    this.io.emit('newTrade', message.data);
+    logger.debug(`📈 Trade signal broadcasted: ${signalData.action} ${signalData.token?.symbol}`);
     this.emit('tradeSignal', message);
   }
 
-  // Utility methods for simulation
-  private generateTokenAddress(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 44; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
+  // Utility methods for data management
+  private cleanupArrays(): void {
+    // Keep arrays manageable
+    if (this.tokenUpdates.length > 100) this.tokenUpdates.splice(0, 50);
+    if (this.positionUpdates.length > 50) this.positionUpdates.splice(0, 25);
+    if (this.portfolioUpdates.length > 50) this.portfolioUpdates.splice(0, 25);
+    if (this.alerts.length > 20) this.alerts.splice(0, 10);
   }
 
-  private generateTokenSymbol(): string {
-    const symbols = ['DOGE', 'PEPE', 'SHIB', 'FLOKI', 'BONK', 'WIF', 'MYRO', 'POPCAT', 'MEW', 'TRUMP'];
-    return symbols[Math.floor(Math.random() * symbols.length)];
+  // Add real broadcasting methods for specific events
+  broadcastTokenDetected(tokenData: any): void {
+    if (!this.io) return;
+    this.io.emit('tokenDetected', tokenData);
+    logger.debug(`🎯 Token detected broadcasted: ${tokenData.symbol}`);
   }
 
-  // Simulate client connections for testing
+  broadcastNewTrade(tradeData: any): void {
+    if (!this.io) return;
+    this.io.emit('newTrade', tradeData);
+    logger.debug(`💹 New trade broadcasted: ${tradeData.type} ${tradeData.symbol}`);
+  }
+
+  broadcastPriceUpdate(priceData: any): void {
+    if (!this.io) return;
+    this.io.emit('priceUpdate', priceData);
+    logger.debug(`📈 Price update broadcasted: ${priceData.symbol}`);
+  }
+
+  // Get real client connections count
+  getRealClientCount(): number {
+    return this.clients.size;
+  }
+
+  // Broadcast to specific channel
+  broadcastToChannel(channel: string, event: string, data: any): void {
+    if (!this.io) return;
+    this.io.to(channel).emit(event, data);
+    logger.debug(`📡 Broadcasted to channel ${channel}: ${event}`);
+  }
+
+  // Legacy method for compatibility (now uses real connections)
   simulateClientConnection(): string {
-    const clientId = `sim_client_${Date.now()}`;
-    const client: ClientConnection = {
-      id: clientId,
-      subscriptions: new Set(['tokenUpdates', 'positionUpdates', 'portfolioUpdates']),
-      lastPing: Date.now(),
-      isAlive: true
-    };
-    
-    this.clients.set(clientId, client);
-    logger.info(`🔌 Simulated client connected: ${clientId}`);
-    
-    return clientId;
+    // This method is kept for compatibility but now returns real connection count
+    return `real_connections_${this.clients.size}`;
   }
 
   disconnectClient(clientId: string): void {

@@ -441,6 +441,13 @@ export class ConsolidatedSimulationEngine extends EventEmitter {
       trade.realizedPnL = realizedPnL;
       trade.percentageChange = position.percentageChange;
       trade.reason = reason;
+      
+      // Emit trade executed event for dashboard
+      this.emit('tradeExecuted', {
+        trade,
+        portfolio: this.portfolio,
+        position
+      });
     }
     
     // Remove position
@@ -481,6 +488,9 @@ export class ConsolidatedSimulationEngine extends EventEmitter {
     this.portfolio.unrealizedPnL = totalUnrealized;
     this.portfolio.netPnL = this.portfolio.totalRealized + totalUnrealized;
     this.portfolio.totalValue = this.portfolio.balance + this.portfolio.totalInvested + this.portfolio.netPnL;
+    
+    // Emit portfolio update event for dashboard
+    this.emit('portfolioUpdated', this.portfolio);
   }
 
   private startMonitoring(): void {

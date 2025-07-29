@@ -16,7 +16,9 @@ import { SimulationEngine } from '../trading/simulation-engine';
 import { ExecutionEngine } from '../trading/execution-engine';
 import { ExitStrategy } from '../trading/exit-strategy';
 import { WebSocketServer } from '../monitoring/websocket-server';
+import { ConsolidatedDashboard } from '../monitoring/consolidated-dashboard';
 import { TokenActionLogger } from '../monitoring/token-action-logger';
+import { BenchmarkTracker } from '../monitoring/benchmark-tracker';
 import { PerformanceProfiler } from '../utils/performance-profiler';
 import { RateLimiter } from '../utils/rate-limiter';
 import { UnifiedTokenInfo, DetectionConfig, TradingStrategy, ExitStrategyConfig, SecurityInfo } from '../types/unified';
@@ -72,7 +74,9 @@ export class Orchestrator extends EventEmitter {
   private executionEngine!: ExecutionEngine;
   private exitStrategy!: ExitStrategy;
   private webSocketServer!: WebSocketServer;
+  private dashboard!: ConsolidatedDashboard;
   private actionLogger!: TokenActionLogger;
+  private benchmarkTracker!: BenchmarkTracker;
   
   // Utilities
   private performanceProfiler!: PerformanceProfiler;
@@ -248,7 +252,21 @@ export class Orchestrator extends EventEmitter {
     
     // Initialize monitoring
     this.webSocketServer = new WebSocketServer(3001);
+    this.dashboard = new ConsolidatedDashboard({
+      port: 3000,
+      enableRealTimeUpdates: true,
+      enableMetrics: true,
+      enableAnalytics: true
+    });
     this.actionLogger = new TokenActionLogger(this.webSocketServer);
+    this.benchmarkTracker = new BenchmarkTracker({
+      winRate: 60,
+      avgROI: 25,
+      detectionLatency: 5000,
+      memoryUsageMB: 1536,
+      tokensPerMinute: 1000,
+      systemUptime: 99
+    });
   }
 
   private setupEventHandlers(): void {
@@ -275,6 +293,93 @@ export class Orchestrator extends EventEmitter {
     // Performance events
     this.performanceProfiler.on('latencyAlert', this.handleLatencyAlert.bind(this));
     this.rateLimiter.on('rateLimitExceeded', this.handleRateLimitExceeded.bind(this));
+    
+    // Benchmark events
+    this.benchmarkTracker.on('benchmarkAlert', this.handleBenchmarkAlert.bind(this));
+    this.benchmarkTracker.on('metricsUpdated', this.handleBenchmarkUpdate.bind(this));
+    
+    // Connect systems to dashboard events
+    this.setupDashboardEventBridge();
+  }
+
+  private setupDashboardEventBridge(): void {
+    // Bridge detection events to dashboard
+    this.detector.on('tokenDetected', (tokens: UnifiedTokenInfo[]) => {
+      this.dashboard.emit('tokenDetected', tokens);
+      // Also send to WebSocket for real-time updates
+      if (Array.isArray(tokens)) {
+        tokens.forEach(token => this.webSocketServer.broadcastTokenDetected(token));
+      } else {
+        this.webSocketServer.broadcastTokenDetected(tokens);
+      }
+    });
+
+    this.detector.on('detectionResult', (result: any) => {
+      this.dashboard.emit('detectionResult', result);
+      this.webSocketServer.broadcastDetectionResult(result);
+    });
+
+    // Bridge trading events to dashboard
+    this.simulationEngine.on('positionOpened', (position: any) => {
+      this.dashboard.emit('positionOpened', position);
+      this.webSocketServer.broadcastPositionUpdate(position);
+    });
+
+    this.simulationEngine.on('positionClosed', (data: any) => {
+      this.dashboard.emit('positionClosed', data);
+      this.webSocketServer.broadcastPositionUpdate(data.position);
+    });
+
+    this.simulationEngine.on('tradeExecuted', (trade: any) => {
+      this.dashboard.emit('portfolioUpdated', trade.portfolio);
+      this.webSocketServer.broadcastNewTrade(trade);
+    });
+
+    // Bridge portfolio updates
+    this.simulationEngine.on('portfolioUpdated', (portfolio: any) => {
+      this.dashboard.emit('portfolioUpdated', portfolio);
+      this.webSocketServer.broadcastPortfolioUpdate(portfolio);
+    });
+
+    // Bridge price updates
+    this.on('priceUpdate', (data: any) => {
+      this.dashboard.emit('priceUpdate', data);
+      this.webSocketServer.broadcastPriceUpdate(data);
+    });
+
+    // Bridge KPI updates
+    this.on('kpiUpdate', (metrics: any) => {
+      this.dashboard.emit('kpiUpdate', metrics);
+    });
+
+    // Bridge alerts and notifications
+    this.exitStrategy.on('rugPullDetected', (alert: any) => {
+      this.dashboard.emit('rugPullAlert', alert);
+      this.webSocketServer.broadcastAlert({
+        type: 'rugpull',
+        message: `Rugpull detected for ${alert.token?.symbol}`,
+        level: 'critical',
+        timestamp: Date.now()
+      });
+    });
+
+    // Bridge benchmark updates
+    this.benchmarkTracker.on('metricsUpdated', (metrics: any) => {
+      this.dashboard.emit('kpiUpdate', metrics);
+      // Also send performance benchmark data
+      this.webSocketServer.broadcastToChannel('kpi', 'benchmarkUpdate', metrics);
+    });
+
+    this.benchmarkTracker.on('benchmarkAlert', (alert: any) => {
+      this.webSocketServer.broadcastAlert({
+        type: 'benchmark',
+        message: `Performance alert: ${alert.metric} ${alert.status}`,
+        level: alert.severity,
+        timestamp: Date.now()
+      });
+    });
+
+    logger.info('🔗 Dashboard event bridge established');
   }
 
   async start(): Promise<void> {
@@ -330,6 +435,8 @@ export class Orchestrator extends EventEmitter {
     
     // Start monitoring
     startPromises.push(this.webSocketServer.start());
+    startPromises.push(this.dashboard.start());
+    startPromises.push(this.benchmarkTracker.start());
     this.actionLogger.start();
     
     // Start utilities
@@ -697,5 +804,28 @@ export class Orchestrator extends EventEmitter {
     } catch {
       return false;
     }
+  }
+
+  private async handleBenchmarkAlert(alert: any): Promise<void> {
+    logger.warn(`⚠️ Benchmark alert: ${alert.metric} is ${alert.status}`, {
+      current: alert.current,
+      target: alert.target,
+      severity: alert.severity
+    });
+
+    // Send alert to dashboard
+    this.dashboard.emit('benchmarkAlert', alert);
+  }
+
+  private async handleBenchmarkUpdate(metrics: any): Promise<void> {
+    // Update internal metrics tracking
+    this.emit('kpiUpdate', metrics);
+    
+    logger.debug('📊 Performance benchmarks updated', {
+      winRate: metrics.winRate?.current,
+      avgROI: metrics.avgROI?.current,
+      detectionLatency: metrics.detectionLatency?.current,
+      memoryUsage: metrics.memoryUsage?.current
+    });
   }
 }
