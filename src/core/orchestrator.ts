@@ -243,15 +243,15 @@ export class Orchestrator extends EventEmitter {
       realTimeMonitoring: true
     });
     
-    // Initialize trading systems
-    this.simulationEngine = new SimulationEngine();
+    // Initialize monitoring first
+    this.webSocketServer = new WebSocketServer(3001);
+    
+    // Initialize trading systems with WebSocket server
+    this.simulationEngine = new SimulationEngine(this.webSocketServer);
     
     this.executionEngine = new ExecutionEngine();
     
     this.exitStrategy = new ExitStrategy();
-    
-    // Initialize monitoring
-    this.webSocketServer = new WebSocketServer(3001);
     this.dashboard = new ConsolidatedDashboard({
       port: 3000,
       enableRealTimeUpdates: true,
@@ -278,6 +278,10 @@ export class Orchestrator extends EventEmitter {
     this.simulationEngine.on('positionOpened', this.handlePositionOpened.bind(this));
     this.simulationEngine.on('positionClosed', this.handlePositionClosed.bind(this));
     this.simulationEngine.on('tradeExecuted', this.handleTradeExecuted.bind(this));
+    this.simulationEngine.on('positionUpdate', this.handlePositionUpdate.bind(this));
+    this.simulationEngine.on('portfolioUpdate', this.handlePortfolioUpdate.bind(this));
+    this.simulationEngine.on('tradeCompleted', this.handleTradeCompleted.bind(this));
+    this.simulationEngine.on('tokenProcessed', this.handleTokenProcessed.bind(this));
     
     // Exit strategy events
     this.exitStrategy.on('exitSignal', this.handleExitSignal.bind(this));
@@ -820,5 +824,74 @@ export class Orchestrator extends EventEmitter {
       detectionLatency: metrics.detectionLatency?.current,
       memoryUsage: metrics.memoryUsage?.current
     });
+  }
+
+  // Enhanced simulation event handlers
+  private async handlePositionUpdate(positionData: any): Promise<void> {
+    try {
+      // Send to WebSocket for real-time dashboard updates
+      this.webSocketServer.broadcastPositionUpdate(positionData);
+      
+      logger.debug(`📊 Position update: ${positionData.symbol} - ROI: ${positionData.roi?.toFixed(2)}%`);
+    } catch (error) {
+      logger.error('Error handling position update:', error);
+    }
+  }
+
+  private async handlePortfolioUpdate(portfolioData: any): Promise<void> {
+    try {
+      // Send to WebSocket for real-time dashboard updates
+      this.webSocketServer.broadcastPortfolioUpdate(portfolioData);
+      
+      logger.debug(`💰 Portfolio update: Balance: ${portfolioData.balance?.toFixed(4)} SOL, Win Rate: ${portfolioData.winRate?.toFixed(1)}%`);
+    } catch (error) {
+      logger.error('Error handling portfolio update:', error);
+    }
+  }
+
+  private async handleTradeCompleted(tradeData: any): Promise<void> {
+    try {
+      // Send to WebSocket
+      this.webSocketServer.broadcastTradeSignal(tradeData);
+      
+      // Update existing metrics
+      if (tradeData.roi > 0) {
+        this.metrics.positionsOpened++;
+      } else {
+        this.metrics.positionsClosed++;
+      }
+      
+      logger.info(`✅ Trade completed: ${tradeData.symbol} - ROI: ${tradeData.roi?.toFixed(2)}% - ${tradeData.reason}`);
+    } catch (error) {
+      logger.error('Error handling trade completion:', error);
+    }
+  }
+
+  private async handleTokenProcessed(processedData: any): Promise<void> {
+    try {
+      if (processedData.processed) {
+        logger.debug(`✅ Token processed successfully: ${processedData.token.symbol}`);
+        
+        // Emit to WebSocket for dashboard
+        this.webSocketServer.broadcastTokenUpdate({
+          ...processedData.token,
+          status: 'processed',
+          timestamp: processedData.timestamp
+        });
+      } else {
+        logger.error(`❌ Token processing failed: ${processedData.token.symbol} - ${processedData.error}`);
+        
+        // Send error alert
+        this.webSocketServer.broadcastAlert({
+          type: 'PROCESSING_ERROR',
+          message: `Failed to process token: ${processedData.token.symbol}`,
+          tokenAddress: processedData.token.address,
+          error: processedData.error,
+          timestamp: processedData.timestamp
+        });
+      }
+    } catch (error) {
+      logger.error('Error handling token processed event:', error);
+    }
   }
 }
