@@ -58,7 +58,8 @@
       "Bash(HTTP/1.1 200 OK)",
       "Bash(npm run stop-sync:*)",
       "Bash(npm run:*)",
-      "Bash(./test-auto-reload.sh:*)"
+      "Bash(./test-auto-reload.sh:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

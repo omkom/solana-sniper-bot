@@ -550,7 +550,7 @@ export class Orchestrator extends EventEmitter {
       
       // Log error for each token
       for (const token of tokens) {
-        this.actionLogger.logError(token.address, token.symbol, error.message, {
+        this.actionLogger.logError(token.address, token.symbol, error instanceof Error ? error.message : 'Unknown error', {
           name: token.name
         });
       }

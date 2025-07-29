@@ -61,6 +61,7 @@ kill_app() {
         rm -f "$PID_FILE"
     fi
     
+    
     # Kill any processes on port 3000
     lsof -ti:$PORT | xargs kill -9 2>/dev/null || true
     
@@ -93,18 +94,31 @@ build_and_start() {
     
     # Start the application
     print_status "Starting application on port $PORT..."
-    nohup npm start > "$REPO_DIR/logs/app.log" 2>&1 &
+    
+    # Start the simple dashboard (stable version)
+    nohup npm run start:simple > "$REPO_DIR/logs/app.log" 2>&1 &
     app_pid=$!
     echo "$app_pid" > "$PID_FILE"
     
     # Wait a moment and check if it started successfully
-    sleep 5
+    sleep 8
     if kill -0 "$app_pid" 2>/dev/null; then
         print_success "Application started successfully (PID: $app_pid)"
         print_success "Dashboard available at: http://localhost:$PORT"
+        
+        # Show last few lines of logs to confirm startup
+        echo ""
+        echo "========== RECENT APPLICATION LOGS =========="
+        tail -20 "$REPO_DIR/logs/app.log" 2>/dev/null || echo "No logs available yet"
+        echo "=============================================="
+        echo ""
+        print_success "Verbose logs available at: tail -f logs/app.log"
+        
         return 0
     else
         print_error "Application failed to start"
+        echo "Last few log lines:"
+        tail -10 "$REPO_DIR/logs/app.log" 2>/dev/null || echo "No logs available"
         return 1
     fi
 }

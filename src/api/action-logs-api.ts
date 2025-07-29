@@ -37,7 +37,7 @@ export class ActionLogsAPI {
       res.status(500).json({
         success: false,
         error: 'Failed to fetch action logs',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   };
@@ -60,7 +60,7 @@ export class ActionLogsAPI {
       res.status(500).json({
         success: false,
         error: 'Failed to fetch action stats',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   };
@@ -99,7 +99,7 @@ export class ActionLogsAPI {
       res.status(500).json({
         success: false,
         error: 'Failed to fetch token actions',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   };
@@ -122,7 +122,7 @@ export class ActionLogsAPI {
       res.status(500).json({
         success: false,
         error: 'Failed to clear action logs',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   };
@@ -145,7 +145,7 @@ export class ActionLogsAPI {
       res.status(500).json({
         success: false,
         error: 'Failed to fetch logger status',
-        message: error.message
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   };

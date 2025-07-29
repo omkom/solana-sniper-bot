@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/consolidated-main.js --port=3000",
+    "start:simple": "node start-dashboard-simple.js",
     "dev": "node startup-launcher.js --mode=unified --port=3000",
     "dev:rapid": "node startup-launcher.js --mode=rapid --port=3000",
     "dev:real": "node startup-launcher.js --mode=real --port=3000",
