@@ -481,6 +481,82 @@
         .positive { color: #00ff88; }
         .negative { color: #ff0066; }
         .neutral { color: #0088ff; }
+        
+        /* ACTION LOG STYLES */
+        .action-log-feed {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .action-log-item {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border-left: 4px solid;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        
+        .action-log-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(3px);
+        }
+        
+        .action-log-item.action-detected { border-left-color: #0088ff; }
+        .action-log-item.action-analyzed { border-left-color: #9d4edd; }
+        .action-log-item.action-buy { border-left-color: #00ff88; }
+        .action-log-item.action-sell { border-left-color: #ff0066; }
+        .action-log-item.action-track_start { border-left-color: #ffaa00; }
+        .action-log-item.action-track_end { border-left-color: #666; }
+        .action-log-item.action-price_update { border-left-color: #00ccff; }
+        .action-log-item.action-alert { border-left-color: #ff6600; }
+        .action-log-item.action-error { border-left-color: #ff0066; }
+        
+        .action-log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+        
+        .action-log-type {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+        }
+        
+        .action-log-time {
+            font-size: 0.7rem;
+            color: #999;
+        }
+        
+        .action-log-token {
+            font-weight: 600;
+            color: #00ff88;
+        }
+        
+        .action-log-reason {
+            color: #ccc;
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+        }
+        
+        .action-log-data {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .action-log-data-item {
+            color: #999;
+        }
+        
+        .action-log-data-value {
+            color: #fff;
+            font-weight: 500;
+        }
 
         .footer {
             text-align: center;
@@ -539,7 +615,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>sync ?SOLANA SNIPER BOT</h1>
+        <h1>SOLANA SNIPER BOT</h1>
         <div>
             <span class="wtf-badge">DRY RUN</span>
             <span id="connectionStatus" style="margin-left: 1rem;">🔴 CONNECTING...</span>
@@ -704,6 +780,28 @@
                         </table>
                         <div id="noAnalyzedTokens" style="text-align: center; padding: 2rem; color: #666;">
                             No tokens analyzed yet...
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- TOKEN ACTION LOGS -->
+                <div class="content-card medium">
+                    <h3>📋 Live Action Logs</h3>
+                    <div class="action-log-controls" style="margin-bottom: 1rem;">
+                        <select id="actionLogFilter" style="background: rgba(255,255,255,0.1); color: #fff; border: 1px solid #333; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                            <option value="">All Actions</option>
+                            <option value="DETECTED">Detected</option>
+                            <option value="ANALYZED">Analyzed</option>
+                            <option value="BUY">Buy Orders</option>
+                            <option value="SELL">Sell Orders</option>
+                            <option value="PRICE_UPDATE">Price Updates</option>
+                            <option value="ALERT">Alerts</option>
+                        </select>
+                        <span id="actionLogStats" style="margin-left: 1rem; font-size: 0.8rem; color: #999;">0 actions logged</span>
+                    </div>
+                    <div class="action-log-feed" id="actionLogFeed" style="max-height: 300px; overflow-y: auto;">
+                        <div style="text-align: center; padding: 2rem; color: #666;">
+                            Waiting for token actions...
                         </div>
                     </div>
                 </div>
@@ -1017,6 +1115,255 @@
                 console.log('🔄 Auto-reloading dashboard with latest code changes...');
                 window.location.reload();
             }, 2000); // 2 second delay to show notification
+        });
+
+        // Action Logging System
+        window.actionLogData = [];
+        window.actionLogFilter = '';
+        window.actionLogStats = { totalActions: 0, actionsByType: {}, actionsByCategory: {}, recentActivityRate: 0, lastActionTime: 0 };
+
+        // Token Action Events
+        socket.on('tokenAction', (action) => {
+            handleTokenAction(action);
+        });
+
+        socket.on('actionLogStats', (stats) => {
+            updateActionLogStats(stats);
+        });
+
+        // Enhanced token events with action logging
+        socket.on('tokenDetected', (token) => {
+            console.log('🎯 Token detected:', token.symbol);
+            logTokenAction({
+                type: 'DETECTED',
+                tokenAddress: token.mint,
+                tokenSymbol: token.symbol,
+                data: {
+                    price: token.price,
+                    volume: token.volume,
+                    liquidity: token.liquidity,
+                    source: token.source,
+                    reason: 'Token detected by monitoring system'
+                }
+            });
+        });
+
+        socket.on('tokenAnalyzed', (token) => {
+            console.log('🔍 Token analyzed:', token.symbol);
+            logTokenAction({
+                type: 'ANALYZED',
+                tokenAddress: token.mint,
+                tokenSymbol: token.symbol,
+                data: {
+                    securityScore: token.securityScore,
+                    price: token.price,
+                    reason: `Security analysis completed - Score: ${token.securityScore || 'N/A'}`
+                }
+            });
+        });
+
+        // Action Logging Functions
+        function handleTokenAction(action) {
+            // Add to action log data
+            if (window.actionLogData) {
+                window.actionLogData.unshift(action);
+                // Keep only last 100 actions
+                if (window.actionLogData.length > 100) {
+                    window.actionLogData = window.actionLogData.slice(0, 100);
+                }
+            }
+
+            // Update the action log display
+            updateActionLogDisplay();
+        }
+
+        function logTokenAction(actionData) {
+            const action = {
+                id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                timestamp: Date.now(),
+                severity: 'MEDIUM',
+                category: getActionCategory(actionData.type),
+                ...actionData
+            };
+
+            handleTokenAction(action);
+        }
+
+        function getActionCategory(type) {
+            switch (type) {
+                case 'DETECTED': return 'DISCOVERY';
+                case 'ANALYZED': return 'ANALYSIS';
+                case 'BUY':
+                case 'SELL': return 'TRADING';
+                case 'TRACK_START':
+                case 'TRACK_END':
+                case 'PRICE_UPDATE': return 'MONITORING';
+                case 'ALERT': return 'ALERT';
+                case 'ERROR': return 'SYSTEM';
+                default: return 'SYSTEM';
+            }
+        }
+
+        function updateActionLogDisplay() {
+            const feed = document.getElementById('actionLogFeed');
+            const filter = window.actionLogFilter;
+            
+            if (!feed || !window.actionLogData) return;
+
+            // Filter actions
+            let filteredActions = window.actionLogData;
+            if (filter) {
+                filteredActions = window.actionLogData.filter(action => action.type === filter);
+            }
+
+            // Clear existing content
+            feed.innerHTML = '';
+
+            if (filteredActions.length === 0) {
+                feed.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">No actions match the current filter...</div>';
+                return;
+            }
+
+            // Display recent actions (limit to 20 for performance)
+            filteredActions.slice(0, 20).forEach(action => {
+                const actionElement = createActionLogElement(action);
+                feed.appendChild(actionElement);
+            });
+        }
+
+        function createActionLogElement(action) {
+            const element = document.createElement('div');
+            element.className = `action-log-item action-${action.type.toLowerCase()}`;
+            
+            const time = new Date(action.timestamp).toLocaleTimeString();
+            const emoji = getActionEmoji(action.type);
+            
+            let dataItems = [];
+            if (action.data.price) dataItems.push(`Price: ${formatPrice(action.data.price)}`);
+            if (action.data.priceChange) dataItems.push(`Change: ${action.data.priceChange.toFixed(2)}%`);
+            if (action.data.securityScore) dataItems.push(`Score: ${action.data.securityScore}`);
+            if (action.data.amount) dataItems.push(`Amount: ${action.data.amount.toFixed(4)} SOL`);
+            if (action.data.roi) dataItems.push(`ROI: ${action.data.roi.toFixed(2)}%`);
+            if (action.data.source) dataItems.push(`Source: ${action.data.source}`);
+
+            element.innerHTML = `
+                <div class="action-log-header">
+                    <div class="action-log-type" style="color: ${getActionColor(action.type)};">
+                        ${emoji} ${action.type}
+                    </div>
+                    <div class="action-log-time">${time}</div>
+                </div>
+                <div>
+                    <span class="action-log-token">${action.tokenSymbol}</span>
+                    ${action.tokenName ? `<span style="color: #999; font-size: 0.8rem;"> (${action.tokenName})</span>` : ''}
+                </div>
+                ${action.data.reason ? `<div class="action-log-reason">${action.data.reason}</div>` : ''}
+                ${dataItems.length > 0 ? `
+                    <div class="action-log-data">
+                        ${dataItems.map(item => `<span class="action-log-data-item">${item}</span>`).join('')}
+                    </div>
+                ` : ''}
+            `;
+
+            return element;
+        }
+
+        function getActionEmoji(type) {
+            switch (type) {
+                case 'DETECTED': return '🎯';
+                case 'ANALYZED': return '🔍';
+                case 'BUY': return '🟢';
+                case 'SELL': return '🔴';
+                case 'TRACK_START': return '📍';
+                case 'TRACK_END': return '📍';
+                case 'PRICE_UPDATE': return '📈';
+                case 'ALERT': return '🚨';
+                case 'ERROR': return '❌';
+                default: return '📝';
+            }
+        }
+
+        function getActionColor(type) {
+            switch (type) {
+                case 'DETECTED': return '#0088ff';
+                case 'ANALYZED': return '#9d4edd';
+                case 'BUY': return '#00ff88';
+                case 'SELL': return '#ff0066';
+                case 'TRACK_START': return '#ffaa00';
+                case 'TRACK_END': return '#666';
+                case 'PRICE_UPDATE': return '#00ccff';
+                case 'ALERT': return '#ff6600';
+                case 'ERROR': return '#ff0066';
+                default: return '#fff';
+            }
+        }
+
+        function updateActionLogStats(stats) {
+            window.actionLogStats = stats;
+            
+            const statsElement = document.getElementById('actionLogStats');
+            if (statsElement && stats) {
+                statsElement.textContent = `${stats.totalActions} actions logged • ${stats.recentActivityRate.toFixed(1)}/min rate`;
+            }
+        }
+
+        // Action log filter handler
+        document.addEventListener('DOMContentLoaded', () => {
+            const filterSelect = document.getElementById('actionLogFilter');
+            if (filterSelect) {
+                filterSelect.addEventListener('change', (e) => {
+                    window.actionLogFilter = e.target.value;
+                    updateActionLogDisplay();
+                });
+            }
+        });
+
+        // Enhanced price update handler with action logging
+        socket.on('priceUpdate', (data) => {
+            console.log('Price update:', data.token.symbol, data.newPrice);
+            
+            // Log significant price changes
+            if (Math.abs(data.changePercent || 0) >= 5) {
+                logTokenAction({
+                    type: 'PRICE_UPDATE',
+                    tokenAddress: data.token.address,
+                    tokenSymbol: data.token.symbol,
+                    data: {
+                        price: data.newPrice,
+                        priceChange: data.changePercent,
+                        reason: `Price ${data.changePercent > 0 ? 'increased' : 'decreased'} by ${Math.abs(data.changePercent).toFixed(2)}%`
+                    }
+                });
+            }
+            
+            updateTrackedTokensTable();
+        });
+
+        // Enhanced trade handler with action logging
+        socket.on('newTrade', (trade) => {
+            addTradeToFeed(trade);
+            
+            // Log the trade action
+            logTokenAction({
+                type: trade.type,
+                tokenAddress: trade.mint,
+                tokenSymbol: trade.symbol,
+                data: {
+                    amount: trade.amount,
+                    price: trade.price,
+                    reason: trade.reason || `${trade.type} order executed`
+                }
+            });
+            
+            // Update analyzed tokens data with trade action
+            if (window.analyzedTokensData) {
+                const tokenIndex = window.analyzedTokensData.findIndex(t => t.id === trade.mint);
+                if (tokenIndex !== -1) {
+                    window.analyzedTokensData[tokenIndex].action = trade.type;
+                    window.analyzedTokensData[tokenIndex].reason = trade.reason;
+                    updateAnalyzedTokensTable(window.analyzedTokensData);
+                }
+            }
         });
 
         // Function to show sync notification

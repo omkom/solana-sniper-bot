@@ -16,6 +16,7 @@ import { SimulationEngine } from '../trading/simulation-engine';
 import { ExecutionEngine } from '../trading/execution-engine';
 import { ExitStrategy } from '../trading/exit-strategy';
 import { WebSocketServer } from '../monitoring/websocket-server';
+import { TokenActionLogger } from '../monitoring/token-action-logger';
 import { PerformanceProfiler } from '../utils/performance-profiler';
 import { RateLimiter } from '../utils/rate-limiter';
 import { UnifiedTokenInfo, DetectionConfig, TradingStrategy, ExitStrategyConfig, SecurityInfo } from '../types/unified';
@@ -71,6 +72,7 @@ export class Orchestrator extends EventEmitter {
   private executionEngine!: ExecutionEngine;
   private exitStrategy!: ExitStrategy;
   private webSocketServer!: WebSocketServer;
+  private actionLogger!: TokenActionLogger;
   
   // Utilities
   private performanceProfiler!: PerformanceProfiler;
@@ -246,6 +248,7 @@ export class Orchestrator extends EventEmitter {
     
     // Initialize monitoring
     this.webSocketServer = new WebSocketServer(3001);
+    this.actionLogger = new TokenActionLogger(this.webSocketServer);
   }
 
   private setupEventHandlers(): void {
@@ -327,6 +330,7 @@ export class Orchestrator extends EventEmitter {
     
     // Start monitoring
     startPromises.push(this.webSocketServer.start());
+    this.actionLogger.start();
     
     // Start utilities
     this.performanceProfiler.start();
@@ -382,6 +386,7 @@ export class Orchestrator extends EventEmitter {
     this.rateLimiter.stop();
     
     // Stop monitoring
+    this.actionLogger.stop();
     stopPromises.push(this.webSocketServer.stop());
     
     // Stop trading systems
@@ -411,6 +416,16 @@ export class Orchestrator extends EventEmitter {
       for (const token of tokens) {
         this.metrics.tokensDetected++;
         
+        // Log token detection action
+        this.actionLogger.logTokenDetected(token.address, token.symbol, {
+          name: token.name,
+          price: token.metadata?.priceUsd,
+          volume: token.metadata?.volume24h,
+          liquidity: token.liquidity?.usd,
+          source: token.source,
+          dex: token.metadata?.dex
+        });
+        
         // Emit real-time event
         this.webSocketServer.emit('token:detected', {
           ...token,
@@ -425,6 +440,13 @@ export class Orchestrator extends EventEmitter {
       }
     } catch (error) {
       logger.error('Error handling token detection:', error);
+      
+      // Log error for each token
+      for (const token of tokens) {
+        this.actionLogger.logError(token.address, token.symbol, error.message, {
+          name: token.name
+        });
+      }
     } finally {
       const latency = processingStart();
       this.updateAverageLatency(latency);
@@ -455,6 +477,14 @@ export class Orchestrator extends EventEmitter {
   private async handleSecurityAnalysis(result: { token: UnifiedTokenInfo; analysis: SecurityInfo }): Promise<void> {
     this.metrics.tokensAnalyzed++;
     
+    // Log token analysis action
+    this.actionLogger.logTokenAnalyzed(result.token.address, result.token.symbol, {
+      name: result.token.name,
+      securityScore: result.analysis.score,
+      price: result.token.metadata?.priceUsd,
+      reason: `Security analysis completed - Score: ${result.analysis.score}/100 (${result.analysis.recommendation})`
+    });
+    
     // Emit security analysis (info only, no filtering)
     this.webSocketServer.emit('token:analyzed', {
       ...result.token,
@@ -473,6 +503,14 @@ export class Orchestrator extends EventEmitter {
   private async handlePositionOpened(position: any): Promise<void> {
     this.metrics.positionsOpened++;
     
+    // Log buy action
+    this.actionLogger.logTradeBuy(position.token.address, position.token.symbol, {
+      name: position.token.name,
+      amount: position.amount,
+      price: position.entryPrice,
+      reason: `Position opened with ${position.strategy} strategy`
+    });
+    
     logger.info(`📈 Position opened: ${position.token.symbol}`, {
       size: position.amount,
       price: position.entryPrice,
@@ -485,6 +523,15 @@ export class Orchestrator extends EventEmitter {
   private async handlePositionClosed(position: any): Promise<void> {
     this.metrics.positionsClosed++;
     this.metrics.totalProfit += position.pnl || 0;
+    
+    // Log sell action
+    this.actionLogger.logTradeSell(position.token.address, position.token.symbol, {
+      name: position.token.name,
+      amount: position.amount,
+      price: position.exitPrice,
+      roi: position.roi,
+      reason: `Position closed: ${position.exitReason}`
+    });
     
     logger.info(`📉 Position closed: ${position.token.symbol}`, {
       pnl: position.pnl,
@@ -520,6 +567,13 @@ export class Orchestrator extends EventEmitter {
   }
 
   private async handleRugPullDetected(alert: any): Promise<void> {
+    // Log rugpull alert
+    this.actionLogger.logAlert(alert.token.address, alert.token.symbol, {
+      name: alert.token.name,
+      reason: `RUG PULL DETECTED - Confidence: ${alert.confidence}%`,
+      severity: 'CRITICAL'
+    });
+    
     logger.warn(`🚨 RUG PULL DETECTED: ${alert.token.symbol}`, {
       indicators: alert.indicators,
       confidence: alert.confidence
