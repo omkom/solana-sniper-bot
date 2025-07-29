@@ -61,6 +61,16 @@ kill_app() {
         rm -f "$PID_FILE"
     fi
     
+    # Kill tail process if running
+    if [ -f "$REPO_DIR/logs/tail.pid" ]; then
+        tail_pid=$(cat "$REPO_DIR/logs/tail.pid")
+        if kill -0 "$tail_pid" 2>/dev/null; then
+            print_status "Stopping log tail process (PID: $tail_pid)..."
+            kill -TERM "$tail_pid" 2>/dev/null || true
+        fi
+        rm -f "$REPO_DIR/logs/tail.pid"
+    fi
+    
     # Kill any processes on port 3000
     lsof -ti:$PORT | xargs kill -9 2>/dev/null || true
     
@@ -91,20 +101,32 @@ build_and_start() {
         return 1
     fi
     
-    # Start the application
-    print_status "Starting application on port $PORT..."
-    nohup npm start > "$REPO_DIR/logs/app.log" 2>&1 &
+    # Start the application with verbose logging
+    print_status "Starting application on port $PORT with verbose logging..."
+    
+    # Start the app and tail logs in parallel for verbose output
+    npm start > "$REPO_DIR/logs/app.log" 2>&1 &
     app_pid=$!
     echo "$app_pid" > "$PID_FILE"
+    
+    # Start tailing logs for verbose output
+    tail -f "$REPO_DIR/logs/app.log" &
+    tail_pid=$!
+    echo "$tail_pid" > "$REPO_DIR/logs/tail.pid"
     
     # Wait a moment and check if it started successfully
     sleep 5
     if kill -0 "$app_pid" 2>/dev/null; then
         print_success "Application started successfully (PID: $app_pid)"
         print_success "Dashboard available at: http://localhost:$PORT"
+        print_success "Verbose logging enabled - you'll see real-time app logs below"
+        echo ""
+        echo "========== REAL-TIME APPLICATION LOGS =========="
         return 0
     else
         print_error "Application failed to start"
+        # Stop the tail process if app failed
+        kill "$tail_pid" 2>/dev/null
         return 1
     fi
 }
