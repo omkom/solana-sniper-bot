@@ -26,7 +26,7 @@
     "sync-status": "./scripts/status.sh"
   },
   "dependencies": {
-    "@solana/spl-token": "^0.4.0",
+    "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.91.0",
     "axios": "^1.6.0",
     "dotenv": "^16.4.0",
