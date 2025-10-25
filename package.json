@@ -34,7 +34,7 @@
     "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
     "socket.io": "^4.7.4",
-    "winston": "^3.11.0",
+    "winston": "^3.18.3",
     "ws": "^8.18.3"
   },
   "devDependencies": {
